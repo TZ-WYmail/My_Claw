@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import CATEGORY_DIRS, DOWNLOADS_DIR
+from services.utils import human_size
 
 
 def search_files(keyword: str, category: str) -> dict:
@@ -48,7 +49,7 @@ def search_files(keyword: str, category: str) -> dict:
                 "filename": file_path.name,
                 "category": cat_name,
                 "path": str(file_path),
-                "size": _human_size(stat.st_size),
+                "size": human_size(stat.st_size),
                 "downloaded_at": datetime.fromtimestamp(stat.st_ctime).strftime("%Y-%m-%dT%H:%M:%S"),
             })
 
@@ -74,9 +75,4 @@ def _dir_to_category(path: Path) -> str:
     return "misc"
 
 
-def _human_size(size_bytes: int) -> str:
-    for unit in ["B", "KB", "MB", "GB"]:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+# human_size 已移至 services.utils

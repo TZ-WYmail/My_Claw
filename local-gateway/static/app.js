@@ -216,8 +216,6 @@ async function loadWeeklyPlan(offset) {
     if (offset !== undefined) calWeekOffset = offset;
 
     try {
-        const res = await apiPost("/api/task", { action: "get_weekly_plan" });
-
         // 计算当前显示周的日期范围
         const now = new Date();
         const monday = new Date(now);
@@ -226,6 +224,17 @@ async function loadWeeklyPlan(offset) {
 
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 0);
+
+        const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,"0")}-${String(monday.getDate()).padStart(2,"0")}T00:00:00`;
+        const sundayStr = `${sunday.getFullYear()}-${String(sunday.getMonth()+1).padStart(2,"0")}-${String(sunday.getDate()).padStart(2,"0")}T23:59:59`;
+
+        // 传递日期范围给后端
+        const res = await apiPost("/api/task", {
+            action: "get_weekly_plan",
+            due_time: mondayStr,
+            task_name: sundayStr,
+        });
 
         // 更新标签
         const label = document.getElementById("cal-week-label");
@@ -569,10 +578,14 @@ function renderPagination(containerId, current, totalPages, onPageFn) {
     const el = document.getElementById(containerId);
     if (!el || totalPages <= 1) { if (el) el.innerHTML = ""; return; }
 
+    // 存回调到全局 map
+    const fnKey = `pgFn_${containerId}`;
+    window[fnKey] = onPageFn;
+
     let html = "";
-    html += `<button class="btn btn-sm" ${current<=1?"disabled":""} onclick="(${onPageFn})(${current-1})">上一页</button>`;
+    html += `<button class="btn btn-sm" ${current<=1?"disabled":""} onclick="window['${fnKey}'](${current-1})">上一页</button>`;
     html += `<span class="page-info">${current} / ${totalPages}</span>`;
-    html += `<button class="btn btn-sm" ${current>=totalPages?"disabled":""} onclick="(${onPageFn})(${current+1})">下一页</button>`;
+    html += `<button class="btn btn-sm" ${current>=totalPages?"disabled":""} onclick="window['${fnKey}'](${current+1})">下一页</button>`;
     el.innerHTML = html;
 }
 

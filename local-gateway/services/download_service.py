@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import logging
 import re
 import uuid
@@ -52,8 +53,20 @@ def validate_url(url: str) -> tuple[bool, str]:
 
     # 检查危险域名模式
     hostname = parsed.hostname.lower()
-    if hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
         return False, f"不允许下载本地地址: {hostname}"
+
+    # RFC1918 私有 IP 检查
+    try:
+        import socket
+        resolved_ips = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for _, _, _, _, addr in resolved_ips:
+            ip_str = addr[0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False, f"不允许下载内网地址: {hostname} -> {ip_str}"
+    except (socket.gaierror, ValueError):
+        pass  # DNS 解析失败时放行，后续 HTTP 请求会自然失败
 
     return True, "OK"
 
@@ -203,7 +216,8 @@ async def _sync_download(url: str, save_path: Path, category: str) -> dict:
         # 安全扫描（基本实现）
         scan_result = _basic_security_scan(save_path)
 
-        file_size = _human_size(save_path.stat().st_size)
+        from services.utils import human_size
+        file_size = human_size(save_path.stat().st_size)
 
         # 记录下载历史
         await add_download_record(
@@ -270,7 +284,7 @@ async def _async_download(job_id: str, url: str, save_path: Path):
         _jobs[job_id].update({
             "status": "completed",
             "file_path": str(save_path),
-            "file_size": _human_size(save_path.stat().st_size),
+            "file_size": human_size(save_path.stat().st_size),
             "security_scan": scan_result,
             "duration_seconds": 0,  # 由调用者补充
             "message": "下载完成",
@@ -319,13 +333,7 @@ def _basic_security_scan(file_path: Path) -> str:
 # 辅助函数
 # ============================================================
 
-def _human_size(size_bytes: int) -> str:
-    """字节 → 人类可读大小"""
-    for unit in ["B", "KB", "MB", "GB"]:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+# human_size 已移至 services.utils
 
 
 def datetime_href(url: str) -> str:

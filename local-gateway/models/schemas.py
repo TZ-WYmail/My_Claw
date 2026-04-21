@@ -120,6 +120,8 @@ class BatchTaskResponse(BaseModel):
     results: Optional[list[dict]] = None
     analyzed: Optional[list[dict]] = None
     timeline: Optional[list[str]] = None
+    daily_plan: Optional[dict] = None
+    daily_timeline: Optional[list[str]] = None
     by_date: Optional[dict] = None
     message: Optional[str] = None
 

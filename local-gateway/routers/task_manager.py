@@ -47,7 +47,10 @@ async def handle_task(request: TaskManagerRequest):
         result = await task_service.complete_task(request.task_id)
 
     elif request.action.value == "get_weekly_plan":
-        result = await task_service.get_weekly_plan()
+        # 支持传入日期范围（前端日历导航用）
+        monday = request.due_time or ""
+        sunday = request.task_name or ""  # 复用字段传 sunday
+        result = await task_service.get_weekly_plan(monday, sunday)
 
     else:
         result = {"status": "error", "message": f"未知操作: {request.action}"}

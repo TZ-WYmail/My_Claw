@@ -12,6 +12,7 @@ from typing import Optional
 import aiosqlite
 
 from config import DB_PATH
+from services.utils import human_size
 
 
 # ============================================================
@@ -118,14 +119,17 @@ async def complete_task(task_id: str) -> dict:
     return {"status": "success", "message": f"任务 {task_id} 已完成"}
 
 
-async def get_weekly_plan() -> dict:
-    """获取当前周的任务列表"""
-    now = datetime.now()
-    # 计算本周一和本周日
-    monday = now - timedelta(days=now.weekday())
-    sunday = monday + timedelta(days=6)
-    monday_str = monday.strftime("%Y-%m-%dT00:00:00")
-    sunday_str = sunday.strftime("%Y-%m-%dT23:59:59")
+async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
+    """获取指定周的任务列表。不传参则取当前周。"""
+    if monday_iso and sunday_iso:
+        monday_str = monday_iso
+        sunday_str = sunday_iso
+    else:
+        now = datetime.now()
+        monday = now - timedelta(days=now.weekday())
+        sunday = monday + timedelta(days=6)
+        monday_str = monday.strftime("%Y-%m-%dT00:00:00")
+        sunday_str = sunday.strftime("%Y-%m-%dT23:59:59")
 
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
@@ -247,6 +251,19 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     # 按日期分组
     by_date: dict[str, list] = {}
 
+    # 预估工时映射（基于任务名称关键词）
+    def _estimate_hours(name: str) -> float:
+        name_lower = name.lower()
+        if any(k in name_lower for k in ["学习", "阅读", "整理", "review", "内容整理"]):
+            return 4.0
+        if any(k in name_lower for k in ["定稿", "报告", "汇报", "演讲", "答辩"]):
+            return 8.0
+        if any(k in name_lower for k in ["提交", "补全", "准备", "证明"]):
+            return 2.0
+        if any(k in name_lower for k in ["推进", "调优"]):
+            return 6.0
+        return 4.0  # 默认 4 小时
+
     for t in raw_tasks:
         task_name = t.get("task_name", "").strip()
         due_time = t.get("due_time", "").strip()
@@ -281,23 +298,108 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
             "time_valid": bool(iso_time),
             "conflict": conflict,
             "overdue": overdue,
+            "estimated_hours": _estimate_hours(task_name) if iso_time else 0,
         })
+
+    # 生成每日分布规划（将任务按时间线分配到每天）
+    daily_plan = _generate_daily_plan(analyzed)
 
     # 生成时间线摘要
     timeline = []
     for date_key in sorted(by_date.keys()):
         names = by_date[date_key]
         weekday = _date_to_weekday(date_key)
-        timeline.append(f"📅 {date_key} ({weekday}) — {len(names)} 项: {', '.join(names)}")
+        timeline.append(f"📅 {date_key} ({weekday}) — {len(names)} 项截止: {', '.join(names)}")
+
+    # 生成每日工作分布摘要
+    daily_timeline = []
+    for day in sorted(daily_plan.keys()):
+        info = daily_plan[day]
+        weekday = _date_to_weekday(day)
+        tasks_str = "; ".join([f"{t['task_name']}({t['hours']}h)" for t in info["tasks"]])
+        daily_timeline.append(f"📅 {day} ({weekday}) — {info['total_hours']}h: {tasks_str}")
 
     return {
         "status": "success",
         "total": len(raw_tasks),
         "analyzed": analyzed,
         "timeline": timeline,
+        "daily_plan": daily_plan,
+        "daily_timeline": daily_timeline,
         "by_date": {k: v for k, v in sorted(by_date.items())},
-        "message": f"解析完成: {len(analyzed)} 项任务, 跨 {len(by_date)} 天",
+        "message": f"解析完成: {len(analyzed)} 项任务, 跨 {len(by_date)} 个截止日, 分布到 {len(daily_plan)} 个工作日",
     }
+
+
+def _generate_daily_plan(analyzed: list[dict]) -> dict[str, dict]:
+    """
+    根据任务截止日期和预估工时，自动规划每日工作分布。
+    规则：
+    1. 大任务（≥6h）提前 3 天开始拆分
+    2. 中任务（4h）提前 2 天开始
+    3. 小任务（≤2h）提前 1 天
+    4. 每天总工作量不超过 6 小时
+    5. 按截止日期排序，越紧急越优先安排
+    """
+    # 收集有有效时间的任务
+    valid = [a for a in analyzed if a["time_valid"]]
+    if not valid:
+        return {}
+
+    # 按截止日期排序
+    valid.sort(key=lambda x: x["due_time"][:10])
+
+    daily: dict[str, list] = {}  # date -> [{task_name, hours}]
+
+    for task in valid:
+        due_date_str = task["due_time"][:10]
+        try:
+            due_date = datetime.strptime(due_date_str, "%Y-%m-%d")
+        except ValueError:
+            continue
+
+        est = task.get("estimated_hours", 4.0)
+        name = task["task_name"]
+
+        # 确定提前天数
+        if est >= 6:
+            lead_days = 3
+        elif est >= 4:
+            lead_days = 2
+        else:
+            lead_days = 1
+
+        # 将工时分配到多天
+        hours_per_day = round(est / lead_days, 1)
+        hours_per_day = max(hours_per_day, 0.5)
+
+        start_date = due_date - timedelta(days=lead_days)
+        for d in range(lead_days):
+            work_date = start_date + timedelta(days=d)
+            date_str = work_date.strftime("%Y-%m-%d")
+            if date_str not in daily:
+                daily[date_str] = []
+            daily[date_str].append({
+                "task_name": name,
+                "hours": hours_per_day if d < lead_days - 1 else round(est - hours_per_day * (lead_days - 1), 1),
+                "due_date": due_date_str,
+                "progress": f"第{d+1}/{lead_days}天",
+            })
+
+    # 按日期汇总
+    result = {}
+    for date_str in sorted(daily.keys()):
+        tasks = daily[date_str]
+        total_h = round(sum(t["hours"] for t in tasks), 1)
+        weekday = _date_to_weekday(date_str)
+        result[date_str] = {
+            "weekday": weekday,
+            "tasks": tasks,
+            "total_hours": total_h,
+            "overload": total_h > 6,
+        }
+
+    return result
 
 
 def _normalize_time(time_str: str) -> str:
@@ -669,7 +771,7 @@ async def get_dashboard_stats() -> dict:
         "tasks": {"pending": tasks_pending, "completed": tasks_completed},
         "downloads": {"total": downloads_total, "completed": downloads_completed},
         "storage": {
-            "total_size": _human_size(total_size),
+            "total_size": human_size(total_size),
             "total_size_bytes": total_size,
             "file_count": file_count,
         },
@@ -678,9 +780,4 @@ async def get_dashboard_stats() -> dict:
     }
 
 
-def _human_size(size_bytes: int) -> str:
-    for unit in ["B", "KB", "MB", "GB"]:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+# human_size 已移至 services.utils

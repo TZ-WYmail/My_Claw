@@ -70,13 +70,25 @@ async def execute_in_sandbox(
     container_name = f"lcc_{tool_name}_{uuid.uuid4().hex[:8]}"
     volumes: dict[str, dict] = {}
 
-    # 挂载输入文件
+    # 挂载输入文件（仅允许下载目录和临时目录，只读）
+    _allowed_mount_prefixes = [
+        str(DOWNLOADS_DIR),
+        "/tmp",
+        str(Path.cwd()),
+    ]
+
     if input_files:
         for host_path in input_files:
-            p = Path(host_path)
-            if p.exists():
-                volumes[str(p.parent)] = {"bind": f"{SANDBOX_WORKDIR}", "mode": "rw"}
-                break  # 只挂载第一个父目录即可
+            p = Path(host_path).resolve()
+            if not p.exists():
+                continue
+            # 安全检查：仅允许白名单路径
+            allowed = any(str(p).startswith(prefix) for prefix in _allowed_mount_prefixes)
+            if not allowed:
+                logger.warning(f"Sandbox blocked mount: {p} (not in allowed prefixes)")
+                continue
+            volumes[str(p.parent)] = {"bind": f"{SANDBOX_WORKDIR}", "mode": "ro"}
+            break  # 只挂载第一个父目录即可
 
     # 5. 创建并启动容器
     try:
