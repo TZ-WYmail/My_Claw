@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalCommandCenter 指挥中心</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+    <!-- 顶部导航 -->
+    <header class="header">
+        <div class="header-left">
+            <h1>🧠 LocalCommandCenter</h1>
+            <span class="version">v3.0.0</span>
+        </div>
+        <div class="header-right">
+            <input id="global-search" type="text" placeholder="🔍 全局搜索 (Ctrl+K)" class="global-search">
+            <button id="btn-theme" class="btn-icon" title="切换主题">🌙</button>
+            <span id="status-dot" class="status-dot connecting"></span>
+            <span id="status-text">连接中...</span>
+        </div>
+    </header>
+
+    <!-- 标签页导航 -->
+    <nav class="tabs">
+        <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
+        <button class="tab" data-tab="tasks">📋 任务管理</button>
+        <button class="tab" data-tab="download">📥 下载</button>
+        <button class="tab" data-tab="search">🔍 文件检索</button>
+        <button class="tab" data-tab="sandbox">🔧 沙盒</button>
+        <button class="tab" data-tab="logs">📜 日志</button>
+    </nav>
+
+    <!-- ==================== 仪表盘 ==================== -->
+    <section id="panel-dashboard" class="panel active">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📋</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="stat-tasks-pending">-</div>
+                    <div class="stat-label">待执行任务</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="stat-tasks-completed">-</div>
+                    <div class="stat-label">已完成任务</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📥</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="stat-downloads">-</div>
+                    <div class="stat-label">下载文件</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="stat-storage">-</div>
+                    <div class="stat-label">磁盘占用</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>📥 最近下载</h3>
+                <div id="dash-recent-downloads" class="activity-list">
+                    <div class="empty-state">暂无下载记录</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📜 最近操作</h3>
+                <div id="dash-recent-logs" class="activity-list">
+                    <div class="empty-state">暂无操作记录</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 任务管理 ==================== -->
+    <section id="panel-tasks" class="panel">
+        <div class="panel-header">
+            <h2>任务管理</h2>
+            <div class="header-actions">
+                <input id="task-search" type="text" placeholder="搜索任务..." class="search-sm">
+                <select id="task-status-filter" class="filter-sm">
+                    <option value="active">进行中</option>
+                    <option value="pending">待执行</option>
+                    <option value="completed">已完成</option>
+                    <option value="all">全部</option>
+                </select>
+                <button id="btn-add-task-modal" class="btn btn-primary btn-sm">+ 新建任务</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="tab-bar">
+                <button class="inner-tab active" data-inner="weekly">本周计划</button>
+                <button class="inner-tab" data-inner="all">全部任务</button>
+            </div>
+
+            <!-- 本周计划 - 带时间纵轴的周日历 -->
+            <div id="inner-weekly" class="inner-panel active">
+                <div class="calendar-header">
+                    <div class="calendar-week-label" id="cal-week-label">本周</div>
+                    <div class="calendar-nav">
+                        <button class="btn btn-sm" id="cal-prev" title="上一周">◀</button>
+                        <button class="btn btn-sm" id="cal-today" title="回到本周">今天</button>
+                        <button class="btn btn-sm" id="cal-next" title="下一周">▶</button>
+                    </div>
+                </div>
+                <div class="week-calendar" id="week-calendar">
+                    <!-- 由 JS 动态生成：左侧时间轴 + 7天列 -->
+                </div>
+            </div>
+
+            <!-- 全部任务 -->
+            <div id="inner-all" class="inner-panel">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>序号</th><th>任务名称</th><th>截止时间</th><th>周期</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+                    </thead>
+                    <tbody id="all-task-tbody">
+                        <tr><td colspan="7" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div id="task-pagination" class="pagination"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 下载 ==================== -->
+    <section id="panel-download" class="panel">
+        <div class="panel-header">
+            <h2>下载中心</h2>
+        </div>
+
+        <div class="card">
+            <div class="tab-bar">
+                <button class="inner-tab active" data-inner="dl-new">新建下载</button>
+                <button class="inner-tab" data-inner="dl-history">下载历史</button>
+            </div>
+
+            <!-- 新建下载 -->
+            <div id="inner-dl-new" class="inner-panel active">
+                <div class="form-grid">
+                    <div class="form-group span-2">
+                        <label>下载 URL</label>
+                        <input id="dl-url" type="url" placeholder="https://arxiv.org/pdf/2501.12345.pdf">
+                    </div>
+                    <div class="form-group">
+                        <label>分类</label>
+                        <select id="dl-category">
+                            <option value="paper">论文 paper</option>
+                            <option value="video">视频 video</option>
+                            <option value="code">代码 code</option>
+                            <option value="misc">其他 misc</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>文件名（可选）</label>
+                        <input id="dl-filename" type="text" placeholder="自动生成">
+                    </div>
+                    <div class="form-group form-action">
+                        <button id="btn-download" class="btn btn-primary">开始下载</button>
+                    </div>
+                </div>
+                <div id="download-result" class="result-box" style="display:none">
+                    <pre id="download-output"></pre>
+                </div>
+            </div>
+
+            <!-- 下载历史 -->
+            <div id="inner-dl-history" class="inner-panel">
+                <div class="filter-bar">
+                    <select id="dl-history-cat" class="filter-sm">
+                        <option value="">全部分类</option>
+                        <option value="paper">论文</option>
+                        <option value="video">视频</option>
+                        <option value="code">代码</option>
+                        <option value="misc">其他</option>
+                    </select>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>#</th><th>文件名</th><th>分类</th><th>大小</th><th>安全</th><th>状态</th><th>时间</th><th>URL</th></tr>
+                    </thead>
+                    <tbody id="dl-history-tbody">
+                        <tr><td colspan="8" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div id="dl-history-pagination" class="pagination"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 文件检索 ==================== -->
+    <section id="panel-search" class="panel">
+        <div class="panel-header"><h2>文件检索</h2></div>
+        <div class="card">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>搜索关键词</label>
+                    <input id="search-keyword" type="text" placeholder="留空列出全部">
+                </div>
+                <div class="form-group">
+                    <label>分类</label>
+                    <select id="search-category">
+                        <option value="all">全部</option>
+                        <option value="paper">论文</option>
+                        <option value="video">视频</option>
+                        <option value="code">代码</option>
+                        <option value="misc">其他</option>
+                    </select>
+                </div>
+                <div class="form-group form-action">
+                    <button id="btn-search" class="btn btn-primary">搜索</button>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>搜索结果 <span id="search-count" class="count-badge"></span></h3>
+            <table class="data-table">
+                <thead><tr><th>序号</th><th>文件名</th><th>分类</th><th>大小</th><th>下载时间</th><th>路径</th></tr></thead>
+                <tbody id="search-tbody"><tr><td colspan="6" class="empty">输入关键词后点击搜索</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ==================== 沙盒 ==================== -->
+    <section id="panel-sandbox" class="panel">
+        <div class="panel-header"><h2>沙盒执行</h2></div>
+        <div class="card">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>运行环境</label>
+                    <select id="sb-tool">
+                        <option value="python">Python 3.11</option>
+                        <option value="node">Node.js 20</option>
+                        <option value="ffmpeg">FFmpeg</option>
+                        <option value="pandoc">Pandoc</option>
+                    </select>
+                </div>
+                <div class="form-group span-3">
+                    <label>执行命令</label>
+                    <input id="sb-cmd" type="text" placeholder="python /workspace/main.py">
+                </div>
+            </div>
+            <div class="form-grid" style="margin-top:12px">
+                <div class="form-group span-2">
+                    <label>前置命令（每行一条，可选）</label>
+                    <textarea id="sb-setup" rows="3" placeholder="apt-get update && apt-get install -y espeak
+pip install pymupdf gTTS"></textarea>
+                </div>
+                <div class="form-group span-2">
+                    <label>动态写入文件（JSON格式，可选）</label>
+                    <textarea id="sb-files" rows="3" placeholder='{"main.py": "print(\"hello\")"}'></textarea>
+                </div>
+            </div>
+            <div style="margin-top:12px">
+                <button id="btn-sandbox" class="btn btn-primary">执行</button>
+                <button id="btn-job-status" class="btn btn-sm" style="margin-left:8px">查询异步任务</button>
+                <input id="job-id" type="text" placeholder="Job ID" class="input-sm" style="margin-left:8px">
+            </div>
+        </div>
+        <div id="sandbox-result" class="card result-card" style="display:none">
+            <h3>执行结果</h3>
+            <pre id="sandbox-output" class="output-box"></pre>
+        </div>
+    </section>
+
+    <!-- ==================== 日志 ==================== -->
+    <section id="panel-logs" class="panel">
+        <div class="panel-header">
+            <h2>操作日志</h2>
+            <div class="header-actions">
+                <select id="log-operation-filter" class="filter-sm">
+                    <option value="">全部操作</option>
+                    <option value="download">下载</option>
+                    <option value="download_async">异步下载</option>
+                    <option value="task_add">添加任务</option>
+                    <option value="task_complete">完成任务</option>
+                    <option value="task_delete">删除任务</option>
+                    <option value="sandbox">沙盒执行</option>
+                </select>
+                <button id="btn-refresh-logs" class="btn btn-sm">刷新</button>
+            </div>
+        </div>
+        <div class="card">
+            <table class="data-table">
+                <thead><tr><th>#</th><th>操作</th><th>端点</th><th>参数</th><th>结果</th><th>详情</th><th>时间</th></tr></thead>
+                <tbody id="logs-tbody"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
+            </table>
+            <div id="logs-pagination" class="pagination"></div>
+        </div>
+    </section>
+</div>
+
+<!-- 新建任务弹窗 -->
+<div id="modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>新建任务</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>任务名称 *</label>
+                <input id="modal-task-name" type="text" placeholder="如：复盘本周工作">
+            </div>
+            <div class="form-group">
+                <label>截止时间 *</label>
+                <input id="modal-task-due" type="datetime-local">
+            </div>
+            <div class="form-group">
+                <label>重复周期</label>
+                <select id="modal-task-recurrence">
+                    <option value="once">仅一次</option>
+                    <option value="daily">每天</option>
+                    <option value="weekly">每周</option>
+                    <option value="monthly">每月</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-sm" onclick="closeModal()">取消</button>
+            <button id="btn-modal-add-task" class="btn btn-primary">确认添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- 全局搜索结果下拉 -->
+<div id="search-dropdown" class="search-dropdown" style="display:none"></div>
+
+<!-- AI 对话悬浮窗 -->
+<div id="ai-fab" class="ai-fab" title="AI 助手 (Ctrl+J)">
+    <span class="ai-fab-icon">🤖</span>
+</div>
+<div id="ai-panel" class="ai-panel" style="display:none">
+    <div class="ai-panel-header">
+        <span>🤖 AI 助手</span>
+        <div class="ai-panel-actions">
+            <button id="ai-settings-btn" class="ai-panel-btn" title="AI 配置">⚙️</button>
+            <button id="ai-clear" class="ai-panel-btn" title="清除对话">🗑️</button>
+            <button id="ai-close" class="ai-panel-btn" title="关闭">✕</button>
+        </div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="ai-settings" class="ai-settings" style="display:none">
+        <div class="ai-settings-title">⚙️ AI 模型配置</div>
+
+        <div class="ai-setting-group">
+            <label>API 地址</label>
+            <input id="ai-api-base" type="text" class="ai-setting-input" placeholder="https://open.bigmodel.cn/api/paas/v4">
+        </div>
+
+        <div class="ai-setting-group">
+            <label>API Key</label>
+            <div class="ai-key-input-wrap">
+                <input id="ai-api-key" type="password" placeholder="输入 API Key">
+                <button id="ai-toggle-key" class="ai-panel-btn" title="显示/隐藏">👁️</button>
+            </div>
+        </div>
+
+        <div class="ai-setting-group">
+            <label>模型</label>
+            <select id="ai-model-select" class="ai-setting-select">
+                <option value="">加载中...</option>
+            </select>
+        </div>
+
+        <div class="ai-setting-group" id="ai-custom-model-group" style="display:none">
+            <label>自定义模型名称</label>
+            <input id="ai-custom-model" type="text" placeholder="如: glm-4-flash">
+        </div>
+
+        <div class="ai-setting-actions">
+            <button id="ai-test-btn" class="btn btn-sm">🔍 测试连接</button>
+            <button id="ai-save-btn" class="btn btn-primary btn-sm">💾 保存配置</button>
+        </div>
+        <div id="ai-test-result" class="ai-test-result" style="display:none"></div>
+    </div>
+
+    <!-- 对话区域 -->
+    <div id="ai-messages" class="ai-messages">
+        <div class="ai-msg ai-msg-system">
+            👋 你好！我是 AI 助手，可以帮你管理任务、下载文件、搜索文件和执行代码。
+            直接用自然语言告诉我你想做什么。
+        </div>
+    </div>
+    <div class="ai-input-area">
+        <textarea id="ai-input" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
+        <button id="ai-send" class="btn btn-primary btn-sm">发送</button>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
