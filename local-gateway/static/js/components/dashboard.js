@@ -1,6 +1,6 @@
 /* local-gateway/static/js/components/dashboard.js */
 import { apiGet, toast } from '../api.js';
-import { formatTime, formatTimeShort, escapeHtml, operationIcon } from '../utils.js';
+import { formatTime, formatTimeShort, operationIcon } from '../utils.js';
 
 document.addEventListener('alpine:init', () => {
   Alpine.data('dashboard', () => ({
@@ -11,8 +11,10 @@ document.addEventListener('alpine:init', () => {
     recentLogs: [],
 
     async init() {
-      if (Alpine.store('view').current !== 'dashboard') return;
-      await this.load();
+      this.$watch('$store.view.current', (val) => {
+        if (val === 'dashboard') this.load();
+      });
+      if (Alpine.store('view').current === 'dashboard') await this.load();
     },
 
     async load() {
@@ -38,7 +40,6 @@ document.addEventListener('alpine:init', () => {
 
     formatTime: formatTime,
     formatTimeShort: formatTimeShort,
-    escapeHtml: escapeHtml,
     operationIcon: operationIcon,
   }));
 });

@@ -108,8 +108,7 @@
     <div class="view-container">
       <!-- Views injected here by router -->
       <div id="view-dashboard" x-show="$store.view.isActive('dashboard')"
-           x-data="dashboard" x-transition.opacity.duration.250ms
-           @view-enter.window="$store.view.current === 'dashboard' && load()">
+           x-data="dashboard" x-transition.opacity.duration.250ms>
 
         <!-- Loading Skeleton -->
         <template x-if="loading">
