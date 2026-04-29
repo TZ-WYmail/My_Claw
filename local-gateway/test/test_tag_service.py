@@ -29,8 +29,9 @@ async def temp_db(monkeypatch):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_db_path = Path(temp_dir) / "test_tasks.db"
 
-        # 修改配置中的数据库路径
+        # 必须同时 patch config 和 tag_service 的 DB_PATH
         monkeypatch.setattr('config.DB_PATH', temp_db_path)
+        monkeypatch.setattr('services.tag_service.DB_PATH', temp_db_path)
 
         # 初始化数据库
         await init_tag_db()
