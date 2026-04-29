@@ -40,6 +40,11 @@ document.addEventListener('alpine:init', () => {
     current: window.location.hash.slice(1) || 'dashboard',
     sidebarCollapsed: false,
     previous: null,
+    viewNames: {
+      dashboard: '仪表盘', tasks: '任务', notes: '笔记', habits: '习惯',
+      calendar: '日历', 'ai-chat': 'AI 对话', workflows: '工作流',
+      sync: '同步', download: '下载', sandbox: '沙盒', settings: '设置',
+    },
 
     init() {
       window.addEventListener('hashchange', () => {
