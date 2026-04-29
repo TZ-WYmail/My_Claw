@@ -131,6 +131,13 @@ POST /api/search
 - Layer 3：最近 10 轮完整保留
 - 压缩后的摘要以 `role: system, content: "[历史摘要] ..."` 形式插入
 
+**上下文压缩实现**：将待压缩消息拼装为一次 AI API 调用：
+```
+System: 请将以下对话历史压缩为结构化摘要，保留：1)已完成的操作和结果 2)用户偏好和约束 3)未完成意图 4)重要中间数据(ID/路径等)
+Messages: [待压缩的20轮消息]
+```
+压缩结果替代原始消息存入 DB，标记 `is_compressed=1`。压缩本身消耗一次 API 调用，但节省后续每次请求的 token 开销。
+
 **对话恢复**：
 
 持久化存储：
@@ -192,13 +199,30 @@ CREATE TABLE IF NOT EXISTS chat_context_snapshots (
 | **Orchestrator** | 无直接工具，只路由 | 分析意图，分配任务，汇总结果 |
 | **Task Agent** | `local_task_manager`, `batch_task_manager` | 专注任务规划和日程管理 |
 | **Download Agent** | `local_safe_downloader`, `local_file_search` | 专注文件获取和检索 |
-| **Sandbox Agent** | `local_sandbox_executor`, `code_interpreter`, `shell_exec` | 专注代码执行和系统操作 |
+| **Sandbox Agent** | `local_sandbox_executor`, `code_interpreter`（执行型）, `shell_exec` | 专注代码执行和系统操作 |
 | **Research Agent** | `code_interpreter`（分析型），未来可扩展搜索 API | 专注信息收集和分析 |
 
+**code_interpreter 双归属规则**：Orchestrator 根据意图类型分配 — 用户明确要求"执行/运行代码"→ Sandbox Agent；用户要求"分析/计算/处理数据"→ Research Agent。同一轮对话中，同一 tool_call 只路由给一个 Agent。
+
 **调度流程**：
-- 简单请求 → 直接路由到单一 Agent
-- 复合请求 → 拆分为多个子任务，分配给不同 Agent（串行或并行）
-- 并行请求 → 多个 Agent 同时执行，结果汇总
+
+Orchestrator 接收用户消息后，先调用一次 LLM 做意图分类（轻量级，不消耗 tool calling 额度），输出：
+```json
+{
+  "intent_type": "simple | compound | parallel",
+  "agents": ["task_agent"],
+  "sub_tasks": [
+    {"agent": "task_agent", "message": "添加3个任务"},
+    {"agent": "download_agent", "message": "搜索论文文件"}
+  ]
+}
+```
+
+- 简单请求（单 agent）→ 直接路由到单一 Agent
+- 复合请求（多 agent 串行）→ 按顺序分配给不同 Agent，前一步结果作为后一步上下文
+- 并行请求（多 agent 并行）→ 多个 Agent 同时执行，结果汇总后由 Orchestrator 整合回复
+
+Orchestrator 本身不持有工具，只做路由和汇总。每个 Agent 独立维护自己的 Agentic Loop 和工具集。
 
 ### 3.3 流式调用
 
@@ -222,6 +246,13 @@ CREATE TABLE IF NOT EXISTS chat_context_snapshots (
 - 每个 Agent 在独立 asyncio Task 中执行，结果通过 Queue 传递给 SSE 流
 - 并行 Agent 结果交错推送，前端按 `agent` 字段区分
 - 非流式 `/api/chat` 保留兼容，内部复用相同逻辑但收集完再返回
+
+**流恢复机制**（confirmation_required 暂停后）：
+- 服务端在内存中保存待处理的 `pending_tool_call` 和当前 `conversation_id`
+- SSE 流发送 `confirmation_required` 事件后，不关闭连接，而是 `await confirmation_event.wait()`
+- 用户调用 `POST /api/chat/confirm` → 服务端 `confirmation_event.set()` → SSE 流恢复
+- 若超时未确认（默认 5 分钟），自动拒绝并发送 `assistant_chunk: "操作已超时取消"` + `done`
+- 前端断线重连：携带 `Last-Event-ID`，服务端从断点重发未确认事件
 
 ### 3.4 安全检查点
 
@@ -611,7 +642,19 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
     started_at    TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at  TEXT,
     error         TEXT,
-    FOREIGN KEY (workflow_id) REFERENCES workflows(workflow_id)
+    FOREIGN KEY (workflow_id) REFERENCES workflows(workflow_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS workflows (
+    workflow_id   TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    description   TEXT,
+    trigger       TEXT NOT NULL,          -- JSON: trigger 配置
+    steps         TEXT NOT NULL,          -- JSON: steps 定义
+    status        TEXT DEFAULT 'active',  -- active/disabled/deleted
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
 );
 ```
 
@@ -679,38 +722,41 @@ static/
 
 ### 7.3 组件接口规范
 
-每个组件导出 Alpine 组件定义：
+每个组件以 IIFE 注册到 Alpine 全局，HTML 中通过 `x-data="taskManager()"` 使用：
 
 ```javascript
-export default () => ({
-    tasks: [],
-    loading: false,
-    filter: 'active',
-    keyword: '',
-    page: 1,
+// components/task-manager.js
+document.addEventListener('alpine:init', () => {
+    Alpine.data('taskManager', () => ({
+        tasks: [],
+        loading: false,
+        filter: 'active',
+        keyword: '',
+        page: 1,
 
-    async init() {
-        await this.loadTasks();
-        this.$eventBus.on('task.created', () => this.loadTasks());
-    },
+        async init() {
+            await this.loadTasks();
+            this.$eventBus.on('task.created', () => this.loadTasks());
+        },
 
-    async loadTasks() {
-        this.loading = true;
-        const data = await api.get('/api/task/list', {
-            status_filter: this.filter,
-            keyword: this.keyword,
-            page: this.page
-        });
-        this.tasks = data.tasks;
-        this.loading = false;
-    },
+        async loadTasks() {
+            this.loading = true;
+            const data = await api.get('/api/task/list', {
+                status_filter: this.filter,
+                keyword: this.keyword,
+                page: this.page
+            });
+            this.tasks = data.tasks;
+            this.loading = false;
+        },
 
-    async completeTask(taskId) {
-        await api.post('/api/task/complete', { task_id: taskId });
-        this.$eventBus.emit('task.completed', { task_id: taskId });
-        await this.loadTasks();
-    }
-})
+        async completeTask(taskId) {
+            await api.post('/api/task/complete', { task_id: taskId });
+            this.$eventBus.emit('task.completed', { task_id: taskId });
+            await this.loadTasks();
+        }
+    }));
+});
 ```
 
 ### 7.4 通信机制
