@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+import aiosqlite
 import httpx
 
-from config import BASE_DIR
+from config import BASE_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +210,6 @@ async def sync_from_google_calendar(client_id: str = None, client_secret: str = 
             imported = []
 
             # 导入到本地日历
-            from services import task_service
-
             for event in events:
                 start = event.get("start", {})
                 end = event.get("end", {})
@@ -223,7 +223,7 @@ async def sync_from_google_calendar(client_id: str = None, client_secret: str = 
                     end_time = end.get("date", "") + "T23:59:59"
 
                 # 创建本地事件
-                result = await task_service.create_calendar_event(
+                result = await create_calendar_event(
                     title=event.get("summary", "无标题"),
                     description=event.get("description", ""),
                     start_time=start_time,
@@ -351,13 +351,11 @@ async def sync_from_outlook_calendar(client_id: str = None, client_secret: str =
             imported = []
 
             # 导入到本地
-            from services import task_service
-
             for event in events:
                 start_time = event.get("start", {}).get("dateTime", "")
                 end_time = event.get("end", {}).get("dateTime", "")
 
-                result = await task_service.create_calendar_event(
+                result = await create_calendar_event(
                     title=event.get("subject", "无标题"),
                     description=event.get("body", {}).get("content", ""),
                     start_time=start_time,
@@ -388,6 +386,211 @@ async def sync_from_outlook_calendar(client_id: str = None, client_secret: str =
             "status": "error",
             "message": f"同步失败: {e}",
         }
+
+
+# ============================================================
+# 日历事件表 Schema
+# ============================================================
+
+_calendar_schema = """
+-- 日历事件表（用于非任务类事件）
+CREATE TABLE IF NOT EXISTS calendar_events (
+    event_id     TEXT PRIMARY KEY,
+    title        TEXT NOT NULL,
+    description  TEXT,
+    start_time   TEXT NOT NULL,
+    end_time     TEXT NOT NULL,
+    event_type   TEXT DEFAULT 'personal',  -- personal/work/meeting/deadline
+    color        TEXT DEFAULT '#3498db',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+
+async def init_calendar_db():
+    """初始化日历相关表结构"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.executescript(_calendar_schema)
+        await db.commit()
+
+
+# ============================================================
+# 日历事件管理
+# ============================================================
+
+async def create_calendar_event(
+    title: str,
+    start_time: str,
+    end_time: str,
+    description: str = None,
+    event_type: str = "personal",
+    color: str = None,
+) -> dict:
+    """创建日历事件"""
+    event_id = f"evt_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+    # 默认颜色
+    if not color:
+        color_map = {
+            "work": "#e74c3c",
+            "meeting": "#9b59b6",
+            "deadline": "#e67e22",
+            "personal": "#3498db",
+        }
+        color = color_map.get(event_type, "#3498db")
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            """INSERT INTO calendar_events (event_id, title, description, start_time, end_time, event_type, color)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (event_id, title, description, start_time, end_time, event_type, color),
+        )
+        await db.commit()
+
+    return {
+        "status": "success",
+        "event_id": event_id,
+        "title": title,
+        "start_time": start_time,
+        "end_time": end_time,
+    }
+
+
+async def get_calendar_events(start_date: str, end_date: str) -> list[dict]:
+    """获取日期范围内的日历事件"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT event_id, title, description, start_time, end_time, event_type, color
+               FROM calendar_events
+               WHERE date(start_time) >= date(?) AND date(start_time) <= date(?)
+               ORDER BY start_time""",
+            (start_date, end_date),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def delete_calendar_event(event_id: str) -> dict:
+    """删除日历事件"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "DELETE FROM calendar_events WHERE event_id = ?", (event_id,)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return {"status": "error", "message": f"事件 {event_id} 不存在"}
+    return {"status": "success", "message": f"事件 {event_id} 已删除"}
+
+
+async def get_calendar_view(year: int, month: int) -> dict:
+    """获取月度日历视图数据"""
+    import calendar
+
+    # 获取该月第一天和最后一天
+    first_day = datetime(year, month, 1)
+    if month == 12:
+        last_day = datetime(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_day = datetime(year, month + 1, 1) - timedelta(days=1)
+
+    # 计算日历显示范围（包含前后月的日期）
+    cal = calendar.Calendar(firstweekday=0)  # 周一为一周开始
+    month_days = cal.monthdayscalendar(year, month)
+
+    start_date = datetime(year, month, 1) - timedelta(days=first_day.weekday())
+    end_date = datetime(year, month, last_day.day) + timedelta(days=6 - last_day.weekday())
+
+    # 获取该范围内的所有任务
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+
+        # 任务（包括子任务计数）
+        cursor = await db.execute(
+            """SELECT t.task_id, t.task_name, t.due_time, t.recurrence, t.status, t.priority,
+                      COUNT(s.subtask_id) as subtask_count,
+                      SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed_subtasks
+               FROM tasks t
+               LEFT JOIN subtasks s ON t.task_id = s.task_id
+               WHERE t.status != 'deleted'
+                 AND date(t.due_time) >= date(?) AND date(t.due_time) <= date(?)
+               GROUP BY t.task_id
+               ORDER BY t.due_time""",
+            (start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")),
+        )
+        task_rows = await cursor.fetchall()
+
+        # 批量获取标签，避免 N+1 查询
+        from services.tag_service import get_task_tags_batch
+        task_ids = [row["task_id"] for row in task_rows]
+        tags_map = await get_task_tags_batch(task_ids)
+
+        tasks_by_date = {}
+        for row in task_rows:
+            task = dict(row)
+            due_date = task["due_time"][:10]
+            task["tags"] = tags_map.get(task["task_id"], [])
+
+            if due_date not in tasks_by_date:
+                tasks_by_date[due_date] = []
+            tasks_by_date[due_date].append(task)
+
+        # 日历事件
+        cursor = await db.execute(
+            """SELECT event_id, title, description, start_time, end_time, event_type, color
+               FROM calendar_events
+               WHERE date(start_time) >= date(?) AND date(start_time) <= date(?)
+               ORDER BY start_time""",
+            (start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")),
+        )
+        event_rows = await cursor.fetchall()
+        events_by_date = {}
+        for row in event_rows:
+            event = dict(row)
+            event_date = event["start_time"][:10]
+            if event_date not in events_by_date:
+                events_by_date[event_date] = []
+            events_by_date[event_date].append(event)
+
+        # 每日番茄钟计数
+        cursor = await db.execute(
+            """SELECT date(start_time) as date, COUNT(*) as count
+               FROM pomodoro_sessions
+               WHERE status = 'completed'
+                 AND date(start_time) >= date(?) AND date(start_time) <= date(?)
+               GROUP BY date(start_time)""",
+            (start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")),
+        )
+        pomodoro_counts = {row[0]: row[1] for row in await cursor.fetchall()}
+
+    # 构建日历天数
+    days = []
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_date = start_date
+
+    while current_date <= end_date:
+        date_str = current_date.strftime("%Y-%m-%d")
+        is_current_month = current_date.month == month
+
+        day_data = {
+            "date": date_str,
+            "weekday": current_date.weekday(),
+            "is_today": date_str == today_str,
+            "is_current_month": is_current_month,
+            "tasks": tasks_by_date.get(date_str, []),
+            "events": events_by_date.get(date_str, []),
+            "pomodoro_count": pomodoro_counts.get(date_str, 0),
+        }
+        days.append(day_data)
+        current_date += timedelta(days=1)
+
+    return {
+        "status": "success",
+        "view_type": "month",
+        "year": year,
+        "month": month,
+        "days": days,
+    }
 
 
 # ============================================================

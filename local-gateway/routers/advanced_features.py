@@ -10,6 +10,7 @@ from services import task_service
 from services import tag_service
 from services import subtask_service
 from services import pomodoro_service
+from services import calendar_sync_service
 
 router = APIRouter(prefix="/advanced", tags=["advanced"])
 
@@ -141,7 +142,7 @@ async def get_pomodoro_history(
 @router.post("/calendar/events")
 async def create_calendar_event(request: schemas.CalendarEventCreateRequest):
     """创建日历事件"""
-    return await task_service.create_calendar_event(
+    return await calendar_sync_service.create_calendar_event(
         request.title,
         request.start_time,
         request.end_time,
@@ -157,14 +158,14 @@ async def list_calendar_events(
     end_date: str = Query(..., description="结束日期 YYYY-MM-DD"),
 ):
     """获取日期范围内的日历事件"""
-    events = await task_service.get_calendar_events(start_date, end_date)
+    events = await calendar_sync_service.get_calendar_events(start_date, end_date)
     return {"status": "success", "events": events}
 
 
 @router.delete("/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str):
     """删除日历事件"""
-    return await task_service.delete_calendar_event(event_id)
+    return await calendar_sync_service.delete_calendar_event(event_id)
 
 
 @router.get("/calendar/view", response_model=schemas.CalendarViewResponse)
@@ -173,7 +174,7 @@ async def get_calendar_view(
     month: int = Query(..., ge=1, le=12, description="月份"),
 ):
     """获取月度日历视图"""
-    return await task_service.get_calendar_view(year, month)
+    return await calendar_sync_service.get_calendar_view(year, month)
 
 
 # ============================================================
