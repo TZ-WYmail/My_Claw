@@ -12,6 +12,7 @@ import httpx
 
 from config import ai_config
 from services import task_service
+from services import pomodoro_service
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +346,7 @@ async def get_smart_suggestions(user_context: dict = None) -> dict:
     pending_tasks = [t for t in weekly_plan.get("tasks", []) if t["status"] == "待执行"]
 
     # 获取番茄钟统计
-    pomodoro_stats = await task_service.get_pomodoro_stats()
+    pomodoro_stats = await pomodoro_service.get_pomodoro_stats()
 
     suggestions = []
 

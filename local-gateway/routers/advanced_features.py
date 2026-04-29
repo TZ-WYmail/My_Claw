@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 
 from models import schemas
 from services import task_service
+from services import pomodoro_service
 
 router = APIRouter(prefix="/advanced", tags=["advanced"])
 
@@ -90,9 +91,9 @@ async def delete_subtask(subtask_id: str):
 @router.post("/pomodoro/start", response_model=schemas.PomodoroStatusResponse)
 async def start_pomodoro(request: schemas.PomodoroStartRequest):
     """开始番茄钟"""
-    result = await task_service.start_pomodoro(request.task_id, request.duration_minutes)
+    result = await pomodoro_service.start_pomodoro(request.task_id, request.duration_minutes)
     if result["status"] == "success":
-        active = await task_service.get_active_pomodoro()
+        active = await pomodoro_service.get_active_pomodoro()
         return {"status": "success", "active_session": active}
     return {"status": "error", "message": result.get("message")}
 
@@ -100,26 +101,26 @@ async def start_pomodoro(request: schemas.PomodoroStartRequest):
 @router.post("/pomodoro/complete")
 async def complete_pomodoro():
     """完成番茄钟"""
-    return await task_service.complete_pomodoro()
+    return await pomodoro_service.complete_pomodoro()
 
 
 @router.post("/pomodoro/interrupt")
 async def interrupt_pomodoro(request: schemas.PomodoroInterruptRequest):
     """中断番茄钟"""
-    return await task_service.interrupt_pomodoro(request.reason)
+    return await pomodoro_service.interrupt_pomodoro(request.reason)
 
 
 @router.get("/pomodoro/status", response_model=schemas.PomodoroStatusResponse)
 async def get_pomodoro_status():
     """获取当前番茄钟状态"""
-    active = await task_service.get_active_pomodoro()
+    active = await pomodoro_service.get_active_pomodoro()
     return {"status": "success", "active_session": active}
 
 
 @router.get("/pomodoro/stats", response_model=schemas.PomodoroStatsResponse)
 async def get_pomodoro_stats():
     """获取番茄钟统计"""
-    return await task_service.get_pomodoro_stats()
+    return await pomodoro_service.get_pomodoro_stats()
 
 
 @router.get("/pomodoro/history", response_model=schemas.PomodoroHistoryResponse)
@@ -128,7 +129,7 @@ async def get_pomodoro_history(
     page_size: int = Query(20, ge=1, le=100),
 ):
     """获取番茄钟历史"""
-    return await task_service.get_pomodoro_history(page, page_size)
+    return await pomodoro_service.get_pomodoro_history(page, page_size)
 
 
 # ============================================================
