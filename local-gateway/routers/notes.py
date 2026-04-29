@@ -9,7 +9,7 @@ DELETE /api/notes/{note_id} — 删除笔记
 from fastapi import APIRouter, Query
 
 from models.schemas import BaseModel, Field
-from services import task_service
+from services import note_service
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -31,7 +31,7 @@ class NoteUpdateRequest(BaseModel):
 @router.post("/")
 async def create_note(request: NoteCreateRequest):
     """创建笔记"""
-    result = await task_service.create_note(
+    result = await note_service.create_note(
         title=request.title,
         content=request.content,
         content_type=request.content_type,
@@ -49,7 +49,7 @@ async def list_notes(
     page_size: int = Query(20, ge=1, le=100),
 ):
     """获取笔记列表"""
-    result = await task_service.get_all_notes(
+    result = await note_service.get_all_notes(
         keyword=keyword,
         tag=tag,
         page=page,
@@ -61,7 +61,7 @@ async def list_notes(
 @router.get("/{note_id}")
 async def get_note(note_id: str):
     """获取单个笔记"""
-    note = await task_service.get_note(note_id)
+    note = await note_service.get_note(note_id)
     if not note:
         return {"status": "error", "message": f"笔记 {note_id} 不存在"}
     return {"status": "success", "note": note}
@@ -70,7 +70,7 @@ async def get_note(note_id: str):
 @router.put("/{note_id}")
 async def update_note(note_id: str, request: NoteUpdateRequest):
     """更新笔记"""
-    result = await task_service.update_note(
+    result = await note_service.update_note(
         note_id=note_id,
         title=request.title,
         content=request.content,
@@ -82,4 +82,4 @@ async def update_note(note_id: str, request: NoteUpdateRequest):
 @router.delete("/{note_id}")
 async def delete_note(note_id: str):
     """删除笔记"""
-    return await task_service.delete_note(note_id)
+    return await note_service.delete_note(note_id)
