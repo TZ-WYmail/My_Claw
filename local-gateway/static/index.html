@@ -271,8 +271,183 @@
     </div>
   </div>
 </div>
-      <div id="view-notes" x-show="$store.view.isActive('notes')" x-transition.opacity.duration.250ms></div>
-      <div id="view-habits" x-show="$store.view.isActive('habits')" x-transition.opacity.duration.250ms></div>
+      <div id="view-notes" x-show="$store.view.isActive('notes')"
+           x-data="notes" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <input x-model="keyword" @input.debounce.300ms="load()" placeholder="搜索笔记..." style="max-width:200px">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? resetForm() : openNewForm()">
+            <span x-text="showForm ? '取消' : '+ 新建笔记'"></span>
+          </button>
+        </div>
+
+        <!-- New/Edit Note Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3 x-text="editingId ? '✏️ 编辑笔记' : '✨ 新建笔记'"></h3></div>
+          <div class="form-group"><label>标题</label><input x-model="form.title" placeholder="笔记标题"></div>
+          <div class="form-group"><label>内容</label><textarea x-model="form.content" rows="4" placeholder="写点什么..."></textarea></div>
+          <div class="form-group"><label>标签（逗号分隔）</label><input x-model="form.tags" placeholder="工作, 学习, 灵感"></div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="saveNote()" x-text="editingId ? '保存' : '创建'"></button>
+            <button class="btn" @click="resetForm()">取消</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 4">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+                <div class="skeleton" style="height:20px;width:120px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && notes.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <div class="empty-state-text">还没有笔记</div>
+            <button class="btn btn-primary" @click="openNewForm()">创建第一条笔记</button>
+          </div>
+        </template>
+
+        <!-- Note Cards -->
+        <template x-if="!loading && !error && notes.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+              <template x-for="note in notes" :key="note.note_id">
+                <div class="card">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <h3 x-text="note.title" style="font-size:1rem"></h3>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.875rem;color:var(--text-secondary)">
+                    <p x-text="contentPreview(note.content)"></p>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm)">
+                    <template x-for="tag in (note.tags || [])" :key="tag">
+                      <span class="badge badge-pending" x-text="tag" style="margin-right:4px"></span>
+                    </template>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-size:0.75rem;color:var(--text-tertiary)" x-text="formatTime(note.created_at)"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" @click="editNote(note)">编辑</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteNote(note.note_id)">删除</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div style="margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-tertiary)" x-show="total > 0">
+              共 <span x-text="total"></span> 条笔记
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-habits" x-show="$store.view.isActive('habits')"
+           x-data="habits" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? resetForm() : (showForm=true)">
+            <span x-text="showForm ? '取消' : '+ 新建习惯'"></span>
+          </button>
+        </div>
+
+        <!-- New Habit Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>✨ 新建习惯</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+            <div class="form-group"><label>习惯名称</label><input x-model="form.name" placeholder="e.g. 每天跑步"></div>
+            <div class="form-group"><label>频率</label>
+              <select x-model="form.frequency">
+                <option value="daily">每天</option><option value="weekly">每周</option><option value="monthly">每月</option>
+              </select>
+            </div>
+            <div class="form-group"><label>目标次数</label><input type="number" x-model.number="form.target" min="1"></div>
+          </div>
+          <div class="form-group"><label>描述</label><textarea x-model="form.description" rows="2" placeholder="习惯描述..."></textarea></div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="createHabit()">创建习惯</button>
+            <button class="btn" @click="resetForm()">取消</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 4">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && habits.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <div class="empty-state-text">还没有习惯</div>
+            <button class="btn btn-primary" @click="showForm=true">创建第一个习惯</button>
+          </div>
+        </template>
+
+        <!-- Habit Cards -->
+        <template x-if="!loading && !error && habits.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+              <template x-for="habit in habits" :key="habit.habit_id">
+                <div class="card">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <h3 x-text="habit.name" style="font-size:1rem"></h3>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.875rem;color:var(--text-secondary)">
+                    <p x-text="habit.description || '暂无描述'"></p>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;gap:var(--space-sm);align-items:center">
+                    <span class="badge badge-pending" x-text="frequencyLabel(habit.frequency)"></span>
+                    <span :class="{'streak-pop': checkingInId === habit.habit_id}" style="font-weight:600;font-size:1.1rem" x-text="streakLabel(habit.streak)"></span>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;justify-content:space-between;align-items:center">
+                    <button class="btn btn-sm btn-success" @click="checkin(habit.habit_id)" :disabled="checkingInId === habit.habit_id">
+                      <span x-text="checkingInId === habit.habit_id ? '⏳...' : '✅ 打卡'"></span>
+                    </button>
+                    <button class="btn btn-sm btn-danger" @click="deleteHabit(habit.habit_id)">删除</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
       <div id="view-calendar" x-show="$store.view.isActive('calendar')" x-transition.opacity.duration.250ms></div>
       <div id="view-ai-chat" x-show="$store.view.isActive('ai-chat')" x-transition.opacity.duration.250ms></div>
       <div id="view-workflows" x-show="$store.view.isActive('workflows')" x-transition.opacity.duration.250ms></div>
@@ -293,5 +468,7 @@
 <script defer src="/static/js/app.js"></script>
 <script type="module" src="/static/js/components/dashboard.js"></script>
 <script type="module" src="/static/js/components/tasks.js"></script>
+<script type="module" src="/static/js/components/notes.js"></script>
+<script type="module" src="/static/js/components/habits.js"></script>
 </body>
 </html>
