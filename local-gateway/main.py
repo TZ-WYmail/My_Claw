@@ -31,7 +31,6 @@ from routers import (
     dashboard,
     encryption,
     file_search,
-    fulltext_search,
     habits,
     job_status,
     mobile,
@@ -118,7 +117,6 @@ app.include_router(notes.router, prefix="/api")
 app.include_router(habits.router, prefix="/api")
 app.include_router(voice.router, prefix="/api")
 app.include_router(calendar_sync.router, prefix="/api")
-app.include_router(fulltext_search.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
 app.include_router(sync.router, prefix="/api")
