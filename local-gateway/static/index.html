@@ -107,7 +107,89 @@
 
     <div class="view-container">
       <!-- Views injected here by router -->
-      <div id="view-dashboard" x-show="$store.view.isActive('dashboard')" x-transition.opacity.duration.250ms></div>
+      <div id="view-dashboard" x-show="$store.view.isActive('dashboard')"
+           x-data="dashboard" x-transition.opacity.duration.250ms
+           @view-enter.window="$store.view.current === 'dashboard' && load()">
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <div class="stats-grid">
+              <div class="stat-card" x-for="i in 4"><div class="skeleton" style="height:60px"></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+              <div class="card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+              <div class="card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div>
+            <div class="stats-grid">
+              <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.tasks.pending"></div>
+                <div class="stat-label">待执行任务</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.tasks.completed"></div>
+                <div class="stat-label">已完成任务</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">📥</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.downloads.total"></div>
+                <div class="stat-label">下载文件</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">💾</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.storage.total_size || '0 B'"></div>
+                <div class="stat-label">磁盘占用</div>
+              </div></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+              <div class="card">
+                <div class="card-header"><h3>📥 最近下载</h3></div>
+                <div class="activity-list">
+                  <template x-if="recentDownloads.length === 0">
+                    <div class="empty-state"><span class="empty-state-text">暂无下载记录</span></div>
+                  </template>
+                  <template x-for="d in recentDownloads" :key="d.created_at">
+                    <div class="activity-item">
+                      <span class="activity-icon">📥</span>
+                      <span class="activity-text" x-text="d.filename || d.url"></span>
+                      <span class="activity-time" x-text="formatTimeShort(d.created_at)"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>📜 最近操作</h3></div>
+                <div class="activity-list">
+                  <template x-if="recentLogs.length === 0">
+                    <div class="empty-state"><span class="empty-state-text">暂无操作记录</span></div>
+                  </template>
+                  <template x-for="l in recentLogs" :key="l.created_at">
+                    <div class="activity-item">
+                      <span class="activity-icon" x-text="operationIcon(l.operation)"></span>
+                      <span class="activity-text" x-text="l.operation"></span>
+                      <span class="activity-time" x-text="formatTimeShort(l.created_at)"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
       <div id="view-tasks" x-show="$store.view.isActive('tasks')" x-transition.opacity.duration.250ms></div>
       <div id="view-notes" x-show="$store.view.isActive('notes')" x-transition.opacity.duration.250ms></div>
       <div id="view-habits" x-show="$store.view.isActive('habits')" x-transition.opacity.duration.250ms></div>
@@ -129,5 +211,6 @@
 </div>
 
 <script defer src="/static/js/app.js"></script>
+<script type="module" src="/static/js/components/dashboard.js"></script>
 </body>
 </html>
