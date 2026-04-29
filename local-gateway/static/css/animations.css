@@ -1,6 +1,16 @@
 /* local-gateway/static/css/animations.css */
 /* All keyframes and transition utilities */
 
+/* ---- FOUC Prevention ---- */
+[x-cloak] { display: none !important; }
+
+/* ---- Custom Scrollbar (dark theme) ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-tertiary); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+* { scrollbar-width: thin; scrollbar-color: var(--text-tertiary) transparent; }
+
 /* ---- Keyframes ---- */
 @keyframes float {
   0%, 100% { transform: translateY(0); }

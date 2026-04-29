@@ -18,6 +18,9 @@ document.addEventListener('alpine:init', () => {
     // Panel state
     panelCollapsed: false,
 
+    // Config error
+    configError: null,
+
     async init() {
       this.$watch('$store.view.current', (val) => {
         if (val === 'ai-chat') this.onViewActive();
@@ -31,6 +34,7 @@ document.addEventListener('alpine:init', () => {
 
     async loadConfig() {
       this.configLoading = true;
+      this.configError = null;
       try {
         const data = await apiGet('/api/chat/config');
         if (data.status === 'success') {
@@ -44,7 +48,7 @@ document.addEventListener('alpine:init', () => {
           };
         }
       } catch (e) {
-        // Config is optional
+        this.configError = '无法加载 AI 配置';
       } finally {
         this.configLoading = false;
       }

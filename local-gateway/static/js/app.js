@@ -70,21 +70,67 @@ document.addEventListener('alpine:init', () => {
   });
 });
 
-// ---- Command Palette (simplified, will be enhanced in Task 4) ----
+// ---- Keyboard Shortcuts ----
 document.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+  const key = e.key.toLowerCase();
+  const meta = e.metaKey || e.ctrlKey;
+  const shift = e.shiftKey;
+
+  // Escape — close modal / go back
+  if (key === 'escape') {
+    // Let individual components handle their own escape behavior
+    // Fire a custom event so any open modal can catch it
+    document.dispatchEvent(new CustomEvent('escape-pressed'));
+    return;
+  }
+
+  // ⌘K — command palette (focus global search)
+  if (meta && key === 'k') {
     e.preventDefault();
     const search = document.getElementById('global-search');
     if (search) search.focus();
+    return;
   }
-  if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+
+  // ⌘B — toggle sidebar
+  if (meta && key === 'b') {
     e.preventDefault();
     Alpine.store('view').toggleSidebar();
+    return;
   }
-  // ⌘1-5 switch views
-  const viewMap = { '1': 'dashboard', '2': 'tasks', '3': 'notes', '4': 'habits', '5': 'calendar' };
-  if ((e.metaKey || e.ctrlKey) && viewMap[e.key]) {
+
+  // ⌘J — open AI chat
+  if (meta && key === 'j') {
     e.preventDefault();
-    Alpine.store('view').navigateTo(viewMap[e.key]);
+    Alpine.store('view').navigateTo('ai-chat');
+    return;
+  }
+
+  // ⌘N — new task (navigate to tasks)
+  if (meta && !shift && key === 'n') {
+    e.preventDefault();
+    Alpine.store('view').navigateTo('tasks');
+    return;
+  }
+
+  // ⌘⇧N — new note (navigate to notes)
+  if (meta && shift && key === 'n') {
+    e.preventDefault();
+    Alpine.store('view').navigateTo('notes');
+    return;
+  }
+
+  // ⌘⇧T — toggle theme
+  if (meta && shift && key === 't') {
+    e.preventDefault();
+    Alpine.store('app').toggleTheme();
+    return;
+  }
+
+  // ⌘1-5 — switch views
+  const viewMap = { '1': 'dashboard', '2': 'tasks', '3': 'notes', '4': 'habits', '5': 'calendar' };
+  if (meta && viewMap[key]) {
+    e.preventDefault();
+    Alpine.store('view').navigateTo(viewMap[key]);
   }
 });

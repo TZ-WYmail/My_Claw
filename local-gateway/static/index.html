@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" x-cloak>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -97,7 +97,7 @@
       </div>
       <div class="top-bar-right">
         <input id="global-search" class="global-search" type="text"
-               placeholder="⌘K 命令面板..." autocomplete="off">
+               placeholder="⌘K 搜索..." autocomplete="off">
         <button class="btn-icon btn-ghost" @click="$store.app.toggleTheme()"
                 :title="$store.app.theme === 'dark' ? '切换亮色主题' : '切换暗色主题'">
           <span x-text="$store.app.theme === 'dark' ? '☀️' : '🌙'"></span>
@@ -231,8 +231,14 @@
     </div>
     <!-- Skeleton -->
     <div x-show="loadingCalendar" class="skeleton" style="height:400px"></div>
+    <!-- Error State -->
+    <div x-show="!loadingCalendar && calendarError" class="empty-state">
+      <div class="empty-state-icon">⚠️</div>
+      <div class="empty-state-text" x-text="calendarError"></div>
+      <button class="btn btn-primary" @click="loadWeeklyPlan(calWeekOffset)">重试</button>
+    </div>
     <!-- Calendar Grid -->
-    <div x-show="!loadingCalendar" x-html="calendarHtml" class="wc-container"></div>
+    <div x-show="!loadingCalendar && !calendarError" x-html="calendarHtml" class="wc-container"></div>
   </div>
 
   <!-- All Tasks Table -->
@@ -248,7 +254,14 @@
       <thead><tr><th>#</th><th>名称</th><th>截止</th><th>重复</th><th>状态</th><th>创建</th><th>操作</th></tr></thead>
       <tbody>
         <tr x-show="loadingTasks"><td colspan="7"><div class="skeleton" style="height:200px"></div></td></tr>
-        <tr x-show="!loadingTasks && allTasks.length === 0"><td colspan="7" class="empty">无匹配任务</td></tr>
+        <tr x-show="!loadingTasks && tasksError"><td colspan="7">
+          <div class="empty-state" style="padding:var(--space-lg)">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="tasksError"></div>
+            <button class="btn btn-primary" @click="loadAllTasks(taskPage)">重试</button>
+          </div>
+        </td></tr>
+        <tr x-show="!loadingTasks && !tasksError && allTasks.length === 0"><td colspan="7" class="empty">无匹配任务</td></tr>
         <template x-for="(t, i) in allTasks" :key="t.task_id">
           <tr>
             <td x-text="(taskPage-1)*20 + i + 1"></td>
@@ -677,6 +690,22 @@
             </button>
 
             <div x-show="!panelCollapsed" class="chat-panel-body">
+              <!-- Config Loading -->
+              <div x-show="configLoading" style="padding:var(--space-md)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
+
+              <!-- Config Error -->
+              <div x-show="!configLoading && configError" style="padding:var(--space-md)">
+                <div class="empty-state" style="padding:var(--space-sm)">
+                  <div class="empty-state-text" x-text="configError"></div>
+                  <button class="btn btn-sm btn-primary" @click="loadConfig()">重试</button>
+                </div>
+              </div>
+
+              <div x-show="!configLoading && !configError">
               <div>
                 <h3>对话设置</h3>
                 <div class="chat-panel-info">
@@ -1240,11 +1269,21 @@
                 <div class="card-header"><h3>⌨️ 快捷键</h3></div>
                 <div style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-sm) var(--space-lg);font-size:0.875rem">
                   <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘K</kbd></span>
-                  <span>命令面板</span>
+                  <span>命令面板 (聚焦搜索)</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘N</kbd></span>
+                  <span>新建任务</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘⇧N</kbd></span>
+                  <span>新建笔记</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘J</kbd></span>
+                  <span>打开 AI 对话</span>
                   <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘B</kbd></span>
                   <span>折叠侧边栏</span>
                   <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘1-5</kbd></span>
                   <span>切换仪表盘 / 任务 / 笔记 / 习惯 / 日历</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘⇧T</kbd></span>
+                  <span>切换主题</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">Esc</kbd></span>
+                  <span>关闭弹窗 / 返回</span>
                   <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘Enter</kbd></span>
                   <span>发送 / 执行</span>
                 </div>

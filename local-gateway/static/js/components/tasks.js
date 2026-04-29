@@ -10,6 +10,7 @@ document.addEventListener('alpine:init', () => {
     weekLabel: '',
     calendarHtml: '',
     loadingCalendar: true,
+    calendarError: null,
 
     // All tasks
     allTasks: [],
@@ -19,6 +20,7 @@ document.addEventListener('alpine:init', () => {
     taskFilter: 'active',
     taskKeyword: '',
     loadingTasks: false,
+    tasksError: null,
 
     // Tabs
     tab: 'week',
@@ -48,6 +50,7 @@ document.addEventListener('alpine:init', () => {
     async loadWeeklyPlan(offset) {
       if (offset !== undefined) this.calWeekOffset = offset;
       this.loadingCalendar = true;
+      this.calendarError = null;
       try {
         const now = new Date();
         const monday = new Date(now);
@@ -62,7 +65,10 @@ document.addEventListener('alpine:init', () => {
         });
         this.weeklyTasks = data.tasks || [];
         this.renderCalendar();
-      } catch (e) { toast('加载周计划失败', 'error'); }
+      } catch (e) {
+        this.calendarError = e.message || '加载周计划失败';
+        toast('加载周计划失败', 'error');
+      }
       this.loadingCalendar = false;
     },
 
@@ -162,6 +168,7 @@ document.addEventListener('alpine:init', () => {
     async loadAllTasks(page) {
       if (page) this.taskPage = page;
       this.loadingTasks = true;
+      this.tasksError = null;
       try {
         const params = new URLSearchParams({
           status: this.taskFilter, keyword: this.taskKeyword,
@@ -171,7 +178,10 @@ document.addEventListener('alpine:init', () => {
         this.allTasks = data.tasks || [];
         this.taskTotal = data.total || 0;
         this.taskTotalPages = data.total_pages || 0;
-      } catch (e) { toast('加载任务列表失败', 'error'); }
+      } catch (e) {
+        this.tasksError = e.message || '加载任务列表失败';
+        toast('加载任务列表失败', 'error');
+      }
       this.loadingTasks = false;
     },
 
