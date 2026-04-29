@@ -448,8 +448,282 @@
           </div>
         </template>
       </div>
-      <div id="view-calendar" x-show="$store.view.isActive('calendar')" x-transition.opacity.duration.250ms></div>
-      <div id="view-ai-chat" x-show="$store.view.isActive('ai-chat')" x-transition.opacity.duration.250ms></div>
+      <div id="view-calendar" x-show="$store.view.isActive('calendar')"
+           x-data="calendar" x-transition.opacity.duration.250ms>
+
+        <!-- Navigation -->
+        <div class="cal-nav">
+          <button class="btn btn-sm" @click="prevMonth()">◀</button>
+          <span class="cal-nav-label" x-text="monthLabel"></span>
+          <button class="btn btn-sm" @click="nextMonth()">▶</button>
+          <button class="btn btn-sm btn-primary" @click="goToday()">今天</button>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div class="cal-grid">
+            <template x-for="i in 7">
+              <div class="cal-day-header" x-text="['日','一','二','三','四','五','六'][i-1]"></div>
+            </template>
+            <template x-for="i in 42">
+              <div class="cal-day-cell"><div class="skeleton" style="height:80px;width:100%"></div></div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="cal-grid">
+            <template x-for="i in 7">
+              <div class="cal-day-header" x-text="['日','一','二','三','四','五','六'][i-1]"></div>
+            </template>
+            <div class="cal-day-cell" style="grid-column:1/-1;min-height:400px;display:flex;align-items:center;justify-content:center">
+              <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <div class="empty-state-text" x-text="error"></div>
+                <button class="btn btn-primary" @click="load()">重试</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div class="cal-grid">
+            <div class="cal-day-header">日</div>
+            <div class="cal-day-header">一</div>
+            <div class="cal-day-header">二</div>
+            <div class="cal-day-header">三</div>
+            <div class="cal-day-header">四</div>
+            <div class="cal-day-header">五</div>
+            <div class="cal-day-header">六</div>
+            <template x-for="(week, wi) in weeks" :key="'w'+wi">
+              <template x-for="(day, di) in week" :key="day.date">
+                <div class="cal-day-cell"
+                     :class="{'cal-other-month': !day.is_current_month, 'cal-today': day.is_today}"
+                     @click="openDay(day)">
+                  <div class="cal-day-number" x-text="day.day"></div>
+                  <div class="cal-events-list">
+                    <template x-for="event in (day.events || []).slice(0, 3)" :key="event.event_id">
+                      <div class="cal-event" :style="'background:' + event.color" :title="event.title + ' - ' + eventTypeLabel(event.event_type)">
+                        <span class="cal-event-title" x-text="event.title"></span>
+                      </div>
+                    </template>
+                    <div x-show="(day.events || []).length > 3" class="cal-event-more">
+                      +<span x-text="(day.events || []).length - 3"></span> 更多
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </template>
+          </div>
+        </template>
+
+        <!-- Day Event Modal -->
+        <div class="modal-overlay" x-show="showDayModal" @click.self="closeDayModal()" style="display:flex">
+          <div class="modal" style="max-width:420px;width:100%">
+            <!-- View Events -->
+            <div x-show="!showNewEventForm">
+              <div class="cal-modal-header">
+                <span class="cal-modal-date" x-text="formatDate(selectedDay?.date)"></span>
+                <button class="btn btn-sm btn-ghost" @click="closeDayModal()">✕</button>
+              </div>
+
+              <template x-if="selectedEvents.length === 0">
+                <div class="empty-state" style="padding:var(--space-lg)">
+                  <div class="empty-state-text">暂无事件</div>
+                </div>
+              </template>
+
+              <template x-for="event in selectedEvents" :key="event.event_id">
+                <div class="cal-event-item">
+                  <div class="cal-event-dot" :style="'background:' + event.color"></div>
+                  <div class="cal-event-info">
+                    <div class="cal-event-title-text" x-text="event.title"></div>
+                    <div class="cal-event-type-text" x-text="eventTypeLabel(event.event_type)"></div>
+                  </div>
+                  <button class="cal-event-del" @click="deleteEvent(event.event_id)" title="删除事件">✕</button>
+                </div>
+              </template>
+
+              <div style="margin-top:var(--space-md)">
+                <button class="btn btn-sm btn-primary" @click="openNewEventForm()">+ 添加事件</button>
+              </div>
+            </div>
+
+            <!-- New Event Form -->
+            <div x-show="showNewEventForm">
+              <div class="cal-modal-header">
+                <span class="cal-modal-date">新建事件</span>
+                <button class="btn btn-sm btn-ghost" @click="closeNewEventForm()">✕</button>
+              </div>
+
+              <div class="form-group">
+                <label>事件标题</label>
+                <input x-model="newEvent.title" placeholder="事件标题" @keydown.enter="createEvent()">
+              </div>
+              <div class="form-group">
+                <label>描述</label>
+                <textarea x-model="newEvent.description" placeholder="描述（可选）" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label>类型</label>
+                <select x-model="newEvent.event_type">
+                  <option value="reminder">提醒</option>
+                  <option value="meeting">会议</option>
+                  <option value="task">任务</option>
+                  <option value="birthday">生日</option>
+                  <option value="holiday">假期</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>颜色</label>
+                <div class="cal-color-picker">
+                  <template x-for="c in colors" :key="c">
+                    <div class="cal-color-option" :class="{ active: newEvent.color === c }"
+                         :style="'background:' + c" @click="newEvent.color = c"></div>
+                  </template>
+                </div>
+              </div>
+              <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+                <button class="btn btn-primary btn-sm" @click="createEvent()">创建</button>
+                <button class="btn btn-sm" @click="closeNewEventForm()">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="view-ai-chat" x-show="$store.view.isActive('ai-chat')"
+           x-data="aiChat" x-transition.opacity.duration.250ms>
+
+        <div class="chat-layout">
+          <!-- Main Chat Area -->
+          <div class="chat-main">
+            <!-- Messages -->
+            <div class="chat-messages" x-ref="chatMessages">
+              <!-- Welcome State -->
+              <div x-show="messages.length === 0" class="chat-welcome">
+                <div class="chat-welcome-icon">🤖</div>
+                <div class="chat-welcome-text">开始新对话</div>
+                <div class="chat-welcome-hint">发送一条消息开始与 AI 对话</div>
+              </div>
+
+              <!-- Message Bubbles -->
+              <template x-for="(msg, i) in messages" :key="i">
+                <div>
+                  <!-- System Messages -->
+                  <div x-show="msg.role === 'system'" class="chat-bubble chat-bubble-system" x-text="msg.content"></div>
+
+                  <!-- User Messages -->
+                  <div x-show="msg.role === 'user'"
+                       class="chat-bubble chat-bubble-user">
+                    <div class="chat-bubble-content" x-text="msg.content"></div>
+                  </div>
+
+                  <!-- AI Messages -->
+                  <div x-show="msg.role === 'assistant'"
+                       class="chat-bubble chat-bubble-ai">
+                    <span class="chat-bubble-icon">🤖</span>
+                    <div class="chat-bubble-content">
+                      <!-- Tool Calls -->
+                      <template x-if="msg.toolCalls && msg.toolCalls.length > 0">
+                        <div class="chat-tool-calls">
+                          <div class="chat-tool-call-header" @click="toggleTools(msg)">
+                            <span>🔧 正在执行 (<span x-text="msg.toolCalls.length"></span>)</span>
+                            <span x-text="msg.showTools ? '▼' : '▶'" style="margin-left:auto"></span>
+                          </div>
+                          <div x-show="msg.showTools">
+                            <template x-for="(tc, j) in msg.toolCalls" :key="j">
+                              <div class="chat-tool-call">
+                                <span x-text="'🔧 ' + (tc.name || tc.function || '')"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Text Content -->
+                      <div x-text="msg.content"></div>
+
+                      <!-- Typing Indicator -->
+                      <div x-show="msg.streaming && !msg.content" class="chat-typing">
+                        <span class="chat-typing-dot"></span>
+                        <span class="chat-typing-dot"></span>
+                        <span class="chat-typing-dot"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Input Area -->
+            <div class="chat-input-area">
+              <textarea class="chat-input" x-model="input" @keydown="handleKeydown"
+                        placeholder="输入消息... (⌘Enter 发送)" :disabled="sending"
+                        rows="1"></textarea>
+              <button class="chat-send-btn" @click="sendMessage()"
+                      :disabled="!input.trim() || sending">
+                <span x-text="sending ? '...' : '发送'"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Panel -->
+          <div class="chat-panel" :class="{ collapsed: panelCollapsed }">
+            <button class="chat-panel-toggle" @click="togglePanel()">
+              <span x-text="panelCollapsed ? '◀' : '▶'"></span>
+            </button>
+
+            <div x-show="!panelCollapsed" class="chat-panel-body">
+              <div>
+                <h3>对话设置</h3>
+                <div class="chat-panel-info">
+                  <div>模型：<span x-text="config?.model || '-'"></span></div>
+                  <div>会话：<span class="chat-conversation-id" x-text="conversationId ? conversationId.substring(0, 12) + '...' : '新对话'"></span></div>
+                </div>
+              </div>
+
+              <div class="chat-panel-actions">
+                <button class="btn btn-sm" @click="newConversation()">新对话</button>
+                <button class="btn btn-sm btn-danger" @click="clearHistory()" :disabled="!conversationId && messages.length === 0">清除历史</button>
+                <button class="btn btn-sm" @click="showConfig = !showConfig">
+                  <span x-text="showConfig ? '收起配置' : 'AI 配置'"></span>
+                </button>
+              </div>
+
+              <!-- Config Form -->
+              <div x-show="showConfig" class="chat-config-form" x-transition>
+                <div class="form-group">
+                  <label>API Base</label>
+                  <input x-model="configForm.api_base" placeholder="https://api.openai.com/v1">
+                </div>
+                <div class="form-group">
+                  <label>API Key</label>
+                  <input x-model="configForm.api_key" type="password" placeholder="留空保持不变">
+                </div>
+                <div class="form-group">
+                  <label>模型</label>
+                  <input x-model="configForm.model" placeholder="gpt-4">
+                </div>
+                <div class="form-group">
+                  <label>Temperature</label>
+                  <input type="number" x-model="configForm.temperature" step="0.1" min="0" max="2">
+                </div>
+                <div class="form-group">
+                  <label>Max Tokens</label>
+                  <input type="number" x-model="configForm.max_tokens" step="1" min="1" max="32768">
+                </div>
+                <div class="chat-panel-actions">
+                  <button class="btn btn-sm btn-primary" @click="saveConfig()">保存</button>
+                  <button class="btn btn-sm" @click="testConnection()">测试连接</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="view-workflows" x-show="$store.view.isActive('workflows')" x-transition.opacity.duration.250ms></div>
       <div id="view-sync" x-show="$store.view.isActive('sync')" x-transition.opacity.duration.250ms></div>
       <div id="view-download" x-show="$store.view.isActive('download')" x-transition.opacity.duration.250ms></div>
@@ -470,5 +744,7 @@
 <script type="module" src="/static/js/components/tasks.js"></script>
 <script type="module" src="/static/js/components/notes.js"></script>
 <script type="module" src="/static/js/components/habits.js"></script>
+<script type="module" src="/static/js/components/calendar.js"></script>
+<script type="module" src="/static/js/components/ai-chat.js"></script>
 </body>
 </html>
