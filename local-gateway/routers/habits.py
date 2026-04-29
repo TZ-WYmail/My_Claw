@@ -10,7 +10,7 @@ DELETE /api/habits/{habit_id} — 删除习惯
 from fastapi import APIRouter
 
 from models.schemas import BaseModel, Field
-from services import task_service
+from services import habit_service
 
 router = APIRouter(prefix="/habits", tags=["habits"])
 
@@ -32,7 +32,7 @@ class CheckinRequest(BaseModel):
 @router.post("/")
 async def create_habit(request: HabitCreateRequest):
     """创建习惯"""
-    result = await task_service.create_habit(
+    result = await habit_service.create_habit(
         name=request.name,
         description=request.description,
         frequency=request.frequency,
@@ -46,14 +46,14 @@ async def create_habit(request: HabitCreateRequest):
 @router.get("/")
 async def list_habits():
     """获取所有习惯"""
-    habits = await task_service.get_all_habits()
+    habits = await habit_service.get_all_habits()
     return {"status": "success", "habits": habits}
 
 
 @router.get("/{habit_id}")
 async def get_habit(habit_id: str):
     """获取习惯详情（含打卡记录）"""
-    habit = await task_service.get_habit(habit_id)
+    habit = await habit_service.get_habit(habit_id)
     if not habit:
         return {"status": "error", "message": f"习惯 {habit_id} 不存在"}
     return {"status": "success", "habit": habit}
@@ -62,16 +62,16 @@ async def get_habit(habit_id: str):
 @router.post("/{habit_id}/checkin")
 async def checkin_habit(habit_id: str, request: CheckinRequest):
     """习惯打卡"""
-    return await task_service.checkin_habit(habit_id, request.count, request.note)
+    return await habit_service.checkin_habit(habit_id, request.count, request.note)
 
 
 @router.get("/{habit_id}/stats")
 async def get_habit_stats(habit_id: str):
     """获取习惯统计"""
-    return await task_service.get_habit_stats(habit_id)
+    return await habit_service.get_habit_stats(habit_id)
 
 
 @router.delete("/{habit_id}")
 async def delete_habit(habit_id: str):
     """删除习惯"""
-    return await task_service.delete_habit(habit_id)
+    return await habit_service.delete_habit(habit_id)
