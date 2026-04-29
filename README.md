@@ -6,12 +6,22 @@
 
 | 模块 | 说明 |
 |------|------|
-| 📋 **任务管理** | 添加/删除/完成/查询周计划，支持 once/daily/weekly/monthly 周期 |
+| 📋 **任务管理** | 添加/删除/完成/查询周计划，支持优先级/标签/子任务/周期提醒 |
+| 🍅 **番茄钟** | 25分钟工作节奏，统计与历史记录 |
 | 📥 **安全下载** | URL 安全校验 + 大文件异步下载 + 自动分类归档（paper/video/code/misc）|
-| 🔍 **文件检索** | 按关键词模糊搜索本地已归档文件，支持分类过滤 |
+| 🔍 **文件检索** | 模糊搜索 + 全文索引本地已归档文件 |
 | 🔧 **沙盒执行** | Docker 容器隔离执行 Python/Node/FFmpeg/Pandoc，支持动态写入脚本 |
+| 🤖 **AI 对话** | 自然语言操控全部功能（OpenAI/GLM 兼容） |
+| 📓 **笔记** | Markdown 笔记，支持标签和关联任务 |
+| ✅ **习惯追踪** | 每日/每周/每月习惯打卡，连续天数统计 |
+| 📅 **日历** | 月度视图 + Google/Outlook 日历同步 |
+| 🔄 **数据同步** | 多设备增量同步 + 离线队列 + 冲突解决 |
+| 🔐 **端到端加密** | PBKDF2+Fernet 加密同步数据 |
+| 📱 **PWA** | 可安装到桌面/手机，支持离线访问 |
 | ⏳ **异步任务** | 大文件下载和长时间沙盒任务的异步状态查询 |
 | 🖥️ **图形界面** | 内置 Web UI，暗色主题，响应式设计 |
+
+> 详细使用说明: [USER_GUIDE.md](local-gateway/docs/USER_GUIDE.md)
 
 ## 快速启动
 
@@ -42,29 +52,47 @@ local-gateway/
 ├── main.py                  # FastAPI 应用入口
 ├── config.py                # 全局配置
 ├── requirements.txt         # Python 依赖
-├── static/                  # 前端静态文件
+├── models/
+│   └── schemas.py           # Pydantic 请求/响应模型
+├── routers/                 # HTTP 端点（20个模块）
+│   ├── task_manager.py      # 任务管理（核心5工具之一）
+│   ├── safe_downloader.py   # 安全下载（核心5工具之一）
+│   ├── file_search.py       # 文件检索（核心5工具之一）
+│   ├── sandbox_executor.py  # 沙盒执行（核心5工具之一）
+│   ├── job_status.py        # 异步任务（核心5工具之一）
+│   ├── chat.py              # AI 对话 + Function Calling
+│   ├── dashboard.py         # 仪表盘统计
+│   ├── encryption.py        # 端到端加密 API
+│   ├── sync.py              # 数据同步 + 设备管理
+│   ├── mobile.py            # 移动端优化 API
+│   ├── notes.py             # 笔记管理
+│   ├── habits.py            # 习惯追踪
+│   ├── calendar_sync.py     # 日历同步
+│   ├── shortcuts.py         # 快捷键管理
+│   ├── ai_planning.py       # AI 智能规划
+│   ├── voice.py             # 语音输入
+│   ├── fulltext_search.py   # 全文搜索
+│   ├── webhooks.py          # Webhook 管理
+│   └── workflows.py         # 自动化工作流
+├── services/                # 业务逻辑
+│   ├── task_service.py      # SQLite CRUD + 标签/子任务/番茄钟/日历/笔记/习惯
+│   ├── download_service.py  # 异步下载 + 安全扫描 + 带宽控制
+│   ├── search_service.py    # 本地文件模糊检索
+│   ├── sandbox_service.py   # Docker SDK 沙盒调度
+│   ├── ai_service.py        # OpenAI/GLM API + Function Calling
+│   ├── sync_service.py      # 同步协议 + 变更追踪 + 冲突解决
+│   ├── e2e_encryption.py    # PBKDF2+Fentanyl 端到端加密
+│   └── ...                  # 其他服务模块
+├── static/                  # Web 前端 + PWA
 │   ├── index.html           # 主页面
 │   ├── style.css            # 暗色主题样式
-│   └── app.js               # 前端交互逻辑
-├── models/
-│   └── schemas.py           # Pydantic 请求/响应模型（5 个 Tool Schema）
-├── routers/
-│   ├── task_manager.py      # POST /api/task
-│   ├── safe_downloader.py   # POST /api/download
-│   ├── file_search.py       # POST /api/search
-│   ├── job_status.py        # POST /api/job/status
-│   └── sandbox_executor.py  # POST /api/sandbox
-├── services/
-│   ├── task_service.py      # SQLite 任务 CRUD + 定时提醒
-│   ├── download_service.py  # httpx 异步下载 + 白名单校验 + 安全扫描
-│   ├── search_service.py    # 本地文件模糊检索 + 分类过滤
-│   └── sandbox_service.py   # Docker SDK 沙盒调度 + 动态文件写入 + 输出回传
-├── data/                    # SQLite 数据库（自动创建）
+│   ├── app.js               # 前端交互逻辑
+│   ├── manifest.json        # PWA 配置
+│   ├── sw.js                # Service Worker
+│   └── icons/               # PWA 图标（8种尺寸）
+├── data/                    # 运行时数据（自动创建）
+├── test/                    # 测试（60+用例）
 └── downloads/               # 下载归档目录（自动创建）
-    ├── paper/
-    ├── video/
-    ├── code/
-    └── misc/
 ```
 
 ## API 端点
@@ -105,7 +133,7 @@ local-gateway/
 # 设置 AI API（支持 OpenAI/GLM 兼容格式）
 export AI_API_KEY="your-api-key"
 export AI_MODEL="glm-4-flash"  # 可选
-export AI_API_BASE="https://open.bigmodel.cn/api/paas/v4"  # 可选
+export AI_API_BASE="https://open.bigmodel.cn/api/coding/paas/v4"  # 可选
 python main.py
 ```
 
@@ -135,7 +163,7 @@ AI 可通过 function calling 自动调用 5 个工具：
 | `SANDBOX_TIMEOUT` | `300` | 沙盒超时（秒） |
 | `SANDBOX_MEMORY_LIMIT` | `512m` | 沙盒内存限制 |
 | `CORS_ORIGINS` | `*` | 允许的 CORS 来源 |
-| `AI_API_BASE` | `https://open.bigmodel.cn/api/paas/v4` | AI API 地址 |
+| `AI_API_BASE` | `https://open.bigmodel.cn/api/coding/paas/v4` | AI API 地址 |
 | `AI_API_KEY` | （空） | AI API Key |
 | `AI_MODEL` | `glm-4-flash` | AI 模型名称 |
 

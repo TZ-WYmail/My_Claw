@@ -433,8 +433,52 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
                 }
 
             # 处理 tool calls
-            history.append(message)
-            for tool_call in message["tool_calls"]:
+            # 确保message有role字段且tool_calls格式正确
+            # API要求tool_calls必须包含type="function"
+            tool_calls_fixed = []
+            for i, tc in enumerate(message.get("tool_calls", [])):
+                # 严格验证和修复每个字段
+                tc_id = tc.get("id", "")
+                if not tc_id or not isinstance(tc_id, str):
+                    tc_id = f"call_{step}_{i}"
+
+                # type 必须明确为 "function"，不能是空字符串或其他值
+                tc_type = tc.get("type", "")
+                if tc_type != "function":
+                    tc_type = "function"
+
+                # 确保function对象存在且有name和arguments
+                fn = tc.get("function", {}) or {}
+                fn_name = fn.get("name", "") if isinstance(fn, dict) else ""
+                fn_args = fn.get("arguments", "") if isinstance(fn, dict) else "{}"
+
+                if not fn_name:
+                    logger.warning(f"Skipping tool_call without name: {tc}")
+                    continue
+
+                tool_calls_fixed.append({
+                    "id": tc_id,
+                    "type": tc_type,  # 必须是 "function"
+                    "function": {
+                        "name": fn_name,
+                        "arguments": fn_args if fn_args else "{}"
+                    }
+                })
+
+            if not tool_calls_fixed:
+                logger.error("No valid tool_calls found in message")
+                break
+
+            tool_message = {
+                "role": "assistant",
+                "content": message.get("content") if message.get("content") else "",
+                "tool_calls": tool_calls_fixed
+            }
+            history.append(tool_message)
+
+            logger.debug(f"Added assistant message with {len(tool_calls_fixed)} tool_calls")
+
+            for tool_call in tool_message["tool_calls"]:
                 fn_name = tool_call["function"]["name"]
                 fn_args_str = tool_call["function"]["arguments"]
 
@@ -470,6 +514,64 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
         return {"status": "error", "reply": f"AI 服务异常: {e}"}
 
 
+
+
+def _validate_messages(messages: list[dict]) -> list[dict]:
+    """验证并修复消息格式，确保 tool_calls 符合 API 要求"""
+    validated = []
+    for idx, msg in enumerate(messages):
+        msg = dict(msg)  # Copy to avoid modifying original
+
+        # Validate role field
+        role = msg.get("role", "")
+        if not role:
+            msg["role"] = "assistant"
+
+        # Fix tool_calls if present (only for assistant role)
+        if role == "assistant" and msg.get("tool_calls"):
+            fixed_tool_calls = []
+            for i, tc in enumerate(msg["tool_calls"]):
+                if not tc:
+                    continue
+
+                tc = dict(tc) if tc else {}
+
+                # Ensure id exists and is valid string
+                tc_id = tc.get("id", "")
+                if not tc_id or not isinstance(tc_id, str) or not tc_id.strip():
+                    tc_id = f"call_val_{idx}_{i}"
+                tc["id"] = tc_id
+
+                # Ensure type is EXACTLY "function" - CRITICAL!
+                tc_type = tc.get("type")
+                if tc_type != "function":
+                    tc["type"] = "function"
+
+                # Ensure function object exists with required fields
+                fn = tc.get("function") or {}
+                if not isinstance(fn, dict):
+                    fn = {}
+                tc["function"] = {
+                    "name": fn.get("name") if isinstance(fn.get("name"), str) else "unknown",
+                    "arguments": fn.get("arguments") if isinstance(fn.get("arguments"), str) else "{}"
+                }
+
+                fixed_tool_calls.append(tc)
+
+            msg["tool_calls"] = fixed_tool_calls
+
+        validated.append(msg)
+
+    # Final pass: ensure ALL tool_calls have type="function"
+    for msg in validated:
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            for tc in msg["tool_calls"]:
+                if tc.get("type") != "function":
+                    tc["type"] = "function"
+
+    return validated
+
+
 async def _call_ai(messages: list[dict]) -> Optional[dict]:
     """调用 AI API（OpenAI 兼容格式）"""
     try:
@@ -482,7 +584,7 @@ async def _call_ai(messages: list[dict]) -> Optional[dict]:
                 },
                 json={
                     "model": ai_config.model,
-                    "messages": messages,
+                    "messages": _validate_messages(messages),
                     "tools": TOOLS_SCHEMA,
                     "tool_choice": "auto",
                 },
@@ -555,9 +657,11 @@ async def _execute_code_interpreter(args: dict) -> dict:
     if not code.strip():
         return {"status": "error", "stdout": "", "stderr": "代码为空", "exit_code": 1}
 
-    # ⚠️ 安全扫描：检测危险代码模式
+    # ⚠️ 安全扫描：检测危险代码模式（多层防护）
     if language == "python":
         code_lower = code.lower()
+
+        # 1. 基础黑名单检查
         for dangerous in PYTHON_DANGEROUS_IMPORTS:
             if dangerous.lower() in code_lower:
                 return {
@@ -567,6 +671,48 @@ async def _execute_code_interpreter(args: dict) -> dict:
                     "exit_code": -1,
                     "blocked": True,
                 }
+
+        # 2. 高级绕过检测：检测字符串拼接导入
+        import re
+        # 检测 __import__('o'+'s') 或 __import__("os") 等形式
+        if re.search(r"__import__\s*\([\"']", code_lower) or re.search(r"__import__\s*\([^)]+\+", code_lower):
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": "⚠️ 安全拦截：检测到动态导入尝试。",
+                "exit_code": -1,
+                "blocked": True,
+            }
+
+        # 3. 检测 getattr 绕过
+        if re.search(r"getattr\s*\([^)]+builtins", code_lower) or re.search(r"getattr\s*\([^)]+eval|exec", code_lower):
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": "⚠️ 安全拦截：检测到 getattr 动态调用。",
+                "exit_code": -1,
+                "blocked": True,
+            }
+
+        # 4. 检测编码绕过（base64, hex等）
+        if re.search(r"(base64|decode|encode).*exec|eval", code_lower):
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": "⚠️ 安全拦截：检测到编码绕过尝试。",
+                "exit_code": -1,
+                "blocked": True,
+            }
+
+        # 5. 代码长度限制（防止内存攻击）
+        if len(code) > 100000:  # 100KB限制
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": "⚠️ 代码超过最大长度限制（100KB）。",
+                "exit_code": -1,
+                "blocked": True,
+            }
 
     # 选择执行器
     exec_map = {
@@ -633,39 +779,79 @@ async def _execute_code_interpreter(args: dict) -> dict:
 
 async def _execute_shell(args: dict) -> dict:
     """
-    在本地 shell 中执行命令，带安全检查。
+    在本地执行命令，带严格安全检查。
+    使用白名单机制，只允许特定安全命令。
     """
+    import shlex
     command = args.get("command", "")
     description = args.get("description", "")
 
     logger.info(f"Shell Exec: {description or command[:80]}...")
 
-    if not command.strip():
+    if not command or not command.strip():
         return {"status": "error", "stdout": "", "stderr": "命令为空", "exit_code": 1}
 
-    # 安全检查：扩展黑名单拦截危险命令
-    cmd_lower = command.lower().strip()
-    for pattern in SHELL_DANGEROUS_PATTERNS:
-        if pattern.lower() in cmd_lower:
-            logger.warning(f"Shell blocked dangerous command: {command[:100]}")
-            return {
-                "status": "error",
-                "stdout": "",
-                "stderr": f"⚠️ 危险命令被拦截。如需执行系统操作，请使用 Docker 沙盒工具。",
-                "exit_code": -1,
-                "blocked": True,
-            }
+    # 解析命令为参数列表，避免shell注入
+    try:
+        cmd_list = shlex.split(command)
+    except ValueError as e:
+        return {"status": "error", "stdout": "", "stderr": f"命令解析失败: {e}", "exit_code": 1}
 
-    # 检测管道组合攻击 (curl|bash, wget|sh 等)
-    pipe_dangerous = ["| bash", "| sh", "| python", "| ruby", "| perl",
-                       "|sudo ", "$((", "`"]
-    for pd in pipe_dangerous:
-        if pd in cmd_lower:
-            logger.warning(f"Shell blocked pipe attack: {command[:100]}")
+    if not cmd_list:
+        return {"status": "error", "stdout": "", "stderr": "命令为空", "exit_code": 1}
+
+    # 严格白名单：只允许这些命令
+    # 安全原则：禁止任何可修改系统、提权、或访问敏感资源的命令
+    ALLOWED_SHELL_COMMANDS = {
+        # 文件查看（只读）
+        'cat', 'head', 'tail', 'less', 'more', 'nl', 'wc', 'sort', 'uniq',
+        # 目录列表（只读）
+        'ls', 'll', 'dir', 'pwd', 'tree', 'find',
+        # 系统信息（只读）
+        'date', 'uptime', 'whoami', 'uname', 'hostname', 'env', 'printenv',
+        # 文本处理
+        'echo', 'grep', 'awk', 'sed', 'cut', 'tr', 'rev',
+        # 压缩（只读解压）
+        'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'bzip2', 'xz',
+        # 开发工具
+        'git', 'python3', 'python', 'pip3', 'pip', 'node', 'npm',
+        # 网络诊断（只读）
+        'ping', 'dig', 'nslookup', 'netstat', 'ss',
+        # 其他安全命令
+        'which', 'whereis', 'file', 'stat', 'du', 'df', 'free', 'top', 'ps',
+        'make', 'cmake', 'gcc', 'g++', 'javac', 'java', 'go', 'rustc',
+    }
+
+    base_cmd = cmd_list[0].split('/')[-1]  # 处理 /usr/bin/python3 这样的情况
+
+    if base_cmd not in ALLOWED_SHELL_COMMANDS:
+        logger.warning(f"Shell blocked non-whitelisted command: {base_cmd}")
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": f"⚠️ 命令 '{base_cmd}' 不在允许列表中。如需执行其他命令，请使用 Docker 沙盒工具。",
+            "exit_code": -1,
+            "blocked": True,
+        }
+
+    # 黑名单二次检查（防止常见危险操作）
+    cmd_lower = command.lower()
+    DANGEROUS_PATTERNS = [
+        'rm -rf /', 'rm -rf ~', 'rm -rf /*', 'mkfs', 'dd if=/dev/zero',
+        ':(){:|:&};:', 'fork bomb',
+        '> /etc/passwd', '> /etc/shadow',
+        'chmod 777 /', 'chmod -R 777 /',
+        'wget .*| *bash', 'curl .*| *sh', 'curl .*| *bash',
+        r'\$\(', '`',  # 命令替换 $() 和反引号
+    ]
+    for pattern in DANGEROUS_PATTERNS:
+        import re
+        if re.search(pattern.replace('.*', '.*'), cmd_lower):
+            logger.warning(f"Shell blocked dangerous pattern: {command[:100]}")
             return {
                 "status": "error",
                 "stdout": "",
-                "stderr": f"⚠️ 命令被拦截：检测到管道执行模式。请使用 Docker 沙盒。",
+                "stderr": "⚠️ 检测到危险命令模式，已拦截。",
                 "exit_code": -1,
                 "blocked": True,
             }
@@ -673,8 +859,9 @@ async def _execute_shell(args: dict) -> dict:
     logger.warning(f"Shell executing: {command[:200]}")
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        # 使用 create_subprocess_exec 而不是 shell，更安全
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_list,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

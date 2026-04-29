@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime
 from pathlib import Path
@@ -12,12 +13,17 @@ from config import CATEGORY_DIRS, DOWNLOADS_DIR
 from services.utils import human_size
 
 
-def search_files(keyword: str, category: str) -> dict:
+async def search_files(keyword: str, category: str) -> dict:
     """
-    搜索本地已归档文件。
+    搜索本地已归档文件（异步包装，不阻塞事件循环）。
     keyword: 模糊匹配文件名
     category: 指定分类或 all
     """
+    return await asyncio.to_thread(_search_files_sync, keyword, category)
+
+
+def _search_files_sync(keyword: str, category: str) -> dict:
+    """同步搜索实现（在线程池中执行）"""
     # 确定搜索目录
     if category == "all":
         search_dirs = list(CATEGORY_DIRS.values())
@@ -50,7 +56,7 @@ def search_files(keyword: str, category: str) -> dict:
                 "category": cat_name,
                 "path": str(file_path),
                 "size": human_size(stat.st_size),
-                "downloaded_at": datetime.fromtimestamp(stat.st_ctime).strftime("%Y-%m-%dT%H:%M:%S"),
+                "downloaded_at": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%dT%H:%M:%S"),
             })
 
     # 按文件名排序

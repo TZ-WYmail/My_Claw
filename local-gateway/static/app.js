@@ -46,7 +46,21 @@ function formatTimeShort(iso) {
 }
 
 function escapeHtml(str) {
-    const d = document.createElement("div"); d.textContent = str; return d.innerHTML;
+    if (str == null) return "";
+    const d = document.createElement("div");
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+
+function escapeHtmlAttr(str) {
+    // 用于 HTML 属性值（双引号包围）
+    if (str == null) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 const RECURRENCE_MAP = { once:"一次", daily:"每天", weekly:"每周", monthly:"每月" };
@@ -300,8 +314,8 @@ async function loadWeeklyPlan(offset) {
                     html += `<div class="wc-task ${cls}" title="${escapeHtml(t.task_name)} ${timeStr}">`;
                     html += `<span class="wc-task-name">${escapeHtml(t.task_name)}</span>`;
                     html += `<span class="wc-task-actions">`;
-                    if (t.status === "待执行") html += `<button class="wc-btn wc-btn-done" onclick="event.stopPropagation();completeTask('${t.task_id}')">✓</button>`;
-                    html += `<button class="wc-btn wc-btn-del" onclick="event.stopPropagation();deleteTask('${t.task_id}')">✕</button>`;
+                    if (t.status === "待执行") html += `<button class="wc-btn wc-btn-done" onclick="event.stopPropagation();completeTask('${escapeHtmlAttr(t.task_id)}')">✓</button>`;
+                    html += `<button class="wc-btn wc-btn-del" onclick="event.stopPropagation();deleteTask('${escapeHtmlAttr(t.task_id)}')">✕</button>`;
                     html += `</span></div>`;
                 });
                 html += `</div>`;
@@ -367,8 +381,8 @@ function badgeClass(status) {
 
 function taskActions(t) {
     let html = '';
-    if (t.status === "待执行") html += `<button class="btn btn-success" onclick="completeTask('${t.task_id}')">完成</button> `;
-    if (t.status !== "已删除") html += `<button class="btn btn-danger" onclick="deleteTask('${t.task_id}')">删除</button>`;
+    if (t.status === "待执行") html += `<button class="btn btn-success" onclick="completeTask('${escapeHtmlAttr(t.task_id)}')">完成</button> `;
+    if (t.status !== "已删除") html += `<button class="btn btn-danger" onclick="deleteTask('${escapeHtmlAttr(t.task_id)}')">删除</button>`;
     return html;
 }
 
@@ -863,8 +877,13 @@ function appendAiMsg(role, content) {
 
 function renderAiMarkdown(text) {
     if (!text) return "";
-    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
-    text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // 先对代码块内容做 HTML 实体编码，防止 XSS
+    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_match, _lang, code) {
+        return "<pre><code>" + escapeHtml(code) + "</code></pre>";
+    });
+    text = text.replace(/`([^`]+)`/g, function(_match, code) {
+        return "<code>" + escapeHtml(code) + "</code>";
+    });
     text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     text = text.replace(/\n/g, "<br>");
     return text;
@@ -877,3 +896,485 @@ document.addEventListener("keydown", (e) => {
         toggleAiPanel();
     }
 });
+
+// ============================================================
+// Phase 1-4 新功能: 笔记、习惯、AI规划、日历、工作流、同步
+// ============================================================
+
+// -------- 笔记管理 --------
+let currentNoteId = null;
+
+async function loadNotes() {
+    const resp = await apiGet("/api/notes");
+    const list = document.getElementById("notes-list");
+    if (!list) return;
+    
+    if (!resp.notes || resp.notes.length === 0) {
+        list.innerHTML = "<div class=\"empty-state\">暂无笔记</div>";
+        return;
+    }
+    
+    list.innerHTML = resp.notes.map(n => `
+        <div class="note-item" data-id="${escapeHtmlAttr(n.note_id)}" onclick="editNote('${escapeHtmlAttr(n.note_id)}')">
+            <div class="note-title">${escapeHtml(n.title)}</div>
+            <div class="note-meta">${formatTimeShort(n.updated_at)}</div>
+        </div>
+    `).join("");
+}
+
+async function editNote(noteId) {
+    currentNoteId = noteId;
+    const resp = await apiGet("/api/notes/" + noteId);
+    if (resp.note) {
+        document.getElementById("note-title").value = resp.note.title;
+        document.getElementById("note-content").value = resp.note.content || "";
+        document.getElementById("note-tags-input").value = (resp.note.tags || []).join(", ");
+        document.getElementById("btn-delete-note").style.display = "inline-block";
+    }
+}
+
+async function saveNote() {
+    const title = document.getElementById("note-title").value;
+    const content = document.getElementById("note-content").value;
+    const tags = document.getElementById("note-tags-input").value.split(",").map(t => t.trim()).filter(t => t);
+    
+    if (!title) {
+        toast("请输入笔记标题", "error");
+        return;
+    }
+    
+    if (currentNoteId) {
+        await apiPost("/api/notes/" + currentNoteId, {title, content, tags});
+    } else {
+        await apiPost("/api/notes", {title, content, tags});
+    }
+    
+    toast("笔记已保存", "success");
+    resetNoteForm();
+    loadNotes();
+}
+
+function resetNoteForm() {
+    currentNoteId = null;
+    document.getElementById("note-title").value = "";
+    document.getElementById("note-content").value = "";
+    document.getElementById("note-tags-input").value = "";
+    const btn = document.getElementById("btn-delete-note");
+    if (btn) btn.style.display = "none";
+}
+
+async function deleteNote() {
+    if (!currentNoteId) return;
+    if (!confirm("确定要删除这条笔记吗？")) return;
+    
+    await apiPost("/api/notes/" + currentNoteId + "/delete", {});
+    toast("笔记已删除", "success");
+    resetNoteForm();
+    loadNotes();
+}
+
+// -------- 习惯管理 --------
+async function loadHabits() {
+    const resp = await apiGet("/api/habits");
+    const list = document.getElementById("habits-list");
+    if (!list) return;
+    
+    if (!resp.habits || resp.habits.length === 0) {
+        list.innerHTML = "<div class=\"empty-state\">暂无习惯，点击右上角创建</div>";
+        return;
+    }
+    
+    list.innerHTML = resp.habits.map(h => `
+        <div class="habit-card">
+            <div class="habit-header">
+                <span class="habit-name">${escapeHtml(h.name)}</span>
+                <span class="habit-streak">🔥 ${h.streak || 0} 天</span>
+            </div>
+            <div class="habit-actions">
+                <button class="btn btn-sm btn-primary" onclick="checkinHabit('${escapeHtmlAttr(h.habit_id)}')">✅ 打卡</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+async function checkinHabit(habitId) {
+    const resp = await apiPost("/api/habits/" + habitId + "/checkin", {});
+    if (resp.status === "success") {
+        toast("打卡成功！", "success");
+        loadHabits();
+    }
+}
+
+// -------- 同步功能 --------
+async function loadSyncStatus() {
+    const resp = await apiGet("/api/sync/status");
+    if (resp.status === "success") {
+        const deviceId = document.getElementById("sync-device-id");
+        const lastSync = document.getElementById("sync-last-time");
+        const pending = document.getElementById("sync-pending");
+        if (deviceId) deviceId.textContent = resp.device_id ? resp.device_id.slice(0, 8) + "..." : "-";
+        if (lastSync) lastSync.textContent = resp.last_sync ? formatTimeShort(resp.last_sync) : "从未";
+        if (pending) pending.textContent = resp.pending_changes || 0;
+    }
+}
+
+async function doSync() {
+    const btn = document.getElementById("btn-sync-now");
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "同步中...";
+    }
+    
+    try {
+        const resp = await apiPost("/api/sync/full", {});
+        const resultBox = document.getElementById("sync-result");
+        if (resultBox) resultBox.textContent = JSON.stringify(resp, null, 2);
+        toast("同步完成", "success");
+        loadSyncStatus();
+    } catch (e) {
+        toast("同步失败", "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "🔄 立即同步";
+        }
+    }
+}
+
+// -------- 初始化新功能 --------
+function initNewFeatures() {
+    document.getElementById("btn-add-note")?.addEventListener("click", resetNoteForm);
+    document.getElementById("btn-save-note")?.addEventListener("click", saveNote);
+    document.getElementById("btn-delete-note")?.addEventListener("click", deleteNote);
+    document.getElementById("btn-cancel-note")?.addEventListener("click", resetNoteForm);
+    document.getElementById("btn-sync-now")?.addEventListener("click", doSync);
+    document.getElementById("btn-sync-full")?.addEventListener("click", doSync);
+    
+    loadNotes();
+    loadHabits();
+    loadSyncStatus();
+}
+
+document.addEventListener("DOMContentLoaded", initNewFeatures);
+
+
+
+// ============================================================
+// AI 规划功能
+// ============================================================
+
+async function aiDecompose() {
+    const taskName = document.getElementById("ai-decompose-input")?.value;
+    const desc = document.getElementById("ai-decompose-desc")?.value;
+    const resultBox = document.getElementById("ai-decompose-result");
+    
+    if (!taskName) {
+        toast("请输入任务名称", "error");
+        return;
+    }
+    
+    if (resultBox) {
+        resultBox.innerHTML = "<div class=loading>AI 分析中...</div>";
+    }
+    
+    try {
+        const resp = await apiPost("/api/ai/decompose", {
+            task_name: taskName,
+            description: desc
+        });
+        
+        if (resp.status === "success" && resp.subtasks) {
+            const html = `
+                <h4>拆解结果:</h4>
+                <ul class="subtask-list">
+                    ${resp.subtasks.map(st => `<li>${escapeHtml(st.name)} - ${st.estimated_minutes}分钟</li>`).join("")}
+                </ul>
+                <button class="btn btn-primary" onclick="createSubtasksFromAI('${escapeHtmlAttr(taskName)}', ${JSON.stringify(resp.subtasks).replace(/"/g, '\x26quot;')})">创建任务</button>
+            `;
+            if (resultBox) resultBox.innerHTML = html;
+        } else {
+            if (resultBox) resultBox.innerHTML = `<div class="error">${escapeHtml(resp.message || "拆解失败")}</div>`;
+        }
+    } catch (e) {
+        if (resultBox) resultBox.innerHTML = `<div class="error">请求失败: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function aiEstimate() {
+    const taskName = document.getElementById("ai-estimate-input")?.value;
+    const resultBox = document.getElementById("ai-estimate-result");
+    
+    if (!taskName) {
+        toast("请输入任务名称", "error");
+        return;
+    }
+    
+    if (resultBox) {
+        resultBox.innerHTML = "<div class=loading>估算中...</div>";
+    }
+    
+    try {
+        const resp = await apiPost("/api/ai/estimate", {task_name: taskName});
+        
+        if (resp.status === "success" && resp.estimate) {
+            const est = resp.estimate;
+            const html = `
+                <div class="estimate-result">
+                    <div class="estimate-item">
+                        <span class="label">乐观估计:</span>
+                        <span class="value">${est.optimistic} 分钟</span>
+                    </div>
+                    <div class="estimate-item">
+                        <span class="label">正常估计:</span>
+                        <span class="value">${est.normal} 分钟</span>
+                    </div>
+                    <div class="estimate-item">
+                        <span class="label">悲观估计:</span>
+                        <span class="value">${est.pessimistic} 分钟</span>
+                    </div>
+                    <div class="estimate-reason">${escapeHtml(est.reason || "")}</div>
+                </div>
+            `;
+            if (resultBox) resultBox.innerHTML = html;
+        } else {
+            if (resultBox) resultBox.innerHTML = `<div class="error">${escapeHtml(resp.message || "估算失败")}</div>`;
+        }
+    } catch (e) {
+        if (resultBox) resultBox.innerHTML = `<div class="error">请求失败: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function aiInsights() {
+    const resultBox = document.getElementById("ai-insights-result");
+    
+    if (resultBox) {
+        resultBox.innerHTML = "<div class=loading>分析中...</div>";
+    }
+    
+    try {
+        const resp = await apiGet("/api/ai/insights");
+        
+        if (resp.status === "success" && resp.insights) {
+            const html = `
+                <div class="insights-result">
+                    <h4>效率洞察</h4>
+                    <div class="insight-section">
+                        <h5>任务完成情况</h5>
+                        <p>完成率: ${resp.insights.completion_rate || 0}%</p>
+                        <p>平均完成时间: ${resp.insights.avg_completion_time || "N/A"}</p>
+                    </div>
+                    <div class="insight-section">
+                        <h5>建议</h5>
+                        <ul>
+                            ${(resp.insights.suggestions || []).map(s => `<li>${escapeHtml(s)}</li>`).join("")}
+                        </ul>
+                    </div>
+                </div>
+            `;
+            if (resultBox) resultBox.innerHTML = html;
+        } else {
+            if (resultBox) resultBox.innerHTML = `<div class="error">获取洞察失败</div>`;
+        }
+    } catch (e) {
+        if (resultBox) resultBox.innerHTML = `<div class="error">请求失败: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+// ============================================================
+// 日历功能
+// ============================================================
+
+let currentCalendarDate = new Date();
+
+function initCalendar() {
+    renderCalendar(currentCalendarDate);
+    
+    document.getElementById("cal-prev-month")?.addEventListener("click", () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderCalendar(currentCalendarDate);
+    });
+    
+    document.getElementById("cal-next-month")?.addEventListener("click", () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderCalendar(currentCalendarDate);
+    });
+    
+    loadCalendarEvents();
+}
+
+function renderCalendar(date) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    const label = document.getElementById("cal-month-label");
+    if (label) label.textContent = `${year}年${month + 1}月`;
+    
+    const grid = document.getElementById("calendar-grid");
+    if (!grid) return;
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    let html = `
+        <div class="cal-header">日</div>
+        <div class="cal-header">一</div>
+        <div class="cal-header">二</div>
+        <div class="cal-header">三</div>
+        <div class="cal-header">四</div>
+        <div class="cal-header">五</div>
+        <div class="cal-header">六</div>
+    `;
+    
+    for (let i = 0; i < startingDay; i++) {
+        html += `<div class="cal-day empty"></div>`;
+    }
+    
+    const today = new Date();
+    for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = today.getDate() === day && 
+                       today.getMonth() === month && 
+                       today.getFullYear() === year;
+        html += `<div class="cal-day ${isToday ? "today" : ""}" data-day="${day}">
+            <span class="day-num">${day}</span>
+            <div class="day-events"></div>
+        </div>`;
+    }
+    
+    grid.innerHTML = html;
+}
+
+async function loadCalendarEvents() {
+    try {
+        const resp = await apiGet("/api/advanced/calendar/events");
+        if (resp.events) {
+            resp.events.forEach(event => {
+                const date = new Date(event.start_time);
+                const day = date.getDate();
+                const dayEl = document.querySelector(`#calendar-grid .cal-day[data-day="${day}"] .day-events`);
+                if (dayEl) {
+                    dayEl.innerHTML += `<div class="cal-event">${escapeHtml(event.title)}</div>`;
+                }
+            });
+        }
+    } catch (e) {
+        console.error("加载日历事件失败:", e);
+    }
+}
+
+// ============================================================
+// 工作流功能
+// ============================================================
+
+async function loadWorkflows() {
+    const resp = await apiGet("/api/workflows");
+    const list = document.getElementById("workflows-list");
+    if (!list) return;
+    
+    if (!resp.workflows || resp.workflows.length === 0) {
+        list.innerHTML = "<div class=empty-state>暂无工作流，点击右上角创建</div>";
+        return;
+    }
+    
+    list.innerHTML = resp.workflows.map(wf => `
+        <div class="workflow-card ${wf.enabled ? "" : "disabled"}" data-id="${escapeHtmlAttr(wf.id)}">
+            <div class="workflow-header">
+                <span class="workflow-name">${escapeHtml(wf.name)}</span>
+                <span class="workflow-status">${wf.enabled ? "✅ 启用" : "⏸️ 禁用"}</span>
+            </div>
+            <div class="workflow-desc">${escapeHtml(wf.description || "")}</div>
+            <div class="workflow-meta">
+                <span>触发器: ${wf.trigger?.type || "N/A"}</span>
+                <span>执行次数: ${wf.execution_count || 0}</span>
+            </div>
+            <div class="workflow-actions">
+                <button class="btn btn-sm btn-primary" onclick="executeWorkflow('${escapeHtmlAttr(wf.id)}')">▶️ 执行</button>
+                <button class="btn btn-sm" onclick="toggleWorkflow('${escapeHtmlAttr(wf.id)}', ${!wf.enabled})">${wf.enabled ? "⏸️ 禁用" : "✅ 启用"}</button>
+                <button class="btn btn-sm" onclick="loadWorkflowExecutions('${escapeHtmlAttr(wf.id)}')">📋 记录</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+async function executeWorkflow(workflowId) {
+    try {
+        const resp = await apiPost(`/api/workflows/${workflowId}/execute`, {});
+        if (resp.status === "success") {
+            toast("工作流执行成功", "success");
+            loadWorkflows();
+        } else {
+            toast("执行失败: " + resp.message, "error");
+        }
+    } catch (e) {
+        toast("执行失败", "error");
+    }
+}
+
+async function toggleWorkflow(workflowId, enabled) {
+    try {
+        const resp = await apiPost(`/api/workflows/${workflowId}/toggle`, {enabled});
+        if (resp.status === "success") {
+            toast(enabled ? "工作流已启用" : "工作流已禁用", "success");
+            loadWorkflows();
+        }
+    } catch (e) {
+        toast("操作失败", "error");
+    }
+}
+
+async function loadWorkflowExecutions(workflowId) {
+    try {
+        const resp = await apiGet(`/api/workflows/${workflowId}/executions`);
+        const list = document.getElementById("workflow-executions");
+        if (!list) return;
+        
+        if (!resp.executions || resp.executions.length === 0) {
+            list.innerHTML = "<div class=empty-state>暂无执行记录</div>";
+            return;
+        }
+        
+        list.innerHTML = resp.executions.map(ex => `
+            <div class="execution-item ${ex.status}">
+                <div class="exec-time">${formatTimeShort(ex.started_at)}</div>
+                <div class="exec-status">${ex.status}</div>
+                <div class="exec-steps">${ex.results?.length || 0} 个步骤</div>
+            </div>
+        `).join("");
+    } catch (e) {
+        console.error("加载执行记录失败:", e);
+    }
+}
+
+// ============================================================
+// 更新初始化函数
+// ============================================================
+
+function initPhase3Features() {
+    // AI 规划事件
+    document.getElementById("btn-ai-decompose")?.addEventListener("click", aiDecompose);
+    document.getElementById("btn-ai-estimate")?.addEventListener("click", aiEstimate);
+    document.getElementById("btn-ai-insights")?.addEventListener("click", aiInsights);
+    
+    // 初始化日历
+    initCalendar();
+    
+    // 加载工作流
+    loadWorkflows();
+    
+    // 定期刷新
+    setInterval(() => {
+        loadSyncStatus();
+        loadWorkflows();
+    }, 30000);
+}
+
+// 合并到现有的 initNewFeatures - 使用事件监听器模式
+if (typeof initNewFeatures === 'function') {
+    const existingInit = initNewFeatures;
+    initNewFeatures = function() {
+        existingInit();
+        initPhase3Features();
+    };
+}
+

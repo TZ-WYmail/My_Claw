@@ -54,6 +54,13 @@ class SandboxTool(str, enum.Enum):
 # Tool 1: local_task_manager
 # ============================================================
 
+class Priority(int, enum.Enum):
+    urgent = 0
+    high = 1
+    medium = 2
+    low = 3
+
+
 class TaskManagerRequest(BaseModel):
     action: TaskAction
     task_name: Optional[str] = Field(
@@ -69,6 +76,13 @@ class TaskManagerRequest(BaseModel):
         description="ISO 8601 截止/提醒时间，add_task 时必填",
     )
     recurrence: Optional[Recurrence] = None
+    priority: Optional[Priority] = Field(
+        Priority.medium,
+        description="优先级: 0=紧急, 1=高, 2=中, 3=低",
+    )
+    description: Optional[str] = Field(None, description="任务描述")
+    estimated_minutes: Optional[int] = Field(None, description="预估时间（分钟）")
+    tags: Optional[list[str]] = Field(None, description="标签列表")
 
     @field_validator("due_time")
     @classmethod
@@ -87,6 +101,10 @@ class TaskInfo(BaseModel):
     due_time: str
     recurrence: str
     status: str  # pending / completed / deleted
+    priority: int = 2  # 0=urgent, 1=high, 2=medium, 3=low
+    description: Optional[str] = None
+    estimated_minutes: Optional[int] = None
+    tags: list[str] = []
 
 
 class TaskManagerResponse(BaseModel):
@@ -105,6 +123,9 @@ class BatchTaskItem(BaseModel):
     task_name: str = Field(..., description="任务名称")
     due_time: str = Field(..., description="截止时间，支持宽松格式如 '3月22日' 或 ISO 8601")
     recurrence: str = Field("once", description="重复周期: once/daily/weekly/monthly")
+    priority: Optional[Priority] = Field(Priority.medium, description="优先级")
+    description: Optional[str] = Field(None, description="任务描述")
+    estimated_minutes: Optional[int] = Field(None, description="预估时间（分钟）")
 
 
 class BatchTaskRequest(BaseModel):
@@ -149,6 +170,29 @@ class SafeDownloaderResponse(BaseModel):
     mode: Optional[str] = None  # async
     job_id: Optional[str] = None
     estimated_seconds: Optional[int] = None
+    position: Optional[int] = None  # 队列位置
+
+
+class DownloadQueueItem(BaseModel):
+    job_id: str
+    filename: str
+    status: str  # queued/downloading/paused/completed/failed
+    progress: int  # 0-100
+    speed_kb_s: int
+    retry_count: int
+
+
+class DownloadQueueResponse(BaseModel):
+    status: str
+    queue_length: int
+    active_downloads: int
+    max_concurrent: int
+    items: list[DownloadQueueItem]
+
+
+class BandwidthResponse(BaseModel):
+    status: str
+    limit_kb_s: int
 
 
 # ============================================================
@@ -309,3 +353,229 @@ class AITestResponse(BaseModel):
     reply: str = ""
     message: Optional[str] = None
     test_reply: Optional[str] = None
+
+
+# ============================================================
+# 标签管理
+# ============================================================
+
+class TagCreateRequest(BaseModel):
+    name: str = Field(..., description="标签名称")
+    color: str = Field("#3498db", description="标签颜色")
+
+
+class TagResponse(BaseModel):
+    tag_id: int
+    name: str
+    color: str
+
+
+class TagListResponse(BaseModel):
+    status: str
+    tags: list[TagResponse]
+
+
+# ============================================================
+# 子任务管理
+# ============================================================
+
+class SubtaskCreateRequest(BaseModel):
+    task_id: str = Field(..., description="父任务ID")
+    name: str = Field(..., description="子任务名称")
+
+
+class SubtaskUpdateRequest(BaseModel):
+    subtask_id: str = Field(..., description="子任务ID")
+    name: Optional[str] = None
+    status: Optional[str] = None  # pending/completed
+
+
+class SubtaskInfo(BaseModel):
+    subtask_id: str
+    task_id: str
+    name: str
+    status: str
+    sort_order: int
+
+
+class SubtaskListResponse(BaseModel):
+    status: str
+    subtasks: list[SubtaskInfo]
+
+
+# ============================================================
+# 番茄钟管理
+# ============================================================
+
+class PomodoroStartRequest(BaseModel):
+    task_id: Optional[str] = Field(None, description="关联任务ID（可选）")
+    duration_minutes: int = Field(25, description="番茄钟时长（分钟）")
+
+
+class PomodoroInterruptRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    reason: Optional[str] = Field(None, description="中断原因")
+
+
+class PomodoroSession(BaseModel):
+    session_id: str
+    task_id: Optional[str]
+    task_name: Optional[str] = None
+    start_time: str
+    end_time: Optional[str]
+    duration_minutes: int
+    actual_minutes: Optional[int]
+    status: str  # running/completed/interrupted
+    interrupt_reason: Optional[str]
+
+
+class PomodoroStatusResponse(BaseModel):
+    status: str
+    active_session: Optional[PomodoroSession] = None
+    message: Optional[str] = None
+
+
+class PomodoroStatsResponse(BaseModel):
+    status: str
+    today_count: int  # 今日完成数
+    today_minutes: int  # 今日专注分钟
+    week_count: int  # 本周完成数
+    week_minutes: int  # 本周专注分钟
+    total_count: int  # 总计完成数
+    total_minutes: int  # 总计专注分钟
+    daily_stats: list[dict]  # 最近7天统计
+
+
+class PomodoroHistoryResponse(BaseModel):
+    status: str
+    sessions: list[PomodoroSession]
+    total: int
+    page: int
+    page_size: int
+
+
+# ============================================================
+# 日历视图
+# ============================================================
+
+class CalendarEventCreateRequest(BaseModel):
+    title: str = Field(..., description="事件标题")
+    description: Optional[str] = None
+    start_time: str = Field(..., description="开始时间 ISO 8601")
+    end_time: str = Field(..., description="结束时间 ISO 8601")
+    event_type: str = Field("personal", description="事件类型")
+    color: Optional[str] = None
+
+
+class CalendarEvent(BaseModel):
+    event_id: str
+    title: str
+    description: Optional[str]
+    start_time: str
+    end_time: str
+    event_type: str
+    color: str
+
+
+class CalendarViewRequest(BaseModel):
+    view_type: str = Field(..., description="month/week/day")
+    year: int
+    month: int
+    day: Optional[int] = None  # week/day 视图需要
+
+
+class CalendarDay(BaseModel):
+    date: str  # YYYY-MM-DD
+    weekday: int  # 0=Monday
+    is_today: bool
+    is_current_month: bool
+    tasks: list[TaskInfo]
+    events: list[CalendarEvent]
+    pomodoro_count: int
+
+
+class CalendarViewResponse(BaseModel):
+    status: str
+    view_type: str
+    year: int
+    month: int
+    days: list[CalendarDay]
+
+
+# ============================================================
+# 批量任务更新
+# ============================================================
+
+class BatchTaskUpdateRequest(BaseModel):
+    task_ids: list[str]
+    priority: Optional[Priority] = None
+    tags_add: Optional[list[str]] = None
+    tags_remove: Optional[list[str]] = None
+    due_time: Optional[str] = None
+
+
+# ============================================================
+# 笔记管理
+# ============================================================
+
+class NoteInfo(BaseModel):
+    note_id: str
+    title: str
+    content: str
+    content_type: str
+    tags: list[str]
+    task_id: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+class NoteListResponse(BaseModel):
+    status: str
+    notes: list[NoteInfo]
+    total: int
+    page: int
+    page_size: int
+
+
+# ============================================================
+# 习惯管理
+# ============================================================
+
+class HabitInfo(BaseModel):
+    habit_id: str
+    name: str
+    description: str
+    frequency: str
+    target_count: int
+    reminder_time: Optional[str]
+    color: str
+    created_at: str
+    streak: int = 0
+
+
+class HabitCheckin(BaseModel):
+    checkin_id: int
+    checkin_date: str
+    count: int
+    note: str
+
+
+class HabitDetail(BaseModel):
+    habit_id: str
+    name: str
+    description: str
+    frequency: str
+    target_count: int
+    reminder_time: Optional[str]
+    color: str
+    created_at: str
+    checkins: list[HabitCheckin]
+    streak: int
+
+
+class HabitStatsResponse(BaseModel):
+    status: str
+    total_count: int
+    total_days: int
+    week_count: int
+    month_count: int

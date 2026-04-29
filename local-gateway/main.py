@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import (
+    CORS_ALLOW_CREDENTIALS,
     CORS_ORIGINS,
     DEBUG,
     HOST,
@@ -23,15 +24,29 @@ from config import (
 )
 from models.schemas import HealthResponse
 from routers import (
+    advanced_features,
+    ai_planning,
+    calendar_sync,
     chat as chat_router,
     dashboard,
+    encryption,
     file_search,
+    fulltext_search,
+    habits,
     job_status,
+    mobile,
+    notes,
     safe_downloader,
     sandbox_executor,
+    shortcuts,
+    sync,
     task_manager,
+    voice,
+    webhooks,
+    workflows,
 )
 from services import task_service
+from services.sync_service import sync_engine
 
 # ============================================================
 # 日志配置
@@ -57,6 +72,9 @@ async def lifespan(app: FastAPI):
     # 初始化数据库
     await task_service.init_db()
     logger.info(f"✅ 数据库初始化完成: tasks.db")
+    # 初始化同步引擎
+    await sync_engine.initialize()
+    logger.info(f"✅ 同步引擎初始化完成")
     logger.info(f"📡 服务监听: http://{HOST}:{PORT}")
     yield
     logger.info(f"🛑 {SERVICE_NAME} 正在关闭...")
@@ -77,7 +95,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -93,6 +111,19 @@ app.include_router(job_status.router, prefix="/api")
 app.include_router(sandbox_executor.router, prefix="/api")
 app.include_router(chat_router.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(advanced_features.router, prefix="/api")
+app.include_router(shortcuts.router, prefix="/api")
+app.include_router(ai_planning.router, prefix="/api")
+app.include_router(notes.router, prefix="/api")
+app.include_router(habits.router, prefix="/api")
+app.include_router(voice.router, prefix="/api")
+app.include_router(calendar_sync.router, prefix="/api")
+app.include_router(fulltext_search.router, prefix="/api")
+app.include_router(webhooks.router, prefix="/api")
+app.include_router(workflows.router, prefix="/api")
+app.include_router(sync.router, prefix="/api")
+app.include_router(mobile.router, prefix="/api")
+app.include_router(encryption.router, prefix="/api")
 
 
 # ============================================================

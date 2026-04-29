@@ -105,7 +105,7 @@ local-gateway/
 # 设置 AI API（支持 OpenAI/GLM 兼容格式）
 export AI_API_KEY="your-api-key"
 export AI_MODEL="glm-4-flash"  # 可选
-export AI_API_BASE="https://open.bigmodel.cn/api/paas/v4"  # 可选
+export AI_API_BASE="https://open.bigmodel.cn/api/coding/paas/v4"  # 可选
 python main.py
 ```
 
@@ -135,7 +135,7 @@ AI 可通过 function calling 自动调用 5 个工具：
 | `SANDBOX_TIMEOUT` | `300` | 沙盒超时（秒） |
 | `SANDBOX_MEMORY_LIMIT` | `512m` | 沙盒内存限制 |
 | `CORS_ORIGINS` | `*` | 允许的 CORS 来源 |
-| `AI_API_BASE` | `https://open.bigmodel.cn/api/paas/v4` | AI API 地址 |
+| `AI_API_BASE` | `https://open.bigmodel.cn/api/coding/paas/v4` | AI API 地址 |
 | `AI_API_KEY` | （空） | AI API Key |
 | `AI_MODEL` | `glm-4-flash` | AI 模型名称 |
 

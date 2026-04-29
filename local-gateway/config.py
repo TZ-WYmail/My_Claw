@@ -28,8 +28,7 @@ CATEGORY_DIRS = {
 DB_PATH = BASE_DIR / "data" / "tasks.db"
 
 # ==================== 安全配置 ====================
-# 文件名危险字符（禁止出现在下载文件名中）
-DANGEROUS_FILENAME_CHARS = ["..", "/", "\\", "\0", "\n", "\r"]
+# 文件名安全校验已迁移至 services/security_service.sanitize_filename
 
 # 允许的 URL 协议
 ALLOWED_URL_SCHEMES = ["https", "http"]
@@ -71,7 +70,12 @@ LARGE_FILE_THRESHOLD = 50 * 1024 * 1024  # 50MB
 DOWNLOAD_CHUNK_SIZE = 8192
 
 # ==================== CORS 配置 ====================
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+# 安全默认值：仅允许本地开发地址；生产环境必须通过环境变量显式配置
+_cors_raw = os.getenv("CORS_ORIGINS", "http://localhost:8900")
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
+# 当 origins 包含 * 时，禁止 allow_credentials（防止 CSRF/凭证窃取）
+CORS_ALLOW_CREDENTIALS = "*" not in CORS_ORIGINS
 
 # ==================== Job 配置 ====================
 # 异步任务结果保留时间（秒）
@@ -94,7 +98,7 @@ class AIConfig:
     _CONFIG_FILE = BASE_DIR / "data" / "ai_config.json"
 
     def __init__(self):
-        self.api_base = os.getenv("AI_API_BASE", "https://open.bigmodel.cn/api/paas/v4")
+        self.api_base = os.getenv("AI_API_BASE", "https://open.bigmodel.cn/api/coding/paas/v4")
         self.api_key = os.getenv("AI_API_KEY", "")
         self.model = os.getenv("AI_MODEL", "glm-4-flash")
         self.gateway_base_url = os.getenv("GATEWAY_BASE_URL", "http://localhost:8900")

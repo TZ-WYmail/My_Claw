@@ -53,11 +53,13 @@ async def logs(
 async def all_tasks(
     status: str = Query("active", description="状态筛选: active/pending/completed/deleted"),
     keyword: str = Query("", description="搜索关键词"),
+    tag: str = Query("", description="标签筛选"),
+    priority: int = Query(None, ge=0, le=3, description="优先级筛选: 0=紧急, 1=高, 2=中, 3=低"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
     """全部任务（带筛选和分页）"""
     result = await task_service.get_all_tasks(
-        status_filter=status, keyword=keyword, page=page, page_size=page_size,
+        status_filter=status, keyword=keyword, tag=tag, priority=priority, page=page, page_size=page_size,
     )
     return AllTasksResponse(**result)

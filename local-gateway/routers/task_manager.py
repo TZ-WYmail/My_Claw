@@ -28,6 +28,10 @@ async def handle_task(request: TaskManagerRequest):
             task_name=request.task_name,
             due_time=request.due_time,
             recurrence=request.recurrence.value if request.recurrence else "once",
+            priority=request.priority.value if request.priority else 2,
+            description=request.description,
+            estimated_minutes=request.estimated_minutes,
+            tags=request.tags,
         )
 
     elif request.action.value == "delete_task":
@@ -66,7 +70,14 @@ async def handle_batch_task(request: BatchTaskRequest):
     action='create': 批量写入数据库
     """
     task_dicts = [
-        {"task_name": t.task_name, "due_time": t.due_time, "recurrence": t.recurrence}
+        {
+            "task_name": t.task_name,
+            "due_time": t.due_time,
+            "recurrence": t.recurrence,
+            "priority": getattr(t, 'priority', 2),
+            "description": getattr(t, 'description', None),
+            "estimated_minutes": getattr(t, 'estimated_minutes', None),
+        }
         for t in request.tasks
     ]
 
@@ -77,12 +88,20 @@ async def handle_batch_task(request: BatchTaskRequest):
         analyzed = await task_service.analyze_tasks(task_dicts)
         # 只创建时间有效的任务
         valid_tasks = [
-            {"task_name": a["task_name"], "due_time": a["due_time"], "recurrence": a["recurrence"]}
+            {
+                "task_name": a["task_name"],
+                "due_time": a["due_time"],
+                "recurrence": a["recurrence"],
+                "priority": a.get("priority", 2),
+                "description": a.get("description"),
+                "estimated_minutes": a.get("estimated_minutes"),
+            }
             for a in analyzed["analyzed"]
             if a["time_valid"]
         ]
         result = await task_service.batch_add_tasks(valid_tasks)
         result["timeline"] = analyzed.get("timeline", [])
+        result["daily_timeline"] = analyzed.get("daily_timeline", [])
     else:
         result = {"status": "error", "message": f"未知操作: {request.action}"}
 

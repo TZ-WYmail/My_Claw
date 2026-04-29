@@ -584,3 +584,364 @@ body {
 @media (max-width: 500px) {
     .ai-panel { width: calc(100vw - 16px); right: 8px; bottom: 80px; }
 }
+
+
+/* ============================================================
+   Phase 3-4 新功能样式
+   ============================================================ */
+
+/* 笔记 */
+.notes-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.note-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.note-item:hover {
+    background: var(--bg-secondary);
+}
+
+.note-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.note-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+#note-content {
+    width: 100%;
+    min-height: 300px;
+    font-family: monospace;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text);
+}
+
+.note-tags {
+    margin: 12px 0;
+}
+
+.note-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+/* 习惯 */
+.habits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.habit-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.habit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.habit-name {
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.habit-streak {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+.habit-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.habit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* 日历 */
+.calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 8px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.cal-header {
+    text-align: center;
+    padding: 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.cal-day {
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px;
+    position: relative;
+    min-height: 80px;
+}
+
+.cal-day.empty {
+    background: transparent;
+    border: none;
+}
+
+.cal-day.today {
+    background: rgba(52, 152, 219, 0.2);
+    border-color: #3498db;
+}
+
+.cal-day .day-num {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.day-events {
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+.cal-event {
+    background: #3498db;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 2px;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 工作流 */
+.workflows-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.workflow-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.workflow-card.disabled {
+    opacity: 0.6;
+}
+
+.workflow-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.workflow-name {
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.workflow-status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg);
+}
+
+.workflow-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.workflow-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.workflow-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.executions-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.execution-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.execution-item.completed {
+    border-left: 3px solid #27ae60;
+}
+
+.execution-item.failed {
+    border-left: 3px solid #e74c3c;
+}
+
+.execution-item.running {
+    border-left: 3px solid #3498db;
+}
+
+/* 同步 */
+.sync-actions {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.sync-result-box {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.devices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* AI 规划 */
+.ai-result-box {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.subtask-list {
+    list-style: none;
+    padding: 0;
+}
+
+.subtask-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.estimate-result {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.estimate-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 4px;
+}
+
+.estimate-item .label {
+    color: var(--text-secondary);
+}
+
+.estimate-item .value {
+    font-weight: 600;
+}
+
+.insights-result h4 {
+    margin-bottom: 16px;
+}
+
+.insight-section {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 4px;
+}
+
+.insight-section h5 {
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+/* 设置 */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+.setting-item label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 加载动画 */
+.loading {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-secondary);
+}
+
+.loading::after {
+    content: "";
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    margin-left: 8px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+

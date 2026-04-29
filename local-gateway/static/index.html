@@ -2,9 +2,12 @@
 <html lang="zh-CN" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <meta name="theme-color" content="#3498db">\n    <meta name="description" content="本地指挥中心 — 智能任务管理与调度">
     <title>LocalCommandCenter 指挥中心</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
 </head>
 <body>
 <div id="app">
@@ -26,10 +29,16 @@
     <nav class="tabs">
         <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
         <button class="tab" data-tab="tasks">📋 任务管理</button>
+        <button class="tab" data-tab="notes">📝 笔记</button>
+        <button class="tab" data-tab="habits">🎯 习惯</button>
+        <button class="tab" data-tab="ai-planning">🤖 AI规划</button>
+        <button class="tab" data-tab="calendar">📅 日历</button>
+        <button class="tab" data-tab="workflows">⚡ 工作流</button>
+        <button class="tab" data-tab="sync">🔄 同步</button>
         <button class="tab" data-tab="download">📥 下载</button>
         <button class="tab" data-tab="search">🔍 文件检索</button>
         <button class="tab" data-tab="sandbox">🔧 沙盒</button>
-        <button class="tab" data-tab="logs">📜 日志</button>
+        <button class="tab" data-tab="settings">⚙️ 设置</button>
     </nav>
 
     <!-- ==================== 仪表盘 ==================== -->
@@ -400,5 +409,266 @@ pip install pymupdf gTTS"></textarea>
 </div>
 
 <script src="/static/app.js"></script>
+<script>
+    // PWA Service Worker Registration
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(registration => console.log('[PWA] SW registered'))
+                .catch(error => console.log('[PWA] SW failed:', error));
+        });
+    }
+</script>
+
+    <!-- ==================== 笔记 ==================== -->
+    <section id="panel-notes" class="panel">
+        <div class="panel-header">
+            <h2>📝 笔记管理</h2>
+            <div class="header-actions">
+                <input id="note-search" type="text" placeholder="搜索笔记..." class="search-sm">
+                <button id="btn-add-note" class="btn btn-primary btn-sm">+ 新建笔记</button>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="card" id="notes-list-card">
+                <h3>笔记列表</h3>
+                <div id="notes-list" class="notes-list">
+                    <div class="empty-state">加载中...</div>
+                </div>
+            </div>
+            <div class="card span-2" id="note-editor-card">
+                <h3><input type="text" id="note-title" placeholder="笔记标题"></h3>
+                <div class="note-tags">
+                    <input type="text" id="note-tags-input" placeholder="标签，用逗号分隔">
+                </div>
+                <textarea id="note-content" placeholder="支持 Markdown 格式..."></textarea>
+                <div class="note-actions">
+                    <button id="btn-save-note" class="btn btn-primary">💾 保存</button>
+                    <button id="btn-delete-note" class="btn btn-danger" style="display:none">🗑️ 删除</button>
+                    <button id="btn-cancel-note" class="btn">取消</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 习惯 ==================== -->
+    <section id="panel-habits" class="panel">
+        <div class="panel-header">
+            <h2>🎯 习惯养成</h2>
+            <div class="header-actions">
+                <button id="btn-add-habit" class="btn btn-primary btn-sm">+ 新建习惯</button>
+            </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="habit-streak-max">-</div>
+                    <div class="stat-label">最长连续天数</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="habit-checkins-today">-</div>
+                    <div class="stat-label">今日打卡</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div id="habits-list" class="habits-grid">
+                <div class="empty-state">暂无习惯，点击右上角创建</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== AI 规划 ==================== -->
+    <section id="panel-ai-planning" class="panel">
+        <div class="panel-header">
+            <h2>🤖 AI 智能规划</h2>
+        </div>
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>📝 任务拆解</h3>
+                <div class="form-group">
+                    <label>任务名称</label>
+                    <input id="ai-decompose-input" type="text" placeholder="输入任务名称，AI将自动拆解">
+                </div>
+                <div class="form-group">
+                    <label>任务描述</label>
+                    <textarea id="ai-decompose-desc" rows="3" placeholder="补充描述（可选）"></textarea>
+                </div>
+                <button id="btn-ai-decompose" class="btn btn-primary">🔍 AI 拆解</button>
+                <div id="ai-decompose-result" class="ai-result-box"></div>
+            </div>
+            <div class="card">
+                <h3>⏱️ 时间估算</h3>
+                <div class="form-group">
+                    <label>任务名称</label>
+                    <input id="ai-estimate-input" type="text" placeholder="输入任务名称">
+                </div>
+                <button id="btn-ai-estimate" class="btn btn-primary">⏱️ AI 估算</button>
+                <div id="ai-estimate-result" class="ai-result-box"></div>
+            </div>
+            <div class="card span-2">
+                <h3>📊 效率洞察</h3>
+                <button id="btn-ai-insights" class="btn btn-primary">🔍 生成洞察</button>
+                <div id="ai-insights-result" class="ai-result-box"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 日历 ==================== -->
+    <section id="panel-calendar" class="panel">
+        <div class="panel-header">
+            <h2>📅 日历视图</h2>
+            <div class="header-actions">
+                <button id="btn-add-event" class="btn btn-primary btn-sm">+ 新建事件</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="calendar-nav">
+                <button id="cal-prev-month">◀</button>
+                <span id="cal-month-label">2026年4月</span>
+                <button id="cal-next-month">▶</button>
+            </div>
+            <div id="calendar-grid" class="calendar-grid">
+                <!-- 由 JS 生成 -->
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 工作流 ==================== -->
+    <section id="panel-workflows" class="panel">
+        <div class="panel-header">
+            <h2>⚡ 自动化工作流</h2>
+            <div class="header-actions">
+                <button id="btn-add-workflow" class="btn btn-primary btn-sm">+ 新建工作流</button>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>工作流列表</h3>
+                <div id="workflows-list" class="workflows-list">
+                    <div class="empty-state">暂无工作流</div>
+                </div>
+            </div>
+            <div class="card span-2">
+                <h3>执行记录</h3>
+                <div id="workflow-executions" class="executions-list">
+                    <div class="empty-state">选择工作流查看执行记录</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 同步 ==================== -->
+    <section id="panel-sync" class="panel">
+        <div class="panel-header">
+            <h2>🔄 数据同步</h2>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📱</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="sync-device-id">-</div>
+                    <div class="stat-label">设备 ID</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏰</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="sync-last-time">-</div>
+                    <div class="stat-label">上次同步</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📤</div>
+                <div class="stat-info">
+                    <div class="stat-value" id="sync-pending">-</div>
+                    <div class="stat-label">待同步</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>同步操作</h3>
+            <div class="sync-actions">
+                <button id="btn-sync-now" class="btn btn-primary">🔄 立即同步</button>
+                <button id="btn-sync-full" class="btn">📤 完整同步</button>
+            </div>
+            <div id="sync-result" class="sync-result-box"></div>
+        </div>
+        <div class="card">
+            <h3>已连接设备</h3>
+            <div id="sync-devices-list" class="devices-list">
+                <div class="empty-state">暂无其他设备</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 设置 ==================== -->
+    <section id="panel-settings" class="panel">
+        <div class="panel-header">
+            <h2>⚙️ 设置</h2>
+        </div>
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>🎨 外观</h3>
+                <div class="setting-item">
+                    <label>主题</label>
+                    <select id="setting-theme">
+                        <option value="dark">深色</option>
+                        <option value="light">浅色</option>
+                        <option value="auto">跟随系统</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🔔 通知</h3>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="setting-notify-task">
+                        任务提醒
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="setting-notify-habit">
+                        习惯提醒
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="setting-notify-pomodoro">
+                        番茄钟提醒
+                    </label>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🍅 番茄钟</h3>
+                <div class="setting-item">
+                    <label>专注时长（分钟）</label>
+                    <input type="number" id="setting-pomodoro-duration" value="25" min="1" max="60">
+                </div>
+                <div class="setting-item">
+                    <label>休息时长（分钟）</label>
+                    <input type="number" id="setting-pomodoro-break" value="5" min="1" max="30">
+                </div>
+            </div>
+            <div class="card">
+                <h3>🔄 同步</h3>
+                <div class="setting-item">
+                    <label>自动同步</label>
+                    <select id="setting-sync-interval">
+                        <option value="60">每 1 分钟</option>
+                        <option value="300" selected>每 5 分钟</option>
+                        <option value="600">每 10 分钟</option>
+                        <option value="0">手动同步</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </section>
+
 </body>
 </html>
