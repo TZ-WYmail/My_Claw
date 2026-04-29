@@ -1,674 +1,133 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <meta name="theme-color" content="#3498db">\n    <meta name="description" content="本地指挥中心 — 智能任务管理与调度">
-    <title>LocalCommandCenter 指挥中心</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/static/manifest.json">
-    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a84ff">
+  <meta name="description" content="LocalCommandCenter — 本地指挥中心">
+  <title>LocalCommandCenter</title>
+
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/animations.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body>
-<div id="app">
-    <!-- 顶部导航 -->
-    <header class="header">
-        <div class="header-left">
-            <h1>🧠 LocalCommandCenter</h1>
-            <span class="version">v3.0.0</span>
-        </div>
-        <div class="header-right">
-            <input id="global-search" type="text" placeholder="🔍 全局搜索 (Ctrl+K)" class="global-search">
-            <button id="btn-theme" class="btn-icon" title="切换主题">🌙</button>
-            <span id="status-dot" class="status-dot connecting"></span>
-            <span id="status-text">连接中...</span>
-        </div>
-    </header>
+<div class="app-shell" x-data x-bind="$store.app.init()" :class="{ collapsed: $store.view.sidebarCollapsed }">
 
-    <!-- 标签页导航 -->
-    <nav class="tabs">
-        <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
-        <button class="tab" data-tab="tasks">📋 任务管理</button>
-        <button class="tab" data-tab="notes">📝 笔记</button>
-        <button class="tab" data-tab="habits">🎯 习惯</button>
-        <button class="tab" data-tab="ai-planning">🤖 AI规划</button>
-        <button class="tab" data-tab="calendar">📅 日历</button>
-        <button class="tab" data-tab="workflows">⚡ 工作流</button>
-        <button class="tab" data-tab="sync">🔄 同步</button>
-        <button class="tab" data-tab="download">📥 下载</button>
-        <button class="tab" data-tab="search">🔍 文件检索</button>
-        <button class="tab" data-tab="sandbox">🔧 沙盒</button>
-        <button class="tab" data-tab="settings">⚙️ 设置</button>
+  <!-- Sidebar -->
+  <aside class="sidebar" :class="{ collapsed: $store.view.sidebarCollapsed }">
+    <div class="sidebar-header">
+      <span class="logo">🧠 LCC</span>
+      <span class="version" x-text="$store.app.connected ? 'v' + $store.app.version : ''"></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" :class="{ active: $store.view.isActive('dashboard') }"
+              @click="$store.view.navigateTo('dashboard')">
+        <span class="nav-icon">📊</span><span class="nav-label">仪表盘</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('tasks') }"
+              @click="$store.view.navigateTo('tasks')">
+        <span class="nav-icon">📋</span><span class="nav-label">任务</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('notes') }"
+              @click="$store.view.navigateTo('notes')">
+        <span class="nav-icon">📝</span><span class="nav-label">笔记</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('habits') }"
+              @click="$store.view.navigateTo('habits')">
+        <span class="nav-icon">🎯</span><span class="nav-label">习惯</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('calendar') }"
+              @click="$store.view.navigateTo('calendar')">
+        <span class="nav-icon">📅</span><span class="nav-label">日历</span>
+      </button>
+
+      <div class="nav-separator"></div>
+
+      <button class="nav-item" :class="{ active: $store.view.isActive('ai-chat') }"
+              @click="$store.view.navigateTo('ai-chat')">
+        <span class="nav-icon">🤖</span><span class="nav-label">AI 对话</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('workflows') }"
+              @click="$store.view.navigateTo('workflows')">
+        <span class="nav-icon">⚡</span><span class="nav-label">工作流</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('sync') }"
+              @click="$store.view.navigateTo('sync')">
+        <span class="nav-icon">🔄</span><span class="nav-label">同步</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('download') }"
+              @click="$store.view.navigateTo('download')">
+        <span class="nav-icon">📥</span><span class="nav-label">下载</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('sandbox') }"
+              @click="$store.view.navigateTo('sandbox')">
+        <span class="nav-icon">🔧</span><span class="nav-label">沙盒</span>
+      </button>
     </nav>
 
-    <!-- ==================== 仪表盘 ==================== -->
-    <section id="panel-dashboard" class="panel active">
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📋</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-tasks-pending">-</div>
-                    <div class="stat-label">待执行任务</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-tasks-completed">-</div>
-                    <div class="stat-label">已完成任务</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">📥</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-downloads">-</div>
-                    <div class="stat-label">下载文件</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">💾</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-storage">-</div>
-                    <div class="stat-label">磁盘占用</div>
-                </div>
-            </div>
-        </div>
+    <div class="sidebar-footer">
+      <button class="nav-item" style="font-size:0.8rem" @click="$store.view.navigateTo('settings')"
+              :class="{ active: $store.view.isActive('settings') }">
+        <span class="nav-icon">⚙️</span><span class="nav-label">设置</span>
+      </button>
+      <div class="status-row">
+        <span class="status-dot" :class="{ connected: $store.app.connected, error: !$store.app.connected }"></span>
+        <span x-text="$store.app.connected ? '已连接' : '未连接'" style="font-size:0.75rem"></span>
+      </div>
+    </div>
+  </aside>
 
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>📥 最近下载</h3>
-                <div id="dash-recent-downloads" class="activity-list">
-                    <div class="empty-state">暂无下载记录</div>
-                </div>
-            </div>
-            <div class="card">
-                <h3>📜 最近操作</h3>
-                <div id="dash-recent-logs" class="activity-list">
-                    <div class="empty-state">暂无操作记录</div>
-                </div>
-            </div>
-        </div>
-    </section>
+  <!-- Main Area -->
+  <main class="main-area">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="sidebar-toggle" @click="$store.view.toggleSidebar()" title="⌘B 折叠侧边栏">
+          ☰
+        </button>
+        <h2 x-text="$store.view.current"></h2>
+      </div>
+      <div class="top-bar-right">
+        <input id="global-search" class="global-search" type="text"
+               placeholder="⌘K 命令面板..." autocomplete="off">
+        <button class="btn-icon btn-ghost" @click="$store.app.toggleTheme()"
+                :title="$store.app.theme === 'dark' ? '切换亮色主题' : '切换暗色主题'">
+          <span x-text="$store.app.theme === 'dark' ? '☀️' : '🌙'"></span>
+        </button>
+      </div>
+    </div>
 
-    <!-- ==================== 任务管理 ==================== -->
-    <section id="panel-tasks" class="panel">
-        <div class="panel-header">
-            <h2>任务管理</h2>
-            <div class="header-actions">
-                <input id="task-search" type="text" placeholder="搜索任务..." class="search-sm">
-                <select id="task-status-filter" class="filter-sm">
-                    <option value="active">进行中</option>
-                    <option value="pending">待执行</option>
-                    <option value="completed">已完成</option>
-                    <option value="all">全部</option>
-                </select>
-                <button id="btn-add-task-modal" class="btn btn-primary btn-sm">+ 新建任务</button>
-            </div>
-        </div>
+    <div class="view-container">
+      <!-- Views injected here by router -->
+      <div id="view-dashboard" x-show="$store.view.isActive('dashboard')" x-transition.opacity.duration.250ms></div>
+      <div id="view-tasks" x-show="$store.view.isActive('tasks')" x-transition.opacity.duration.250ms></div>
+      <div id="view-notes" x-show="$store.view.isActive('notes')" x-transition.opacity.duration.250ms></div>
+      <div id="view-habits" x-show="$store.view.isActive('habits')" x-transition.opacity.duration.250ms></div>
+      <div id="view-calendar" x-show="$store.view.isActive('calendar')" x-transition.opacity.duration.250ms></div>
+      <div id="view-ai-chat" x-show="$store.view.isActive('ai-chat')" x-transition.opacity.duration.250ms></div>
+      <div id="view-workflows" x-show="$store.view.isActive('workflows')" x-transition.opacity.duration.250ms></div>
+      <div id="view-sync" x-show="$store.view.isActive('sync')" x-transition.opacity.duration.250ms></div>
+      <div id="view-download" x-show="$store.view.isActive('download')" x-transition.opacity.duration.250ms></div>
+      <div id="view-sandbox" x-show="$store.view.isActive('sandbox')" x-transition.opacity.duration.250ms></div>
+      <div id="view-settings" x-show="$store.view.isActive('settings')" x-transition.opacity.duration.250ms></div>
+    </div>
+  </main>
 
-        <div class="card">
-            <div class="tab-bar">
-                <button class="inner-tab active" data-inner="weekly">本周计划</button>
-                <button class="inner-tab" data-inner="all">全部任务</button>
-            </div>
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
 
-            <!-- 本周计划 - 带时间纵轴的周日历 -->
-            <div id="inner-weekly" class="inner-panel active">
-                <div class="calendar-header">
-                    <div class="calendar-week-label" id="cal-week-label">本周</div>
-                    <div class="calendar-nav">
-                        <button class="btn btn-sm" id="cal-prev" title="上一周">◀</button>
-                        <button class="btn btn-sm" id="cal-today" title="回到本周">今天</button>
-                        <button class="btn btn-sm" id="cal-next" title="下一周">▶</button>
-                    </div>
-                </div>
-                <div class="week-calendar" id="week-calendar">
-                    <!-- 由 JS 动态生成：左侧时间轴 + 7天列 -->
-                </div>
-            </div>
-
-            <!-- 全部任务 -->
-            <div id="inner-all" class="inner-panel">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>序号</th><th>任务名称</th><th>截止时间</th><th>周期</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
-                    </thead>
-                    <tbody id="all-task-tbody">
-                        <tr><td colspan="7" class="empty">加载中...</td></tr>
-                    </tbody>
-                </table>
-                <div id="task-pagination" class="pagination"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 下载 ==================== -->
-    <section id="panel-download" class="panel">
-        <div class="panel-header">
-            <h2>下载中心</h2>
-        </div>
-
-        <div class="card">
-            <div class="tab-bar">
-                <button class="inner-tab active" data-inner="dl-new">新建下载</button>
-                <button class="inner-tab" data-inner="dl-history">下载历史</button>
-            </div>
-
-            <!-- 新建下载 -->
-            <div id="inner-dl-new" class="inner-panel active">
-                <div class="form-grid">
-                    <div class="form-group span-2">
-                        <label>下载 URL</label>
-                        <input id="dl-url" type="url" placeholder="https://arxiv.org/pdf/2501.12345.pdf">
-                    </div>
-                    <div class="form-group">
-                        <label>分类</label>
-                        <select id="dl-category">
-                            <option value="paper">论文 paper</option>
-                            <option value="video">视频 video</option>
-                            <option value="code">代码 code</option>
-                            <option value="misc">其他 misc</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>文件名（可选）</label>
-                        <input id="dl-filename" type="text" placeholder="自动生成">
-                    </div>
-                    <div class="form-group form-action">
-                        <button id="btn-download" class="btn btn-primary">开始下载</button>
-                    </div>
-                </div>
-                <div id="download-result" class="result-box" style="display:none">
-                    <pre id="download-output"></pre>
-                </div>
-            </div>
-
-            <!-- 下载历史 -->
-            <div id="inner-dl-history" class="inner-panel">
-                <div class="filter-bar">
-                    <select id="dl-history-cat" class="filter-sm">
-                        <option value="">全部分类</option>
-                        <option value="paper">论文</option>
-                        <option value="video">视频</option>
-                        <option value="code">代码</option>
-                        <option value="misc">其他</option>
-                    </select>
-                </div>
-                <table class="data-table">
-                    <thead>
-                        <tr><th>#</th><th>文件名</th><th>分类</th><th>大小</th><th>安全</th><th>状态</th><th>时间</th><th>URL</th></tr>
-                    </thead>
-                    <tbody id="dl-history-tbody">
-                        <tr><td colspan="8" class="empty">加载中...</td></tr>
-                    </tbody>
-                </table>
-                <div id="dl-history-pagination" class="pagination"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 文件检索 ==================== -->
-    <section id="panel-search" class="panel">
-        <div class="panel-header"><h2>文件检索</h2></div>
-        <div class="card">
-            <div class="form-grid">
-                <div class="form-group span-2">
-                    <label>搜索关键词</label>
-                    <input id="search-keyword" type="text" placeholder="留空列出全部">
-                </div>
-                <div class="form-group">
-                    <label>分类</label>
-                    <select id="search-category">
-                        <option value="all">全部</option>
-                        <option value="paper">论文</option>
-                        <option value="video">视频</option>
-                        <option value="code">代码</option>
-                        <option value="misc">其他</option>
-                    </select>
-                </div>
-                <div class="form-group form-action">
-                    <button id="btn-search" class="btn btn-primary">搜索</button>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <h3>搜索结果 <span id="search-count" class="count-badge"></span></h3>
-            <table class="data-table">
-                <thead><tr><th>序号</th><th>文件名</th><th>分类</th><th>大小</th><th>下载时间</th><th>路径</th></tr></thead>
-                <tbody id="search-tbody"><tr><td colspan="6" class="empty">输入关键词后点击搜索</td></tr></tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- ==================== 沙盒 ==================== -->
-    <section id="panel-sandbox" class="panel">
-        <div class="panel-header"><h2>沙盒执行</h2></div>
-        <div class="card">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>运行环境</label>
-                    <select id="sb-tool">
-                        <option value="python">Python 3.11</option>
-                        <option value="node">Node.js 20</option>
-                        <option value="ffmpeg">FFmpeg</option>
-                        <option value="pandoc">Pandoc</option>
-                    </select>
-                </div>
-                <div class="form-group span-3">
-                    <label>执行命令</label>
-                    <input id="sb-cmd" type="text" placeholder="python /workspace/main.py">
-                </div>
-            </div>
-            <div class="form-grid" style="margin-top:12px">
-                <div class="form-group span-2">
-                    <label>前置命令（每行一条，可选）</label>
-                    <textarea id="sb-setup" rows="3" placeholder="apt-get update && apt-get install -y espeak
-pip install pymupdf gTTS"></textarea>
-                </div>
-                <div class="form-group span-2">
-                    <label>动态写入文件（JSON格式，可选）</label>
-                    <textarea id="sb-files" rows="3" placeholder='{"main.py": "print(\"hello\")"}'></textarea>
-                </div>
-            </div>
-            <div style="margin-top:12px">
-                <button id="btn-sandbox" class="btn btn-primary">执行</button>
-                <button id="btn-job-status" class="btn btn-sm" style="margin-left:8px">查询异步任务</button>
-                <input id="job-id" type="text" placeholder="Job ID" class="input-sm" style="margin-left:8px">
-            </div>
-        </div>
-        <div id="sandbox-result" class="card result-card" style="display:none">
-            <h3>执行结果</h3>
-            <pre id="sandbox-output" class="output-box"></pre>
-        </div>
-    </section>
-
-    <!-- ==================== 日志 ==================== -->
-    <section id="panel-logs" class="panel">
-        <div class="panel-header">
-            <h2>操作日志</h2>
-            <div class="header-actions">
-                <select id="log-operation-filter" class="filter-sm">
-                    <option value="">全部操作</option>
-                    <option value="download">下载</option>
-                    <option value="download_async">异步下载</option>
-                    <option value="task_add">添加任务</option>
-                    <option value="task_complete">完成任务</option>
-                    <option value="task_delete">删除任务</option>
-                    <option value="sandbox">沙盒执行</option>
-                </select>
-                <button id="btn-refresh-logs" class="btn btn-sm">刷新</button>
-            </div>
-        </div>
-        <div class="card">
-            <table class="data-table">
-                <thead><tr><th>#</th><th>操作</th><th>端点</th><th>参数</th><th>结果</th><th>详情</th><th>时间</th></tr></thead>
-                <tbody id="logs-tbody"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
-            </table>
-            <div id="logs-pagination" class="pagination"></div>
-        </div>
-    </section>
+  <!-- Modal Overlay -->
+  <div class="modal-overlay" id="modal-overlay" style="display:none" x-show="false"></div>
 </div>
 
-<!-- 新建任务弹窗 -->
-<div id="modal-overlay" class="modal-overlay" style="display:none">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>新建任务</h3>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>任务名称 *</label>
-                <input id="modal-task-name" type="text" placeholder="如：复盘本周工作">
-            </div>
-            <div class="form-group">
-                <label>截止时间 *</label>
-                <input id="modal-task-due" type="datetime-local">
-            </div>
-            <div class="form-group">
-                <label>重复周期</label>
-                <select id="modal-task-recurrence">
-                    <option value="once">仅一次</option>
-                    <option value="daily">每天</option>
-                    <option value="weekly">每周</option>
-                    <option value="monthly">每月</option>
-                </select>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-sm" onclick="closeModal()">取消</button>
-            <button id="btn-modal-add-task" class="btn btn-primary">确认添加</button>
-        </div>
-    </div>
-</div>
-
-<!-- 全局搜索结果下拉 -->
-<div id="search-dropdown" class="search-dropdown" style="display:none"></div>
-
-<!-- AI 对话悬浮窗 -->
-<div id="ai-fab" class="ai-fab" title="AI 助手 (Ctrl+J)">
-    <span class="ai-fab-icon">🤖</span>
-</div>
-<div id="ai-panel" class="ai-panel" style="display:none">
-    <div class="ai-panel-header">
-        <span>🤖 AI 助手</span>
-        <div class="ai-panel-actions">
-            <button id="ai-settings-btn" class="ai-panel-btn" title="AI 配置">⚙️</button>
-            <button id="ai-clear" class="ai-panel-btn" title="清除对话">🗑️</button>
-            <button id="ai-close" class="ai-panel-btn" title="关闭">✕</button>
-        </div>
-    </div>
-
-    <!-- 设置面板 -->
-    <div id="ai-settings" class="ai-settings" style="display:none">
-        <div class="ai-settings-title">⚙️ AI 模型配置</div>
-
-        <div class="ai-setting-group">
-            <label>API 地址</label>
-            <input id="ai-api-base" type="text" class="ai-setting-input" placeholder="https://open.bigmodel.cn/api/paas/v4">
-        </div>
-
-        <div class="ai-setting-group">
-            <label>API Key</label>
-            <div class="ai-key-input-wrap">
-                <input id="ai-api-key" type="password" placeholder="输入 API Key">
-                <button id="ai-toggle-key" class="ai-panel-btn" title="显示/隐藏">👁️</button>
-            </div>
-        </div>
-
-        <div class="ai-setting-group">
-            <label>模型</label>
-            <select id="ai-model-select" class="ai-setting-select">
-                <option value="">加载中...</option>
-            </select>
-        </div>
-
-        <div class="ai-setting-group" id="ai-custom-model-group" style="display:none">
-            <label>自定义模型名称</label>
-            <input id="ai-custom-model" type="text" placeholder="如: glm-4-flash">
-        </div>
-
-        <div class="ai-setting-actions">
-            <button id="ai-test-btn" class="btn btn-sm">🔍 测试连接</button>
-            <button id="ai-save-btn" class="btn btn-primary btn-sm">💾 保存配置</button>
-        </div>
-        <div id="ai-test-result" class="ai-test-result" style="display:none"></div>
-    </div>
-
-    <!-- 对话区域 -->
-    <div id="ai-messages" class="ai-messages">
-        <div class="ai-msg ai-msg-system">
-            👋 你好！我是 AI 助手，可以帮你管理任务、下载文件、搜索文件和执行代码。
-            直接用自然语言告诉我你想做什么。
-        </div>
-    </div>
-    <div class="ai-input-area">
-        <textarea id="ai-input" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
-        <button id="ai-send" class="btn btn-primary btn-sm">发送</button>
-    </div>
-</div>
-
-<script src="/static/app.js"></script>
-<script>
-    // PWA Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/static/sw.js')
-                .then(registration => console.log('[PWA] SW registered'))
-                .catch(error => console.log('[PWA] SW failed:', error));
-        });
-    }
-</script>
-
-    <!-- ==================== 笔记 ==================== -->
-    <section id="panel-notes" class="panel">
-        <div class="panel-header">
-            <h2>📝 笔记管理</h2>
-            <div class="header-actions">
-                <input id="note-search" type="text" placeholder="搜索笔记..." class="search-sm">
-                <button id="btn-add-note" class="btn btn-primary btn-sm">+ 新建笔记</button>
-            </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card" id="notes-list-card">
-                <h3>笔记列表</h3>
-                <div id="notes-list" class="notes-list">
-                    <div class="empty-state">加载中...</div>
-                </div>
-            </div>
-            <div class="card span-2" id="note-editor-card">
-                <h3><input type="text" id="note-title" placeholder="笔记标题"></h3>
-                <div class="note-tags">
-                    <input type="text" id="note-tags-input" placeholder="标签，用逗号分隔">
-                </div>
-                <textarea id="note-content" placeholder="支持 Markdown 格式..."></textarea>
-                <div class="note-actions">
-                    <button id="btn-save-note" class="btn btn-primary">💾 保存</button>
-                    <button id="btn-delete-note" class="btn btn-danger" style="display:none">🗑️ 删除</button>
-                    <button id="btn-cancel-note" class="btn">取消</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 习惯 ==================== -->
-    <section id="panel-habits" class="panel">
-        <div class="panel-header">
-            <h2>🎯 习惯养成</h2>
-            <div class="header-actions">
-                <button id="btn-add-habit" class="btn btn-primary btn-sm">+ 新建习惯</button>
-            </div>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">🔥</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="habit-streak-max">-</div>
-                    <div class="stat-label">最长连续天数</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="habit-checkins-today">-</div>
-                    <div class="stat-label">今日打卡</div>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <div id="habits-list" class="habits-grid">
-                <div class="empty-state">暂无习惯，点击右上角创建</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== AI 规划 ==================== -->
-    <section id="panel-ai-planning" class="panel">
-        <div class="panel-header">
-            <h2>🤖 AI 智能规划</h2>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>📝 任务拆解</h3>
-                <div class="form-group">
-                    <label>任务名称</label>
-                    <input id="ai-decompose-input" type="text" placeholder="输入任务名称，AI将自动拆解">
-                </div>
-                <div class="form-group">
-                    <label>任务描述</label>
-                    <textarea id="ai-decompose-desc" rows="3" placeholder="补充描述（可选）"></textarea>
-                </div>
-                <button id="btn-ai-decompose" class="btn btn-primary">🔍 AI 拆解</button>
-                <div id="ai-decompose-result" class="ai-result-box"></div>
-            </div>
-            <div class="card">
-                <h3>⏱️ 时间估算</h3>
-                <div class="form-group">
-                    <label>任务名称</label>
-                    <input id="ai-estimate-input" type="text" placeholder="输入任务名称">
-                </div>
-                <button id="btn-ai-estimate" class="btn btn-primary">⏱️ AI 估算</button>
-                <div id="ai-estimate-result" class="ai-result-box"></div>
-            </div>
-            <div class="card span-2">
-                <h3>📊 效率洞察</h3>
-                <button id="btn-ai-insights" class="btn btn-primary">🔍 生成洞察</button>
-                <div id="ai-insights-result" class="ai-result-box"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 日历 ==================== -->
-    <section id="panel-calendar" class="panel">
-        <div class="panel-header">
-            <h2>📅 日历视图</h2>
-            <div class="header-actions">
-                <button id="btn-add-event" class="btn btn-primary btn-sm">+ 新建事件</button>
-            </div>
-        </div>
-        <div class="card">
-            <div class="calendar-nav">
-                <button id="cal-prev-month">◀</button>
-                <span id="cal-month-label">2026年4月</span>
-                <button id="cal-next-month">▶</button>
-            </div>
-            <div id="calendar-grid" class="calendar-grid">
-                <!-- 由 JS 生成 -->
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 工作流 ==================== -->
-    <section id="panel-workflows" class="panel">
-        <div class="panel-header">
-            <h2>⚡ 自动化工作流</h2>
-            <div class="header-actions">
-                <button id="btn-add-workflow" class="btn btn-primary btn-sm">+ 新建工作流</button>
-            </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>工作流列表</h3>
-                <div id="workflows-list" class="workflows-list">
-                    <div class="empty-state">暂无工作流</div>
-                </div>
-            </div>
-            <div class="card span-2">
-                <h3>执行记录</h3>
-                <div id="workflow-executions" class="executions-list">
-                    <div class="empty-state">选择工作流查看执行记录</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 同步 ==================== -->
-    <section id="panel-sync" class="panel">
-        <div class="panel-header">
-            <h2>🔄 数据同步</h2>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📱</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="sync-device-id">-</div>
-                    <div class="stat-label">设备 ID</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⏰</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="sync-last-time">-</div>
-                    <div class="stat-label">上次同步</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">📤</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="sync-pending">-</div>
-                    <div class="stat-label">待同步</div>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <h3>同步操作</h3>
-            <div class="sync-actions">
-                <button id="btn-sync-now" class="btn btn-primary">🔄 立即同步</button>
-                <button id="btn-sync-full" class="btn">📤 完整同步</button>
-            </div>
-            <div id="sync-result" class="sync-result-box"></div>
-        </div>
-        <div class="card">
-            <h3>已连接设备</h3>
-            <div id="sync-devices-list" class="devices-list">
-                <div class="empty-state">暂无其他设备</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 设置 ==================== -->
-    <section id="panel-settings" class="panel">
-        <div class="panel-header">
-            <h2>⚙️ 设置</h2>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>🎨 外观</h3>
-                <div class="setting-item">
-                    <label>主题</label>
-                    <select id="setting-theme">
-                        <option value="dark">深色</option>
-                        <option value="light">浅色</option>
-                        <option value="auto">跟随系统</option>
-                    </select>
-                </div>
-            </div>
-            <div class="card">
-                <h3>🔔 通知</h3>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-task">
-                        任务提醒
-                    </label>
-                </div>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-habit">
-                        习惯提醒
-                    </label>
-                </div>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-pomodoro">
-                        番茄钟提醒
-                    </label>
-                </div>
-            </div>
-            <div class="card">
-                <h3>🍅 番茄钟</h3>
-                <div class="setting-item">
-                    <label>专注时长（分钟）</label>
-                    <input type="number" id="setting-pomodoro-duration" value="25" min="1" max="60">
-                </div>
-                <div class="setting-item">
-                    <label>休息时长（分钟）</label>
-                    <input type="number" id="setting-pomodoro-break" value="5" min="1" max="30">
-                </div>
-            </div>
-            <div class="card">
-                <h3>🔄 同步</h3>
-                <div class="setting-item">
-                    <label>自动同步</label>
-                    <select id="setting-sync-interval">
-                        <option value="60">每 1 分钟</option>
-                        <option value="300" selected>每 5 分钟</option>
-                        <option value="600">每 10 分钟</option>
-                        <option value="0">手动同步</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </section>
-
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>
