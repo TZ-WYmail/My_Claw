@@ -219,6 +219,33 @@ class FileSearchResponse(BaseModel):
 
 
 # ============================================================
+# 统一搜索 (Batch 1 Task 7)
+# ============================================================
+
+class SearchScope(str, enum.Enum):
+    all = "all"
+    files = "files"
+    tasks = "tasks"
+    notes = "notes"
+    habits = "habits"
+
+
+class UnifiedSearchRequest(BaseModel):
+    keyword: str = Field(..., min_length=1, description="搜索关键词")
+    scope: SearchScope = Field(SearchScope.all, description="搜索范围")
+    category: Optional[str] = Field("all", description="文件分类（仅 files scope 时有效）")
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=100)
+
+
+class UnifiedSearchResponse(BaseModel):
+    status: str
+    results: dict = Field(default_factory=dict)
+    total: int = 0
+    scope: str = "all"
+
+
+# ============================================================
 # Tool 4: local_sandbox_executor
 # ============================================================
 

@@ -1,674 +1,1395 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" x-cloak>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <meta name="theme-color" content="#3498db">\n    <meta name="description" content="本地指挥中心 — 智能任务管理与调度">
-    <title>LocalCommandCenter 指挥中心</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/static/manifest.json">
-    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a84ff">
+  <meta name="description" content="LocalCommandCenter — 本地指挥中心">
+  <title>LocalCommandCenter</title>
+
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/animations.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body>
-<div id="app">
-    <!-- 顶部导航 -->
-    <header class="header">
-        <div class="header-left">
-            <h1>🧠 LocalCommandCenter</h1>
-            <span class="version">v3.0.0</span>
-        </div>
-        <div class="header-right">
-            <input id="global-search" type="text" placeholder="🔍 全局搜索 (Ctrl+K)" class="global-search">
-            <button id="btn-theme" class="btn-icon" title="切换主题">🌙</button>
-            <span id="status-dot" class="status-dot connecting"></span>
-            <span id="status-text">连接中...</span>
-        </div>
-    </header>
+<div class="app-shell" x-data>
 
-    <!-- 标签页导航 -->
-    <nav class="tabs">
-        <button class="tab active" data-tab="dashboard">📊 仪表盘</button>
-        <button class="tab" data-tab="tasks">📋 任务管理</button>
-        <button class="tab" data-tab="notes">📝 笔记</button>
-        <button class="tab" data-tab="habits">🎯 习惯</button>
-        <button class="tab" data-tab="ai-planning">🤖 AI规划</button>
-        <button class="tab" data-tab="calendar">📅 日历</button>
-        <button class="tab" data-tab="workflows">⚡ 工作流</button>
-        <button class="tab" data-tab="sync">🔄 同步</button>
-        <button class="tab" data-tab="download">📥 下载</button>
-        <button class="tab" data-tab="search">🔍 文件检索</button>
-        <button class="tab" data-tab="sandbox">🔧 沙盒</button>
-        <button class="tab" data-tab="settings">⚙️ 设置</button>
+  <!-- Sidebar -->
+  <aside class="sidebar" :class="{ collapsed: $store.view.sidebarCollapsed }">
+    <div class="sidebar-header">
+      <span class="logo">🧠 LCC</span>
+      <span class="version" x-text="$store.app.connected ? 'v' + $store.app.version : ''"></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" :class="{ active: $store.view.isActive('dashboard') }"
+              @click="$store.view.navigateTo('dashboard')">
+        <span class="nav-icon">📊</span><span class="nav-label">仪表盘</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('tasks') }"
+              @click="$store.view.navigateTo('tasks')">
+        <span class="nav-icon">📋</span><span class="nav-label">任务</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('notes') }"
+              @click="$store.view.navigateTo('notes')">
+        <span class="nav-icon">📝</span><span class="nav-label">笔记</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('habits') }"
+              @click="$store.view.navigateTo('habits')">
+        <span class="nav-icon">🎯</span><span class="nav-label">习惯</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('calendar') }"
+              @click="$store.view.navigateTo('calendar')">
+        <span class="nav-icon">📅</span><span class="nav-label">日历</span>
+      </button>
+
+      <div class="nav-separator"></div>
+
+      <button class="nav-item" :class="{ active: $store.view.isActive('ai-chat') }"
+              @click="$store.view.navigateTo('ai-chat')">
+        <span class="nav-icon">🤖</span><span class="nav-label">AI 对话</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('workflows') }"
+              @click="$store.view.navigateTo('workflows')">
+        <span class="nav-icon">⚡</span><span class="nav-label">工作流</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('sync') }"
+              @click="$store.view.navigateTo('sync')">
+        <span class="nav-icon">🔄</span><span class="nav-label">同步</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('download') }"
+              @click="$store.view.navigateTo('download')">
+        <span class="nav-icon">📥</span><span class="nav-label">下载</span>
+      </button>
+      <button class="nav-item" :class="{ active: $store.view.isActive('sandbox') }"
+              @click="$store.view.navigateTo('sandbox')">
+        <span class="nav-icon">🔧</span><span class="nav-label">沙盒</span>
+      </button>
     </nav>
 
-    <!-- ==================== 仪表盘 ==================== -->
-    <section id="panel-dashboard" class="panel active">
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📋</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-tasks-pending">-</div>
-                    <div class="stat-label">待执行任务</div>
-                </div>
+    <div class="sidebar-footer">
+      <button class="nav-item" style="font-size:0.8rem" @click="$store.view.navigateTo('settings')"
+              :class="{ active: $store.view.isActive('settings') }">
+        <span class="nav-icon">⚙️</span><span class="nav-label">设置</span>
+      </button>
+      <div class="status-row">
+        <span class="status-dot" :class="{ connected: $store.app.connected, error: !$store.app.connected }"></span>
+        <span x-text="$store.app.connected ? '已连接' : '未连接'" style="font-size:0.75rem"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <main class="main-area">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="sidebar-toggle" @click="$store.view.toggleSidebar()" title="⌘B 折叠侧边栏">
+          ☰
+        </button>
+        <h2 x-text="$store.view.viewNames[$store.view.current] || $store.view.current"></h2>
+      </div>
+      <div class="top-bar-right">
+        <input id="global-search" class="global-search" type="text"
+               placeholder="⌘K 搜索..." autocomplete="off">
+        <button class="btn-icon btn-ghost" @click="$store.app.toggleTheme()"
+                :title="$store.app.theme === 'dark' ? '切换亮色主题' : '切换暗色主题'">
+          <span x-text="$store.app.theme === 'dark' ? '☀️' : '🌙'"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="view-container">
+      <!-- Views injected here by router -->
+      <div id="view-dashboard" x-show="$store.view.isActive('dashboard')"
+           x-data="dashboard" x-transition.opacity.duration.250ms>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <div class="stats-grid">
+              <div class="stat-card" x-for="i in 4"><div class="skeleton" style="height:60px"></div></div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-tasks-completed">-</div>
-                    <div class="stat-label">已完成任务</div>
-                </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+              <div class="card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+              <div class="card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">📥</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-downloads">-</div>
-                    <div class="stat-label">下载文件</div>
-                </div>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div>
+            <div class="stats-grid">
+              <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.tasks.pending"></div>
+                <div class="stat-label">待执行任务</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.tasks.completed"></div>
+                <div class="stat-label">已完成任务</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">📥</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.downloads.total"></div>
+                <div class="stat-label">下载文件</div>
+              </div></div>
+              <div class="stat-card"><div class="stat-icon">💾</div><div class="stat-info">
+                <div class="stat-value" x-text="stats.storage.total_size || '0 B'"></div>
+                <div class="stat-label">磁盘占用</div>
+              </div></div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">💾</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="stat-storage">-</div>
-                    <div class="stat-label">磁盘占用</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+              <div class="card">
+                <div class="card-header"><h3>📥 最近下载</h3></div>
+                <div class="activity-list">
+                  <template x-if="recentDownloads.length === 0">
+                    <div class="empty-state"><span class="empty-state-text">暂无下载记录</span></div>
+                  </template>
+                  <template x-for="d in recentDownloads" :key="d.created_at">
+                    <div class="activity-item">
+                      <span class="activity-icon">📥</span>
+                      <span class="activity-text" x-text="d.filename || d.url"></span>
+                      <span class="activity-time" x-text="formatTimeShort(d.created_at)"></span>
+                    </div>
+                  </template>
                 </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>📜 最近操作</h3></div>
+                <div class="activity-list">
+                  <template x-if="recentLogs.length === 0">
+                    <div class="empty-state"><span class="empty-state-text">暂无操作记录</span></div>
+                  </template>
+                  <template x-for="l in recentLogs" :key="l.created_at">
+                    <div class="activity-item">
+                      <span class="activity-icon" x-text="operationIcon(l.operation)"></span>
+                      <span class="activity-text" x-text="l.operation"></span>
+                      <span class="activity-time" x-text="formatTimeShort(l.created_at)"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
+          </div>
+        </template>
+      </div>
+<div id="view-tasks" x-show="$store.view.isActive('tasks')"
+     x-data="tasks" x-transition.opacity.duration.250ms>
+
+  <!-- Inner tabs: Weekly Calendar | All Tasks -->
+  <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+    <button class="btn btn-sm" :class="{ 'btn-primary': tab === 'week' }" @click="tab='week'">📅 周视图</button>
+    <button class="btn btn-sm" :class="{ 'btn-primary': tab === 'all' }" @click="tab='all';loadAllTasks()">📋 全部任务</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary btn-sm" @click="showNewTask=!showNewTask">+ 新建任务</button>
+  </div>
+
+  <!-- New Task Form -->
+  <div x-show="showNewTask" class="card" style="margin-bottom:var(--space-md)" x-transition>
+    <div class="card-header"><h3>✨ 新建任务</h3></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+      <div class="form-group"><label>任务名称</label><input x-model="newTask.task_name" placeholder="e.g. 完成季度报告"></div>
+      <div class="form-group"><label>截止时间</label><input type="datetime-local" x-model="newTask.due_time"></div>
+      <div class="form-group"><label>优先级</label>
+        <select x-model.number="newTask.priority">
+          <option value="0">🔴 紧急</option><option value="1">🟠 高</option>
+          <option value="2" selected>🟡 中</option><option value="3">🟢 低</option>
+        </select>
+      </div>
+      <div class="form-group"><label>标签（逗号分隔）</label><input x-model="newTask.tags" placeholder="工作, 重要"></div>
+    </div>
+    <div class="form-group" style="margin-top:var(--space-md)"><label>描述</label><textarea x-model="newTask.description" rows="2"></textarea></div>
+    <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+      <button class="btn btn-primary" @click="addTask()">创建任务</button>
+      <button class="btn" @click="showNewTask=false">取消</button>
+    </div>
+  </div>
+
+  <!-- Weekly Calendar View -->
+  <div x-show="tab==='week'">
+    <div style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-sm)">
+      <button class="btn btn-sm" @click="loadWeeklyPlan(calWeekOffset-1)">◀</button>
+      <span style="font-weight:600" x-text="weekLabel"></span>
+      <button class="btn btn-sm" @click="loadWeeklyPlan(calWeekOffset+1)">▶</button>
+      <button class="btn btn-sm" @click="loadWeeklyPlan(0)">本周</button>
+    </div>
+    <!-- Skeleton -->
+    <div x-show="loadingCalendar" class="skeleton" style="height:400px"></div>
+    <!-- Error State -->
+    <div x-show="!loadingCalendar && calendarError" class="empty-state">
+      <div class="empty-state-icon">⚠️</div>
+      <div class="empty-state-text" x-text="calendarError"></div>
+      <button class="btn btn-primary" @click="loadWeeklyPlan(calWeekOffset)">重试</button>
+    </div>
+    <!-- Calendar Grid -->
+    <div x-show="!loadingCalendar && !calendarError" x-html="calendarHtml" class="wc-container"></div>
+  </div>
+
+  <!-- All Tasks Table -->
+  <div x-show="tab==='all'">
+    <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm)">
+      <input x-model="taskKeyword" @input="loadAllTasks(1)" placeholder="搜索任务..." style="max-width:200px">
+      <select x-model="taskFilter" @change="loadAllTasks(1)" style="max-width:130px">
+        <option value="active">进行中</option><option value="completed">已完成</option>
+        <option value="pending">待执行</option><option value="deleted">已删除</option>
+      </select>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>名称</th><th>截止</th><th>重复</th><th>状态</th><th>创建</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr x-show="loadingTasks"><td colspan="7"><div class="skeleton" style="height:200px"></div></td></tr>
+        <tr x-show="!loadingTasks && tasksError"><td colspan="7">
+          <div class="empty-state" style="padding:var(--space-lg)">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="tasksError"></div>
+            <button class="btn btn-primary" @click="loadAllTasks(taskPage)">重试</button>
+          </div>
+        </td></tr>
+        <tr x-show="!loadingTasks && !tasksError && allTasks.length === 0"><td colspan="7" class="empty">无匹配任务</td></tr>
+        <template x-for="(t, i) in allTasks" :key="t.task_id">
+          <tr>
+            <td x-text="(taskPage-1)*20 + i + 1"></td>
+            <td x-text="t.task_name"></td>
+            <td x-text="formatTime(t.due_time)"></td>
+            <td x-text="RECURRENCE_MAP[t.recurrence] || t.recurrence"></td>
+            <td><span class="badge" :class="'badge-'+badgeClass(t.status)" x-text="t.status"></span></td>
+            <td x-text="formatTimeShort(t.created_at)"></td>
+            <td x-html="taskActions(t)"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <div class="pagination" x-show="taskTotalPages > 1">
+      <button :disabled="taskPage<=1" @click="loadAllTasks(taskPage-1)">◀</button>
+      <template x-for="p in taskTotalPages">
+        <button :class="{active:p===taskPage}" @click="loadAllTasks(p)" x-text="p"></button>
+      </template>
+      <button :disabled="taskPage>=taskTotalPages" @click="loadAllTasks(taskPage+1)">▶</button>
+    </div>
+  </div>
+</div>
+      <div id="view-notes" x-show="$store.view.isActive('notes')"
+           x-data="notes" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <input x-model="keyword" @input.debounce.300ms="load()" placeholder="搜索笔记..." style="max-width:200px">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? resetForm() : openNewForm()">
+            <span x-text="showForm ? '取消' : '+ 新建笔记'"></span>
+          </button>
         </div>
 
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>📥 最近下载</h3>
-                <div id="dash-recent-downloads" class="activity-list">
-                    <div class="empty-state">暂无下载记录</div>
-                </div>
-            </div>
-            <div class="card">
-                <h3>📜 最近操作</h3>
-                <div id="dash-recent-logs" class="activity-list">
-                    <div class="empty-state">暂无操作记录</div>
-                </div>
-            </div>
+        <!-- New/Edit Note Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3 x-text="editingId ? '✏️ 编辑笔记' : '✨ 新建笔记'"></h3></div>
+          <div class="form-group"><label>标题</label><input x-model="form.title" placeholder="笔记标题"></div>
+          <div class="form-group"><label>内容</label><textarea x-model="form.content" rows="4" placeholder="写点什么..."></textarea></div>
+          <div class="form-group"><label>标签（逗号分隔）</label><input x-model="form.tags" placeholder="工作, 学习, 灵感"></div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="saveNote()" x-text="editingId ? '保存' : '创建'"></button>
+            <button class="btn" @click="resetForm()">取消</button>
+          </div>
         </div>
-    </section>
 
-    <!-- ==================== 任务管理 ==================== -->
-    <section id="panel-tasks" class="panel">
-        <div class="panel-header">
-            <h2>任务管理</h2>
-            <div class="header-actions">
-                <input id="task-search" type="text" placeholder="搜索任务..." class="search-sm">
-                <select id="task-status-filter" class="filter-sm">
-                    <option value="active">进行中</option>
-                    <option value="pending">待执行</option>
-                    <option value="completed">已完成</option>
-                    <option value="all">全部</option>
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 4">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+                <div class="skeleton" style="height:20px;width:120px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && notes.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <div class="empty-state-text">还没有笔记</div>
+            <button class="btn btn-primary" @click="openNewForm()">创建第一条笔记</button>
+          </div>
+        </template>
+
+        <!-- Note Cards -->
+        <template x-if="!loading && !error && notes.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+              <template x-for="note in notes" :key="note.note_id">
+                <div class="card">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <h3 x-text="note.title" style="font-size:1rem"></h3>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.875rem;color:var(--text-secondary)">
+                    <p x-text="contentPreview(note.content)"></p>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm)">
+                    <template x-for="tag in (note.tags || [])" :key="tag">
+                      <span class="badge badge-pending" x-text="tag" style="margin-right:4px"></span>
+                    </template>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-size:0.75rem;color:var(--text-tertiary)" x-text="formatTime(note.created_at)"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" @click="editNote(note)">编辑</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteNote(note.note_id)">删除</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div style="margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-tertiary)" x-show="total > 0">
+              共 <span x-text="total"></span> 条笔记
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-habits" x-show="$store.view.isActive('habits')"
+           x-data="habits" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? resetForm() : (showForm=true)">
+            <span x-text="showForm ? '取消' : '+ 新建习惯'"></span>
+          </button>
+        </div>
+
+        <!-- New Habit Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>✨ 新建习惯</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+            <div class="form-group"><label>习惯名称</label><input x-model="form.name" placeholder="e.g. 每天跑步"></div>
+            <div class="form-group"><label>频率</label>
+              <select x-model="form.frequency">
+                <option value="daily">每天</option><option value="weekly">每周</option><option value="monthly">每月</option>
+              </select>
+            </div>
+            <div class="form-group"><label>目标次数</label><input type="number" x-model.number="form.target" min="1"></div>
+          </div>
+          <div class="form-group"><label>描述</label><textarea x-model="form.description" rows="2" placeholder="习惯描述..."></textarea></div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="createHabit()">创建习惯</button>
+            <button class="btn" @click="resetForm()">取消</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 4">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && habits.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <div class="empty-state-text">还没有习惯</div>
+            <button class="btn btn-primary" @click="showForm=true">创建第一个习惯</button>
+          </div>
+        </template>
+
+        <!-- Habit Cards -->
+        <template x-if="!loading && !error && habits.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+              <template x-for="habit in habits" :key="habit.habit_id">
+                <div class="card">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <h3 x-text="habit.name" style="font-size:1rem"></h3>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.875rem;color:var(--text-secondary)">
+                    <p x-text="habit.description || '暂无描述'"></p>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;gap:var(--space-sm);align-items:center">
+                    <span class="badge badge-pending" x-text="frequencyLabel(habit.frequency)"></span>
+                    <span :class="{'streak-pop': checkingInId === habit.habit_id}" style="font-weight:600;font-size:1.1rem" x-text="streakLabel(habit.streak)"></span>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;justify-content:space-between;align-items:center">
+                    <button class="btn btn-sm btn-success" @click="checkin(habit.habit_id)" :disabled="checkingInId === habit.habit_id">
+                      <span x-text="checkingInId === habit.habit_id ? '⏳...' : '✅ 打卡'"></span>
+                    </button>
+                    <button class="btn btn-sm btn-danger" @click="deleteHabit(habit.habit_id)">删除</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-calendar" x-show="$store.view.isActive('calendar')"
+           x-data="calendar" x-transition.opacity.duration.250ms>
+
+        <!-- Navigation -->
+        <div class="cal-nav">
+          <button class="btn btn-sm" @click="prevMonth()">◀</button>
+          <span class="cal-nav-label" x-text="monthLabel"></span>
+          <button class="btn btn-sm" @click="nextMonth()">▶</button>
+          <button class="btn btn-sm btn-primary" @click="goToday()">今天</button>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div class="cal-grid">
+            <template x-for="i in 7">
+              <div class="cal-day-header" x-text="['日','一','二','三','四','五','六'][i-1]"></div>
+            </template>
+            <template x-for="i in 42">
+              <div class="cal-day-cell"><div class="skeleton" style="height:80px;width:100%"></div></div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="cal-grid">
+            <template x-for="i in 7">
+              <div class="cal-day-header" x-text="['日','一','二','三','四','五','六'][i-1]"></div>
+            </template>
+            <div class="cal-day-cell" style="grid-column:1/-1;min-height:400px;display:flex;align-items:center;justify-content:center">
+              <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <div class="empty-state-text" x-text="error"></div>
+                <button class="btn btn-primary" @click="load()">重试</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div class="cal-grid">
+            <div class="cal-day-header">日</div>
+            <div class="cal-day-header">一</div>
+            <div class="cal-day-header">二</div>
+            <div class="cal-day-header">三</div>
+            <div class="cal-day-header">四</div>
+            <div class="cal-day-header">五</div>
+            <div class="cal-day-header">六</div>
+            <template x-for="(week, wi) in weeks" :key="'w'+wi">
+              <template x-for="(day, di) in week" :key="day.date">
+                <div class="cal-day-cell"
+                     :class="{'cal-other-month': !day.is_current_month, 'cal-today': day.is_today}"
+                     @click="openDay(day)">
+                  <div class="cal-day-number" x-text="day.day"></div>
+                  <div class="cal-events-list">
+                    <template x-for="event in (day.events || []).slice(0, 3)" :key="event.event_id">
+                      <div class="cal-event" :style="'background:' + event.color" :title="event.title + ' - ' + eventTypeLabel(event.event_type)">
+                        <span class="cal-event-title" x-text="event.title"></span>
+                      </div>
+                    </template>
+                    <div x-show="(day.events || []).length > 3" class="cal-event-more">
+                      +<span x-text="(day.events || []).length - 3"></span> 更多
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </template>
+          </div>
+        </template>
+
+        <!-- Day Event Modal -->
+        <div class="modal-overlay" x-show="showDayModal" @click.self="closeDayModal()" style="display:flex">
+          <div class="modal" style="max-width:420px;width:100%">
+            <!-- View Events -->
+            <div x-show="!showNewEventForm">
+              <div class="cal-modal-header">
+                <span class="cal-modal-date" x-text="formatDate(selectedDay?.date)"></span>
+                <button class="btn btn-sm btn-ghost" @click="closeDayModal()">✕</button>
+              </div>
+
+              <template x-if="selectedEvents.length === 0">
+                <div class="empty-state" style="padding:var(--space-lg)">
+                  <div class="empty-state-text">暂无事件</div>
+                </div>
+              </template>
+
+              <template x-for="event in selectedEvents" :key="event.event_id">
+                <div class="cal-event-item">
+                  <div class="cal-event-dot" :style="'background:' + event.color"></div>
+                  <div class="cal-event-info">
+                    <div class="cal-event-title-text" x-text="event.title"></div>
+                    <div class="cal-event-type-text" x-text="eventTypeLabel(event.event_type)"></div>
+                  </div>
+                  <button class="cal-event-del" @click="deleteEvent(event.event_id)" title="删除事件">✕</button>
+                </div>
+              </template>
+
+              <div style="margin-top:var(--space-md)">
+                <button class="btn btn-sm btn-primary" @click="openNewEventForm()">+ 添加事件</button>
+              </div>
+            </div>
+
+            <!-- New Event Form -->
+            <div x-show="showNewEventForm">
+              <div class="cal-modal-header">
+                <span class="cal-modal-date">新建事件</span>
+                <button class="btn btn-sm btn-ghost" @click="closeNewEventForm()">✕</button>
+              </div>
+
+              <div class="form-group">
+                <label>事件标题</label>
+                <input x-model="newEvent.title" placeholder="事件标题" @keydown.enter="createEvent()">
+              </div>
+              <div class="form-group">
+                <label>描述</label>
+                <textarea x-model="newEvent.description" placeholder="描述（可选）" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label>类型</label>
+                <select x-model="newEvent.event_type">
+                  <option value="reminder">提醒</option>
+                  <option value="meeting">会议</option>
+                  <option value="task">任务</option>
+                  <option value="birthday">生日</option>
+                  <option value="holiday">假期</option>
+                  <option value="other">其他</option>
                 </select>
-                <button id="btn-add-task-modal" class="btn btn-primary btn-sm">+ 新建任务</button>
+              </div>
+              <div class="form-group">
+                <label>颜色</label>
+                <div class="cal-color-picker">
+                  <template x-for="c in colors" :key="c">
+                    <div class="cal-color-option" :class="{ active: newEvent.color === c }"
+                         :style="'background:' + c" @click="newEvent.color = c"></div>
+                  </template>
+                </div>
+              </div>
+              <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+                <button class="btn btn-primary btn-sm" @click="createEvent()">创建</button>
+                <button class="btn btn-sm" @click="closeNewEventForm()">取消</button>
+              </div>
             </div>
+          </div>
         </div>
+      </div>
+      <div id="view-ai-chat" x-show="$store.view.isActive('ai-chat')"
+           x-data="aiChat" x-transition.opacity.duration.250ms>
 
-        <div class="card">
-            <div class="tab-bar">
-                <button class="inner-tab active" data-inner="weekly">本周计划</button>
-                <button class="inner-tab" data-inner="all">全部任务</button>
-            </div>
+        <div class="chat-layout">
+          <!-- Main Chat Area -->
+          <div class="chat-main">
+            <!-- Messages -->
+            <div class="chat-messages" x-ref="chatMessages">
+              <!-- Welcome State -->
+              <div x-show="messages.length === 0" class="chat-welcome">
+                <div class="chat-welcome-icon">🤖</div>
+                <div class="chat-welcome-text">开始新对话</div>
+                <div class="chat-welcome-hint">发送一条消息开始与 AI 对话</div>
+              </div>
 
-            <!-- 本周计划 - 带时间纵轴的周日历 -->
-            <div id="inner-weekly" class="inner-panel active">
-                <div class="calendar-header">
-                    <div class="calendar-week-label" id="cal-week-label">本周</div>
-                    <div class="calendar-nav">
-                        <button class="btn btn-sm" id="cal-prev" title="上一周">◀</button>
-                        <button class="btn btn-sm" id="cal-today" title="回到本周">今天</button>
-                        <button class="btn btn-sm" id="cal-next" title="下一周">▶</button>
+              <!-- Message Bubbles -->
+              <template x-for="(msg, i) in messages" :key="i">
+                <div>
+                  <!-- System Messages -->
+                  <div x-show="msg.role === 'system'" class="chat-bubble chat-bubble-system" x-text="msg.content"></div>
+
+                  <!-- User Messages -->
+                  <div x-show="msg.role === 'user'"
+                       class="chat-bubble chat-bubble-user">
+                    <div class="chat-bubble-content" x-text="msg.content"></div>
+                  </div>
+
+                  <!-- AI Messages -->
+                  <div x-show="msg.role === 'assistant'"
+                       class="chat-bubble chat-bubble-ai">
+                    <span class="chat-bubble-icon">🤖</span>
+                    <div class="chat-bubble-content">
+                      <!-- Tool Calls -->
+                      <template x-if="msg.toolCalls && msg.toolCalls.length > 0">
+                        <div class="chat-tool-calls">
+                          <div class="chat-tool-call-header" @click="toggleTools(msg)">
+                            <span>🔧 正在执行 (<span x-text="msg.toolCalls.length"></span>)</span>
+                            <span x-text="msg.showTools ? '▼' : '▶'" style="margin-left:auto"></span>
+                          </div>
+                          <div x-show="msg.showTools">
+                            <template x-for="(tc, j) in msg.toolCalls" :key="j">
+                              <div class="chat-tool-call">
+                                <span x-text="'🔧 ' + (tc.name || tc.function || '')"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Text Content -->
+                      <div x-text="msg.content"></div>
+
+                      <!-- Typing Indicator -->
+                      <div x-show="msg.streaming && !msg.content" class="chat-typing">
+                        <span class="chat-typing-dot"></span>
+                        <span class="chat-typing-dot"></span>
+                        <span class="chat-typing-dot"></span>
+                      </div>
                     </div>
+                  </div>
                 </div>
-                <div class="week-calendar" id="week-calendar">
-                    <!-- 由 JS 动态生成：左侧时间轴 + 7天列 -->
-                </div>
+              </template>
             </div>
 
-            <!-- 全部任务 -->
-            <div id="inner-all" class="inner-panel">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>序号</th><th>任务名称</th><th>截止时间</th><th>周期</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
-                    </thead>
-                    <tbody id="all-task-tbody">
-                        <tr><td colspan="7" class="empty">加载中...</td></tr>
-                    </tbody>
-                </table>
-                <div id="task-pagination" class="pagination"></div>
+            <!-- Input Area -->
+            <div class="chat-input-area">
+              <textarea class="chat-input" x-model="input" @keydown="handleKeydown"
+                        placeholder="输入消息... (⌘Enter 发送)" :disabled="sending"
+                        rows="1"></textarea>
+              <button class="chat-send-btn" @click="sendMessage()"
+                      :disabled="!input.trim() || sending">
+                <span x-text="sending ? '...' : '发送'"></span>
+              </button>
             </div>
-        </div>
-    </section>
+          </div>
 
-    <!-- ==================== 下载 ==================== -->
-    <section id="panel-download" class="panel">
-        <div class="panel-header">
-            <h2>下载中心</h2>
-        </div>
+          <!-- Right Panel -->
+          <div class="chat-panel" :class="{ collapsed: panelCollapsed }">
+            <button class="chat-panel-toggle" @click="togglePanel()">
+              <span x-text="panelCollapsed ? '◀' : '▶'"></span>
+            </button>
 
-        <div class="card">
-            <div class="tab-bar">
-                <button class="inner-tab active" data-inner="dl-new">新建下载</button>
-                <button class="inner-tab" data-inner="dl-history">下载历史</button>
-            </div>
+            <div x-show="!panelCollapsed" class="chat-panel-body">
+              <!-- Config Loading -->
+              <div x-show="configLoading" style="padding:var(--space-md)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
 
-            <!-- 新建下载 -->
-            <div id="inner-dl-new" class="inner-panel active">
-                <div class="form-grid">
-                    <div class="form-group span-2">
-                        <label>下载 URL</label>
-                        <input id="dl-url" type="url" placeholder="https://arxiv.org/pdf/2501.12345.pdf">
-                    </div>
-                    <div class="form-group">
-                        <label>分类</label>
-                        <select id="dl-category">
-                            <option value="paper">论文 paper</option>
-                            <option value="video">视频 video</option>
-                            <option value="code">代码 code</option>
-                            <option value="misc">其他 misc</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>文件名（可选）</label>
-                        <input id="dl-filename" type="text" placeholder="自动生成">
-                    </div>
-                    <div class="form-group form-action">
-                        <button id="btn-download" class="btn btn-primary">开始下载</button>
-                    </div>
+              <!-- Config Error -->
+              <div x-show="!configLoading && configError" style="padding:var(--space-md)">
+                <div class="empty-state" style="padding:var(--space-sm)">
+                  <div class="empty-state-text" x-text="configError"></div>
+                  <button class="btn btn-sm btn-primary" @click="loadConfig()">重试</button>
                 </div>
-                <div id="download-result" class="result-box" style="display:none">
-                    <pre id="download-output"></pre>
-                </div>
-            </div>
+              </div>
 
-            <!-- 下载历史 -->
-            <div id="inner-dl-history" class="inner-panel">
-                <div class="filter-bar">
-                    <select id="dl-history-cat" class="filter-sm">
-                        <option value="">全部分类</option>
-                        <option value="paper">论文</option>
-                        <option value="video">视频</option>
-                        <option value="code">代码</option>
-                        <option value="misc">其他</option>
-                    </select>
+              <div x-show="!configLoading && !configError">
+              <div>
+                <h3>对话设置</h3>
+                <div class="chat-panel-info">
+                  <div>模型：<span x-text="config?.model || '-'"></span></div>
+                  <div>会话：<span class="chat-conversation-id" x-text="conversationId ? conversationId.substring(0, 12) + '...' : '新对话'"></span></div>
                 </div>
-                <table class="data-table">
-                    <thead>
-                        <tr><th>#</th><th>文件名</th><th>分类</th><th>大小</th><th>安全</th><th>状态</th><th>时间</th><th>URL</th></tr>
-                    </thead>
-                    <tbody id="dl-history-tbody">
-                        <tr><td colspan="8" class="empty">加载中...</td></tr>
-                    </tbody>
-                </table>
-                <div id="dl-history-pagination" class="pagination"></div>
-            </div>
-        </div>
-    </section>
+              </div>
 
-    <!-- ==================== 文件检索 ==================== -->
-    <section id="panel-search" class="panel">
-        <div class="panel-header"><h2>文件检索</h2></div>
-        <div class="card">
-            <div class="form-grid">
-                <div class="form-group span-2">
-                    <label>搜索关键词</label>
-                    <input id="search-keyword" type="text" placeholder="留空列出全部">
+              <div class="chat-panel-actions">
+                <button class="btn btn-sm" @click="newConversation()">新对话</button>
+                <button class="btn btn-sm btn-danger" @click="clearHistory()" :disabled="!conversationId && messages.length === 0">清除历史</button>
+                <button class="btn btn-sm" @click="showConfig = !showConfig">
+                  <span x-text="showConfig ? '收起配置' : 'AI 配置'"></span>
+                </button>
+              </div>
+
+              <!-- Config Form -->
+              <div x-show="showConfig" class="chat-config-form" x-transition>
+                <div class="form-group">
+                  <label>API Base</label>
+                  <input x-model="configForm.api_base" placeholder="https://api.openai.com/v1">
                 </div>
                 <div class="form-group">
-                    <label>分类</label>
-                    <select id="search-category">
-                        <option value="all">全部</option>
-                        <option value="paper">论文</option>
-                        <option value="video">视频</option>
-                        <option value="code">代码</option>
-                        <option value="misc">其他</option>
-                    </select>
+                  <label>API Key</label>
+                  <input x-model="configForm.api_key" type="password" placeholder="留空保持不变">
                 </div>
-                <div class="form-group form-action">
-                    <button id="btn-search" class="btn btn-primary">搜索</button>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <h3>搜索结果 <span id="search-count" class="count-badge"></span></h3>
-            <table class="data-table">
-                <thead><tr><th>序号</th><th>文件名</th><th>分类</th><th>大小</th><th>下载时间</th><th>路径</th></tr></thead>
-                <tbody id="search-tbody"><tr><td colspan="6" class="empty">输入关键词后点击搜索</td></tr></tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- ==================== 沙盒 ==================== -->
-    <section id="panel-sandbox" class="panel">
-        <div class="panel-header"><h2>沙盒执行</h2></div>
-        <div class="card">
-            <div class="form-grid">
                 <div class="form-group">
-                    <label>运行环境</label>
-                    <select id="sb-tool">
-                        <option value="python">Python 3.11</option>
-                        <option value="node">Node.js 20</option>
-                        <option value="ffmpeg">FFmpeg</option>
-                        <option value="pandoc">Pandoc</option>
-                    </select>
+                  <label>模型</label>
+                  <input x-model="configForm.model" placeholder="gpt-4">
                 </div>
-                <div class="form-group span-3">
-                    <label>执行命令</label>
-                    <input id="sb-cmd" type="text" placeholder="python /workspace/main.py">
+                <div class="form-group">
+                  <label>Temperature</label>
+                  <input type="number" x-model="configForm.temperature" step="0.1" min="0" max="2">
                 </div>
-            </div>
-            <div class="form-grid" style="margin-top:12px">
-                <div class="form-group span-2">
-                    <label>前置命令（每行一条，可选）</label>
-                    <textarea id="sb-setup" rows="3" placeholder="apt-get update && apt-get install -y espeak
-pip install pymupdf gTTS"></textarea>
+                <div class="form-group">
+                  <label>Max Tokens</label>
+                  <input type="number" x-model="configForm.max_tokens" step="1" min="1" max="32768">
                 </div>
-                <div class="form-group span-2">
-                    <label>动态写入文件（JSON格式，可选）</label>
-                    <textarea id="sb-files" rows="3" placeholder='{"main.py": "print(\"hello\")"}'></textarea>
+                <div class="chat-panel-actions">
+                  <button class="btn btn-sm btn-primary" @click="saveConfig()">保存</button>
+                  <button class="btn btn-sm" @click="testConnection()">测试连接</button>
                 </div>
+              </div>
             </div>
-            <div style="margin-top:12px">
-                <button id="btn-sandbox" class="btn btn-primary">执行</button>
-                <button id="btn-job-status" class="btn btn-sm" style="margin-left:8px">查询异步任务</button>
-                <input id="job-id" type="text" placeholder="Job ID" class="input-sm" style="margin-left:8px">
+          </div>
+        </div>
+      </div>
+      <div id="view-workflows" x-show="$store.view.isActive('workflows')"
+           x-data="workflows" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? (showForm=false) : openNewForm()">
+            <span x-text="showForm ? '取消' : '+ 新建工作流'"></span>
+          </button>
+        </div>
+
+        <!-- Create Workflow Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>✨ 新建工作流</h3></div>
+          <div class="form-group"><label>名称</label><input x-model="form.name" placeholder="工作流名称"></div>
+          <div class="form-group"><label>描述</label><textarea x-model="form.description" rows="2" placeholder="工作流描述..."></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+            <div class="form-group"><label>触发类型</label>
+              <select x-model="form.trigger_type">
+                <option value="manual">手动</option>
+                <option value="schedule">定时</option>
+                <option value="webhook">Webhook</option>
+                <option value="event">事件</option>
+              </select>
             </div>
-        </div>
-        <div id="sandbox-result" class="card result-card" style="display:none">
-            <h3>执行结果</h3>
-            <pre id="sandbox-output" class="output-box"></pre>
-        </div>
-    </section>
-
-    <!-- ==================== 日志 ==================== -->
-    <section id="panel-logs" class="panel">
-        <div class="panel-header">
-            <h2>操作日志</h2>
-            <div class="header-actions">
-                <select id="log-operation-filter" class="filter-sm">
-                    <option value="">全部操作</option>
-                    <option value="download">下载</option>
-                    <option value="download_async">异步下载</option>
-                    <option value="task_add">添加任务</option>
-                    <option value="task_complete">完成任务</option>
-                    <option value="task_delete">删除任务</option>
-                    <option value="sandbox">沙盒执行</option>
-                </select>
-                <button id="btn-refresh-logs" class="btn btn-sm">刷新</button>
+            <div class="form-group"><label>触发配置 (JSON)</label>
+              <input x-model="form.trigger_config" placeholder='{"cron": "0 9 * * *"}'>
             </div>
-        </div>
-        <div class="card">
-            <table class="data-table">
-                <thead><tr><th>#</th><th>操作</th><th>端点</th><th>参数</th><th>结果</th><th>详情</th><th>时间</th></tr></thead>
-                <tbody id="logs-tbody"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
-            </table>
-            <div id="logs-pagination" class="pagination"></div>
-        </div>
-    </section>
-</div>
-
-<!-- 新建任务弹窗 -->
-<div id="modal-overlay" class="modal-overlay" style="display:none">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>新建任务</h3>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>任务名称 *</label>
-                <input id="modal-task-name" type="text" placeholder="如：复盘本周工作">
-            </div>
-            <div class="form-group">
-                <label>截止时间 *</label>
-                <input id="modal-task-due" type="datetime-local">
-            </div>
-            <div class="form-group">
-                <label>重复周期</label>
-                <select id="modal-task-recurrence">
-                    <option value="once">仅一次</option>
-                    <option value="daily">每天</option>
-                    <option value="weekly">每周</option>
-                    <option value="monthly">每月</option>
-                </select>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-sm" onclick="closeModal()">取消</button>
-            <button id="btn-modal-add-task" class="btn btn-primary">确认添加</button>
-        </div>
-    </div>
-</div>
-
-<!-- 全局搜索结果下拉 -->
-<div id="search-dropdown" class="search-dropdown" style="display:none"></div>
-
-<!-- AI 对话悬浮窗 -->
-<div id="ai-fab" class="ai-fab" title="AI 助手 (Ctrl+J)">
-    <span class="ai-fab-icon">🤖</span>
-</div>
-<div id="ai-panel" class="ai-panel" style="display:none">
-    <div class="ai-panel-header">
-        <span>🤖 AI 助手</span>
-        <div class="ai-panel-actions">
-            <button id="ai-settings-btn" class="ai-panel-btn" title="AI 配置">⚙️</button>
-            <button id="ai-clear" class="ai-panel-btn" title="清除对话">🗑️</button>
-            <button id="ai-close" class="ai-panel-btn" title="关闭">✕</button>
-        </div>
-    </div>
-
-    <!-- 设置面板 -->
-    <div id="ai-settings" class="ai-settings" style="display:none">
-        <div class="ai-settings-title">⚙️ AI 模型配置</div>
-
-        <div class="ai-setting-group">
-            <label>API 地址</label>
-            <input id="ai-api-base" type="text" class="ai-setting-input" placeholder="https://open.bigmodel.cn/api/paas/v4">
+          </div>
+          <div class="form-group"><label>动作列表 (JSON)</label>
+            <textarea x-model="form.actions" rows="3" placeholder='[{"type": "http", "config": {"url": "..."}}]'></textarea>
+          </div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="createWorkflow()">创建工作流</button>
+            <button class="btn" @click="showForm=false">取消</button>
+          </div>
         </div>
 
-        <div class="ai-setting-group">
-            <label>API Key</label>
-            <div class="ai-key-input-wrap">
-                <input id="ai-api-key" type="password" placeholder="输入 API Key">
-                <button id="ai-toggle-key" class="ai-panel-btn" title="显示/隐藏">👁️</button>
-            </div>
-        </div>
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 3">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
 
-        <div class="ai-setting-group">
-            <label>模型</label>
-            <select id="ai-model-select" class="ai-setting-select">
-                <option value="">加载中...</option>
-            </select>
-        </div>
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
 
-        <div class="ai-setting-group" id="ai-custom-model-group" style="display:none">
-            <label>自定义模型名称</label>
-            <input id="ai-custom-model" type="text" placeholder="如: glm-4-flash">
-        </div>
+        <!-- Empty State -->
+        <template x-if="!loading && !error && workflows.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚡</div>
+            <div class="empty-state-text">还没有工作流</div>
+            <button class="btn btn-primary" @click="openNewForm()">创建第一个工作流</button>
+          </div>
+        </template>
 
-        <div class="ai-setting-actions">
-            <button id="ai-test-btn" class="btn btn-sm">🔍 测试连接</button>
-            <button id="ai-save-btn" class="btn btn-primary btn-sm">💾 保存配置</button>
-        </div>
-        <div id="ai-test-result" class="ai-test-result" style="display:none"></div>
-    </div>
+        <!-- Workflow Cards -->
+        <template x-if="!loading && !error && workflows.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+              <template x-for="wf in workflows" :key="getWorkflowId(wf)">
+                <div class="card" style="display:flex;flex-direction:column">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                      <h3 x-text="wf.name" style="font-size:1rem"></h3>
+                      <button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:0.7rem"
+                              :class="wf.enabled ? 'btn-success' : ''"
+                              @click="toggleWorkflow(getWorkflowId(wf))"
+                              x-text="wf.enabled ? '启用' : '禁用'"></button>
+                    </div>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.85rem;color:var(--text-secondary);flex:1">
+                    <p x-text="wf.description || '暂无描述'"></p>
+                    <div style="margin-top:var(--space-sm);display:flex;gap:var(--space-sm);align-items:center">
+                      <span class="badge badge-pending" x-text="triggerLabel(wf.trigger_type)"></span>
+                      <span style="font-size:0.75rem;color:var(--text-tertiary)">
+                        <template x-if="wf.last_execution">
+                          上次执行: <span x-text="formatTimeShort(wf.last_execution)"></span>
+                        </template>
+                      </span>
+                    </div>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;gap:var(--space-sm)">
+                    <button class="btn btn-sm btn-primary" @click="executeWorkflow(getWorkflowId(wf), $event)">▶ 执行</button>
+                    <button class="btn btn-sm" @click="loadHistory(getWorkflowId(wf), wf.name)">
+                      <span x-text="showHistory && historyWorkflowId === getWorkflowId(wf) ? '▼ 隐藏历史' : '📋 历史'"></span>
+                    </button>
+                    <div style="flex:1"></div>
+                    <button class="btn btn-sm btn-danger" @click="deleteWorkflow(getWorkflowId(wf))">删除</button>
+                  </div>
 
-    <!-- 对话区域 -->
-    <div id="ai-messages" class="ai-messages">
-        <div class="ai-msg ai-msg-system">
-            👋 你好！我是 AI 助手，可以帮你管理任务、下载文件、搜索文件和执行代码。
-            直接用自然语言告诉我你想做什么。
-        </div>
-    </div>
-    <div class="ai-input-area">
-        <textarea id="ai-input" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
-        <button id="ai-send" class="btn btn-primary btn-sm">发送</button>
-    </div>
-</div>
-
-<script src="/static/app.js"></script>
-<script>
-    // PWA Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/static/sw.js')
-                .then(registration => console.log('[PWA] SW registered'))
-                .catch(error => console.log('[PWA] SW failed:', error));
-        });
-    }
-</script>
-
-    <!-- ==================== 笔记 ==================== -->
-    <section id="panel-notes" class="panel">
-        <div class="panel-header">
-            <h2>📝 笔记管理</h2>
-            <div class="header-actions">
-                <input id="note-search" type="text" placeholder="搜索笔记..." class="search-sm">
-                <button id="btn-add-note" class="btn btn-primary btn-sm">+ 新建笔记</button>
-            </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card" id="notes-list-card">
-                <h3>笔记列表</h3>
-                <div id="notes-list" class="notes-list">
-                    <div class="empty-state">加载中...</div>
+                  <!-- Execution History -->
+                  <div x-show="showHistory && historyWorkflowId === getWorkflowId(wf)"
+                       x-transition style="border-top:1px solid var(--border);padding:var(--space-sm)">
+                    <div x-show="historyLoading" class="skeleton" style="height:60px"></div>
+                    <template x-if="!historyLoading && historyItems.length === 0">
+                      <div style="padding:var(--space-sm);text-align:center;color:var(--text-tertiary);font-size:0.85rem">暂无执行记录</div>
+                    </template>
+                    <template x-for="h in historyItems" :key="h.id || h.execution_id">
+                      <div style="display:flex;align-items:center;gap:var(--space-sm);padding:6px 0;font-size:0.8rem">
+                        <span class="badge" :class="statusClass(h.status)" x-text="statusLabel(h.status)"></span>
+                        <span style="color:var(--text-secondary);flex:1" x-text="formatTime(h.started_at || h.created_at)"></span>
+                        <span style="color:var(--text-tertiary);font-size:0.75rem" x-show="h.duration" x-text="h.duration + 's'"></span>
+                      </div>
+                    </template>
+                  </div>
                 </div>
+              </template>
             </div>
-            <div class="card span-2" id="note-editor-card">
-                <h3><input type="text" id="note-title" placeholder="笔记标题"></h3>
-                <div class="note-tags">
-                    <input type="text" id="note-tags-input" placeholder="标签，用逗号分隔">
-                </div>
-                <textarea id="note-content" placeholder="支持 Markdown 格式..."></textarea>
-                <div class="note-actions">
-                    <button id="btn-save-note" class="btn btn-primary">💾 保存</button>
-                    <button id="btn-delete-note" class="btn btn-danger" style="display:none">🗑️ 删除</button>
-                    <button id="btn-cancel-note" class="btn">取消</button>
-                </div>
-            </div>
-        </div>
-    </section>
+          </div>
+        </template>
+      </div>
+      <div id="view-sync" x-show="$store.view.isActive('sync')"
+           x-data="sync" x-transition.opacity.duration.250ms>
 
-    <!-- ==================== 习惯 ==================== -->
-    <section id="panel-habits" class="panel">
-        <div class="panel-header">
-            <h2>🎯 习惯养成</h2>
-            <div class="header-actions">
-                <button id="btn-add-habit" class="btn btn-primary btn-sm">+ 新建习惯</button>
-            </div>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">🔥</div>
+        <!-- Sync Status Cards -->
+        <template x-if="loading">
+          <div class="stats-grid">
+            <div class="stat-card" x-for="i in 3"><div class="skeleton" style="height:60px"></div></div>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div>
+            <!-- Status Cards -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon">🔄</div>
                 <div class="stat-info">
-                    <div class="stat-value" id="habit-streak-max">-</div>
-                    <div class="stat-label">最长连续天数</div>
+                  <div class="stat-value" x-text="lastSyncLabel()"></div>
+                  <div class="stat-label">上次同步</div>
                 </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="habit-checkins-today">-</div>
-                    <div class="stat-label">今日打卡</div>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <div id="habits-list" class="habits-grid">
-                <div class="empty-state">暂无习惯，点击右上角创建</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== AI 规划 ==================== -->
-    <section id="panel-ai-planning" class="panel">
-        <div class="panel-header">
-            <h2>🤖 AI 智能规划</h2>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>📝 任务拆解</h3>
-                <div class="form-group">
-                    <label>任务名称</label>
-                    <input id="ai-decompose-input" type="text" placeholder="输入任务名称，AI将自动拆解">
-                </div>
-                <div class="form-group">
-                    <label>任务描述</label>
-                    <textarea id="ai-decompose-desc" rows="3" placeholder="补充描述（可选）"></textarea>
-                </div>
-                <button id="btn-ai-decompose" class="btn btn-primary">🔍 AI 拆解</button>
-                <div id="ai-decompose-result" class="ai-result-box"></div>
-            </div>
-            <div class="card">
-                <h3>⏱️ 时间估算</h3>
-                <div class="form-group">
-                    <label>任务名称</label>
-                    <input id="ai-estimate-input" type="text" placeholder="输入任务名称">
-                </div>
-                <button id="btn-ai-estimate" class="btn btn-primary">⏱️ AI 估算</button>
-                <div id="ai-estimate-result" class="ai-result-box"></div>
-            </div>
-            <div class="card span-2">
-                <h3>📊 效率洞察</h3>
-                <button id="btn-ai-insights" class="btn btn-primary">🔍 生成洞察</button>
-                <div id="ai-insights-result" class="ai-result-box"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 日历 ==================== -->
-    <section id="panel-calendar" class="panel">
-        <div class="panel-header">
-            <h2>📅 日历视图</h2>
-            <div class="header-actions">
-                <button id="btn-add-event" class="btn btn-primary btn-sm">+ 新建事件</button>
-            </div>
-        </div>
-        <div class="card">
-            <div class="calendar-nav">
-                <button id="cal-prev-month">◀</button>
-                <span id="cal-month-label">2026年4月</span>
-                <button id="cal-next-month">▶</button>
-            </div>
-            <div id="calendar-grid" class="calendar-grid">
-                <!-- 由 JS 生成 -->
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 工作流 ==================== -->
-    <section id="panel-workflows" class="panel">
-        <div class="panel-header">
-            <h2>⚡ 自动化工作流</h2>
-            <div class="header-actions">
-                <button id="btn-add-workflow" class="btn btn-primary btn-sm">+ 新建工作流</button>
-            </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>工作流列表</h3>
-                <div id="workflows-list" class="workflows-list">
-                    <div class="empty-state">暂无工作流</div>
-                </div>
-            </div>
-            <div class="card span-2">
-                <h3>执行记录</h3>
-                <div id="workflow-executions" class="executions-list">
-                    <div class="empty-state">选择工作流查看执行记录</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ==================== 同步 ==================== -->
-    <section id="panel-sync" class="panel">
-        <div class="panel-header">
-            <h2>🔄 数据同步</h2>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-card">
+              </div>
+              <div class="stat-card">
                 <div class="stat-icon">📱</div>
                 <div class="stat-info">
-                    <div class="stat-value" id="sync-device-id">-</div>
-                    <div class="stat-label">设备 ID</div>
+                  <div class="stat-value" x-text="connectedDevicesCount() + '/' + totalDevicesCount()"></div>
+                  <div class="stat-label">已连接设备</div>
                 </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⏰</div>
-                <div class="stat-info">
-                    <div class="stat-value" id="sync-last-time">-</div>
-                    <div class="stat-label">上次同步</div>
-                </div>
-            </div>
-            <div class="stat-card">
+              </div>
+              <div class="stat-card">
                 <div class="stat-icon">📤</div>
                 <div class="stat-info">
-                    <div class="stat-value" id="sync-pending">-</div>
-                    <div class="stat-label">待同步</div>
+                  <div class="stat-value" x-text="offlineQueue.length"></div>
+                  <div class="stat-label">离线队列</div>
                 </div>
+              </div>
             </div>
-        </div>
-        <div class="card">
-            <h3>同步操作</h3>
-            <div class="sync-actions">
-                <button id="btn-sync-now" class="btn btn-primary">🔄 立即同步</button>
-                <button id="btn-sync-full" class="btn">📤 完整同步</button>
-            </div>
-            <div id="sync-result" class="sync-result-box"></div>
-        </div>
-        <div class="card">
-            <h3>已连接设备</h3>
-            <div id="sync-devices-list" class="devices-list">
-                <div class="empty-state">暂无其他设备</div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ==================== 设置 ==================== -->
-    <section id="panel-settings" class="panel">
-        <div class="panel-header">
-            <h2>⚙️ 设置</h2>
-        </div>
-        <div class="dashboard-grid">
-            <div class="card">
-                <h3>🎨 外观</h3>
-                <div class="setting-item">
-                    <label>主题</label>
-                    <select id="setting-theme">
-                        <option value="dark">深色</option>
-                        <option value="light">浅色</option>
-                        <option value="auto">跟随系统</option>
-                    </select>
-                </div>
+            <!-- Sync Actions -->
+            <div class="card" style="margin-bottom:var(--space-md)">
+              <div class="card-header"><h3>🔄 同步操作</h3></div>
+              <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+                <button class="btn" @click="doSync('push')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='push' ? '⏳...' : '📤 推送'"></span>
+                </button>
+                <button class="btn" @click="doSync('pull')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='pull' ? '⏳...' : '📥 拉取'"></span>
+                </button>
+                <button class="btn btn-primary" @click="doSync('full')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='full' ? '⏳...' : '🔄 全量同步'"></span>
+                </button>
+                <button class="btn" @click="syncOffline()" :disabled="syncing || offlineQueue.length === 0">
+                  <span x-text="syncing && syncType==='offline' ? '⏳...' : '📤 同步离线队列'"></span>
+                </button>
+              </div>
             </div>
-            <div class="card">
-                <h3>🔔 通知</h3>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-task">
-                        任务提醒
-                    </label>
-                </div>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-habit">
-                        习惯提醒
-                    </label>
-                </div>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="setting-notify-pomodoro">
-                        番茄钟提醒
-                    </label>
-                </div>
-            </div>
-            <div class="card">
-                <h3>🍅 番茄钟</h3>
-                <div class="setting-item">
-                    <label>专注时长（分钟）</label>
-                    <input type="number" id="setting-pomodoro-duration" value="25" min="1" max="60">
-                </div>
-                <div class="setting-item">
-                    <label>休息时长（分钟）</label>
-                    <input type="number" id="setting-pomodoro-break" value="5" min="1" max="30">
-                </div>
-            </div>
-            <div class="card">
-                <h3>🔄 同步</h3>
-                <div class="setting-item">
-                    <label>自动同步</label>
-                    <select id="setting-sync-interval">
-                        <option value="60">每 1 分钟</option>
-                        <option value="300" selected>每 5 分钟</option>
-                        <option value="600">每 10 分钟</option>
-                        <option value="0">手动同步</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </section>
 
+            <!-- Device List -->
+            <div class="card" style="margin-bottom:var(--space-md)">
+              <div class="card-header"><h3>📱 已注册设备</h3></div>
+              <template x-if="devices.length === 0">
+                <div class="empty-state" style="padding:var(--space-md)">
+                  <span class="empty-state-text">暂无已注册设备</span>
+                </div>
+              </template>
+              <template x-for="device in devices" :key="device.id || device.device_id">
+                <div style="display:flex;align-items:center;gap:var(--space-sm);padding:8px 0;border-bottom:1px solid var(--border)">
+                  <span class="status-dot" :class="device.is_online || device.status === 'online' ? 'connected' : ''"></span>
+                  <span style="flex:1" x-text="device.name || device.device_id || '未知设备'"></span>
+                  <span style="font-size:0.8rem;color:var(--text-tertiary)">
+                    <template x-if="device.last_heartbeat || device.last_sync">
+                      <span x-text="formatTime(device.last_heartbeat || device.last_sync)"></span>
+                    </template>
+                    <template x-if="!device.last_heartbeat && !device.last_sync">
+                      <span>从未同步</span>
+                    </template>
+                  </span>
+                </div>
+              </template>
+            </div>
+
+            <!-- Offline Queue -->
+            <div class="card" x-show="offlineQueue.length > 0">
+              <div class="card-header"><h3>📤 离线操作队列</h3></div>
+              <template x-for="item in offlineQueue" :key="item.id || item.queue_id">
+                <div style="display:flex;align-items:center;gap:var(--space-sm);padding:8px 0;font-size:0.85rem;border-bottom:1px solid var(--border)">
+                  <span x-text="item.action || item.type || '-'"></span>
+                  <span style="flex:1;color:var(--text-tertiary);font-size:0.8rem">
+                    <template x-if="item.created_at">
+                      <span x-text="formatTime(item.created_at)"></span>
+                    </template>
+                  </span>
+                  <span class="badge badge-pending" x-text="item.status || 'pending'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-download" x-show="$store.view.isActive('download')"
+           x-data="download" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <button class="btn btn-sm" @click="showBandwidth=!showBandwidth">
+            <span x-text="showBandwidth ? '隐藏带宽' : '⚡ 带宽'"></span>
+          </button>
+          <div style="flex:1"></div>
+          <span style="font-size:0.8rem;color:var(--text-tertiary);align-self:center" x-show="queue.length > 0">
+            队列: <span x-text="queue.length"></span> 项
+          </span>
+        </div>
+
+        <!-- Bandwidth Settings -->
+        <div x-show="showBandwidth" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>⚡ 带宽控制</h3></div>
+          <div style="display:flex;gap:var(--space-sm);align-items:flex-end">
+            <div class="form-group" style="flex:1;margin-bottom:0">
+              <label>带宽限制 (KB/s, 0=不限)</label>
+              <input type="number" x-model="bandwidthLimit" min="0" placeholder="0">
+            </div>
+            <button class="btn btn-primary btn-sm" @click="saveBandwidth()">保存</button>
+          </div>
+          <div style="margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-tertiary)">
+            <span x-show="bandwidth?.current">当前速度: <span x-text="bandwidth.current"></span></span>
+          </div>
+        </div>
+
+        <!-- New Download Form -->
+        <div class="card" style="margin-bottom:var(--space-md)">
+          <div class="card-header"><h3>📥 新建下载</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:var(--space-sm);align-items:flex-end">
+            <div class="form-group" style="margin-bottom:0">
+              <label>URL</label>
+              <input x-model="form.url" placeholder="https://..." @keydown.enter="startDownload()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>文件名 (可选)</label>
+              <input x-model="form.filename" placeholder="filename.ext">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>分类 (可选)</label>
+              <select x-model="form.category">
+                <option value="">无</option>
+                <option value="documents">文档</option>
+                <option value="images">图片</option>
+                <option value="videos">视频</option>
+                <option value="music">音乐</option>
+                <option value="archives">压缩包</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" @click="startDownload()" style="height:40px;align-self:flex-end">添加</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 3">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+                <div class="skeleton" style="height:24px;width:100%;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && queue.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">📥</div>
+            <div class="empty-state-text">下载队列为空</div>
+            <div class="empty-state-hint">输入 URL 开始下载</div>
+          </div>
+        </template>
+
+        <!-- Download Queue -->
+        <template x-if="!loading && !error && queue.length > 0">
+          <div>
+            <template x-for="job in queue" :key="getJobId(job)">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                  <span style="font-size:1.2rem" x-text="statusIcon(job.status)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:0.9rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                         x-text="job.filename || job.url || job.name || '未知'"></div>
+                    <div style="font-size:0.75rem;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                         x-text="job.url || ''"></div>
+                  </div>
+                  <span class="badge" :class="statusClass(job.status)" x-text="statusLabel(job.status)"></span>
+                  <div style="display:flex;gap:4px;flex-shrink:0">
+                    <button class="btn btn-sm" @click="pauseJob(getJobId(job))" :disabled="!canPause(job)"
+                            title="暂停">⏸️</button>
+                    <button class="btn btn-sm" @click="resumeJob(getJobId(job))" :disabled="!canResume(job)"
+                            title="恢复">▶️</button>
+                    <button class="btn btn-sm btn-danger" @click="cancelJob(getJobId(job))" :disabled="!canCancel(job)"
+                            title="取消">✕</button>
+                  </div>
+                </div>
+                <!-- Progress Bar -->
+                <div style="margin-top:var(--space-sm);display:flex;align-items:center;gap:var(--space-sm)">
+                  <div style="flex:1;height:6px;background:var(--bg-tertiary);border-radius:var(--radius-full);overflow:hidden">
+                    <div style="height:100%;background:var(--accent);border-radius:var(--radius-full);transition:width var(--duration-normal)"
+                         :style="'width:' + progressPercent(job) + '%'"></div>
+                  </div>
+                  <span style="font-size:0.8rem;color:var(--text-secondary);min-width:40px;text-align:right"
+                        x-text="progressPercent(job) + '%'"></span>
+                </div>
+                <!-- Meta -->
+                <div style="margin-top:4px;display:flex;gap:var(--space-md);font-size:0.75rem;color:var(--text-tertiary)">
+                  <span x-show="job.size || job.total">大小: <span x-text="job.size || job.total"></span></span>
+                  <span x-show="job.speed">速度: <span x-text="job.speed"></span></span>
+                  <span x-show="job.category">分类: <span x-text="job.category"></span></span>
+                  <span x-show="job.created_at || job.added_at">添加: <span x-text="formatTime(job.created_at || job.added_at)"></span></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+      <div id="view-sandbox" x-show="$store.view.isActive('sandbox')"
+           x-data="sandbox" x-transition.opacity.duration.250ms>
+
+        <!-- Controls -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md);align-items:flex-end">
+          <div class="form-group" style="margin-bottom:0;max-width:160px">
+            <label>语言</label>
+            <select x-model="language" @change="clearOutput()">
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="bash">Bash</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;max-width:100px">
+            <label>超时 (秒)</label>
+            <input type="number" x-model.number="timeout" min="5" max="120">
+          </div>
+          <button class="btn btn-sm" @click="loadPreset('python')">Python 示例</button>
+          <button class="btn btn-sm" @click="loadPreset('javascript')">JS 示例</button>
+          <button class="btn btn-sm" @click="loadPreset('bash')">Bash 示例</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" @click="execute()" :disabled="executing || !code.trim()"
+                  style="min-width:100px">
+            <span x-text="executing ? '⏳ 执行中...' : '▶ 执行'"></span>
+          </button>
+        </div>
+
+        <!-- Editor + Output Layout -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);height:calc(100vh - 260px)">
+          <!-- Code Editor -->
+          <div class="card" style="display:flex;flex-direction:column;padding:0">
+            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border);
+                        display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary)">
+                代码 (<span x-text="language"></span>)
+              </span>
+              <span style="font-size:0.75rem;color:var(--text-tertiary)">
+                行数: <span x-text="code.split('\n').length"></span>
+              </span>
+            </div>
+            <textarea x-model="code"
+                      style="flex:1;border:none;border-radius:0;resize:none;font-family:var(--font-mono,monospace);font-size:0.85rem;line-height:1.6;padding:var(--space-md);tab-size:2"
+                      :placeholder="'输入 ' + language + ' 代码...'"
+                      :disabled="executing"
+                      spellcheck="false"></textarea>
+          </div>
+
+          <!-- Output Panel -->
+          <div class="card" style="display:flex;flex-direction:column;padding:0">
+            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border);
+                        display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary)">输出</span>
+              <div style="display:flex;gap:var(--space-sm);align-items:center">
+                <span x-show="executionTime" style="font-size:0.75rem;color:var(--text-tertiary)">
+                  耗时: <span x-text="executionTime"></span>s
+                </span>
+                <button class="btn btn-sm btn-ghost" @click="clearOutput()" x-show="output" style="font-size:0.75rem">清空</button>
+              </div>
+            </div>
+            <div style="flex:1;overflow:auto;padding:var(--space-md);font-family:var(--font-mono,monospace);font-size:0.85rem;line-height:1.6;white-space:pre-wrap;word-break:break-all">
+
+              <!-- Executing indicator -->
+              <div x-show="executing" style="display:flex;align-items:center;gap:var(--space-sm);color:var(--text-tertiary)">
+                <span class="chat-typing">
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                </span>
+                <span>执行中...</span>
+              </div>
+
+              <!-- Empty output state -->
+              <div x-show="!executing && !output" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);text-align:center">
+                <div style="font-size:2rem;margin-bottom:var(--space-sm)">🔧</div>
+                <div style="font-size:0.9rem">编写代码并点击执行查看输出</div>
+              </div>
+
+              <!-- Output -->
+              <div x-show="!executing && output"
+                   :class="outputType === 'error' ? '' : ''"
+                   x-text="output"
+                   :style="outputType === 'error' ? 'color:var(--error)' : ''"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="view-settings" x-show="$store.view.isActive('settings')" x-transition.opacity.duration.250ms>
+        <div x-data="settings">
+          <template x-if="loading">
+            <div>
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+              </div>
+              <div class="card">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="!loading && error">
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-text" x-text="error"></div>
+              <button class="btn btn-primary" @click="load()">重试</button>
+            </div>
+          </template>
+
+          <template x-if="!loading && !error">
+            <div>
+              <!-- AI Config -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>🤖 AI 配置</h3></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+                  <div class="form-group"><label>模型</label>
+                    <input x-model="configForm.model" placeholder="gpt-4">
+                  </div>
+                  <div class="form-group"><label>Temperature</label>
+                    <input type="number" x-model="configForm.temperature" step="0.1" min="0" max="2">
+                  </div>
+                  <div class="form-group"><label>Max Tokens</label>
+                    <input type="number" x-model="configForm.max_tokens" step="1" min="1" max="32768">
+                  </div>
+                  <div class="form-group"><label>API Base</label>
+                    <input x-model="configForm.api_base" placeholder="https://api.openai.com/v1">
+                  </div>
+                </div>
+                <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+                  <button class="btn btn-primary btn-sm" @click="saveConfig()">保存配置</button>
+                  <button class="btn btn-sm" @click="testConnection()">测试连接</button>
+                </div>
+              </div>
+
+              <!-- Appearance -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>🎨 外观</h3></div>
+                <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                  <span style="font-size:0.9rem">主题</span>
+                  <button class="btn btn-sm" @click="$store.app.toggleTheme()">
+                    <span x-text="$store.app.theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'"></span>
+                  </button>
+                  <span style="font-size:0.8rem;color:var(--text-tertiary)" x-text="'当前: ' + ($store.app.theme === 'dark' ? '暗色' : '亮色')"></span>
+                </div>
+              </div>
+
+              <!-- Keyboard Shortcuts -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>⌨️ 快捷键</h3></div>
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-sm) var(--space-lg);font-size:0.875rem">
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘K</kbd></span>
+                  <span>命令面板 (聚焦搜索)</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘N</kbd></span>
+                  <span>新建任务</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘⇧N</kbd></span>
+                  <span>新建笔记</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘J</kbd></span>
+                  <span>打开 AI 对话</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘B</kbd></span>
+                  <span>折叠侧边栏</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘1-5</kbd></span>
+                  <span>切换仪表盘 / 任务 / 笔记 / 习惯 / 日历</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘⇧T</kbd></span>
+                  <span>切换主题</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">Esc</kbd></span>
+                  <span>关闭弹窗 / 返回</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘Enter</kbd></span>
+                  <span>发送 / 执行</span>
+                </div>
+              </div>
+
+              <!-- About -->
+              <div class="card">
+                <div class="card-header"><h3>ℹ️ 关于</h3></div>
+                <div style="font-size:0.875rem;color:var(--text-secondary);line-height:1.8">
+                  <div>应用: LocalCommandCenter</div>
+                  <div>版本: <span x-text="$store.app.version || '-'"></span></div>
+                  <div>状态: <span :class="$store.app.connected ? 'badge badge-completed' : 'badge badge-error'"
+                                  x-text="$store.app.connected ? '已连接' : '未连接'"></span></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Modal Overlay -->
+  <div class="modal-overlay" id="modal-overlay" style="display:none" x-show="false"></div>
+</div>
+
+<script defer src="/static/js/app.js"></script>
+<script defer>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('settings', () => ({
+    loading: true,
+    error: null,
+    configForm: { api_base: '', model: '', temperature: 0.7, max_tokens: 2048 },
+
+    async init() {
+      this.$watch('$store.view.current', (val) => {
+        if (val === 'settings') this.load();
+      });
+      if (Alpine.store('view').current === 'settings') await this.load();
+    },
+
+    async load() {
+      this.loading = true;
+      this.error = null;
+      try {
+        const data = await fetch('/api/chat/config').then(r => r.json());
+        if (data.status === 'success') {
+          const cfg = data.config || data;
+          this.configForm = {
+            api_base: cfg.api_base || '',
+            model: cfg.model || '',
+            temperature: cfg.temperature ?? 0.7,
+            max_tokens: cfg.max_tokens ?? 2048,
+          };
+        }
+      } catch (e) {
+        this.error = '无法加载配置';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async saveConfig() {
+      try {
+        const resp = await fetch('/api/chat/config', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.configForm),
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+          window.toast ? window.toast('配置已保存', 'success') : alert('配置已保存');
+        } else {
+          throw new Error(data.message || '保存失败');
+        }
+      } catch (e) {
+        window.toast ? window.toast('保存配置失败', 'error') : alert('保存配置失败');
+      }
+    },
+
+    async testConnection() {
+      try {
+        const data = await fetch('/api/chat/test', { method: 'POST' }).then(r => r.json());
+        if (data.status === 'success') {
+          window.toast ? window.toast('连接测试成功', 'success') : alert('连接测试成功');
+        } else {
+          window.toast ? window.toast(data.message || '连接测试失败', 'error') : alert(data.message || '连接测试失败');
+        }
+      } catch (e) {
+        window.toast ? window.toast('连接测试失败', 'error') : alert('连接测试失败');
+      }
+    },
+  }));
+});
+</script>
+<script type="module" src="/static/js/components/dashboard.js"></script>
+<script type="module" src="/static/js/components/tasks.js"></script>
+<script type="module" src="/static/js/components/notes.js"></script>
+<script type="module" src="/static/js/components/habits.js"></script>
+<script type="module" src="/static/js/components/calendar.js"></script>
+<script type="module" src="/static/js/components/ai-chat.js"></script>
+<script type="module" src="/static/js/components/workflows.js"></script>
+<script type="module" src="/static/js/components/sync.js"></script>
+<script type="module" src="/static/js/components/download.js"></script>
+<script type="module" src="/static/js/components/sandbox.js"></script>
 </body>
 </html>

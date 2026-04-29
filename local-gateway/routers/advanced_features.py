@@ -7,6 +7,10 @@ from fastapi import APIRouter, Query
 
 from models import schemas
 from services import task_service
+from services import tag_service
+from services import subtask_service
+from services import pomodoro_service
+from services import calendar_sync_service
 
 router = APIRouter(prefix="/advanced", tags=["advanced"])
 
@@ -18,9 +22,9 @@ router = APIRouter(prefix="/advanced", tags=["advanced"])
 @router.post("/tags", response_model=schemas.TagListResponse)
 async def create_tag(request: schemas.TagCreateRequest):
     """创建标签"""
-    result = await task_service.create_tag(request.name, request.color)
+    result = await tag_service.create_tag(request.name, request.color)
     if result["status"] == "success":
-        tags = await task_service.get_all_tags()
+        tags = await tag_service.get_all_tags()
         return {"status": "success", "tags": tags}
     return {"status": "error", "tags": []}
 
@@ -28,26 +32,26 @@ async def create_tag(request: schemas.TagCreateRequest):
 @router.get("/tags", response_model=schemas.TagListResponse)
 async def list_tags():
     """获取所有标签"""
-    tags = await task_service.get_all_tags()
+    tags = await tag_service.get_all_tags()
     return {"status": "success", "tags": tags}
 
 
 @router.delete("/tags/{tag_id}")
 async def delete_tag(tag_id: int):
     """删除标签"""
-    return await task_service.delete_tag(tag_id)
+    return await tag_service.delete_tag(tag_id)
 
 
 @router.post("/tasks/{task_id}/tags")
 async def add_task_tags(task_id: str, tags: list[str]):
     """为任务添加标签"""
-    return await task_service.add_task_tags(task_id, tags)
+    return await tag_service.add_task_tags(task_id, tags)
 
 
 @router.delete("/tasks/{task_id}/tags")
 async def remove_task_tags(task_id: str, tags: list[str]):
     """移除任务的标签"""
-    return await task_service.remove_task_tags(task_id, tags)
+    return await tag_service.remove_task_tags(task_id, tags)
 
 
 # ============================================================
@@ -57,9 +61,9 @@ async def remove_task_tags(task_id: str, tags: list[str]):
 @router.post("/subtasks", response_model=schemas.SubtaskListResponse)
 async def create_subtask(request: schemas.SubtaskCreateRequest):
     """创建子任务"""
-    result = await task_service.create_subtask(request.task_id, request.name)
+    result = await subtask_service.create_subtask(request.task_id, request.name)
     if result["status"] == "success":
-        subtasks = await task_service.get_subtasks(request.task_id)
+        subtasks = await subtask_service.get_subtasks(request.task_id)
         return {"status": "success", "subtasks": subtasks}
     return {"status": "error", "subtasks": []}
 
@@ -67,20 +71,20 @@ async def create_subtask(request: schemas.SubtaskCreateRequest):
 @router.get("/tasks/{task_id}/subtasks", response_model=schemas.SubtaskListResponse)
 async def list_subtasks(task_id: str):
     """获取任务的所有子任务"""
-    subtasks = await task_service.get_subtasks(task_id)
+    subtasks = await subtask_service.get_subtasks(task_id)
     return {"status": "success", "subtasks": subtasks}
 
 
 @router.put("/subtasks/{subtask_id}")
 async def update_subtask(subtask_id: str, request: schemas.SubtaskUpdateRequest):
     """更新子任务"""
-    return await task_service.update_subtask(subtask_id, request.name, request.status)
+    return await subtask_service.update_subtask(subtask_id, request.name, request.status)
 
 
 @router.delete("/subtasks/{subtask_id}")
 async def delete_subtask(subtask_id: str):
     """删除子任务"""
-    return await task_service.delete_subtask(subtask_id)
+    return await subtask_service.delete_subtask(subtask_id)
 
 
 # ============================================================
@@ -90,9 +94,9 @@ async def delete_subtask(subtask_id: str):
 @router.post("/pomodoro/start", response_model=schemas.PomodoroStatusResponse)
 async def start_pomodoro(request: schemas.PomodoroStartRequest):
     """开始番茄钟"""
-    result = await task_service.start_pomodoro(request.task_id, request.duration_minutes)
+    result = await pomodoro_service.start_pomodoro(request.task_id, request.duration_minutes)
     if result["status"] == "success":
-        active = await task_service.get_active_pomodoro()
+        active = await pomodoro_service.get_active_pomodoro()
         return {"status": "success", "active_session": active}
     return {"status": "error", "message": result.get("message")}
 
@@ -100,26 +104,26 @@ async def start_pomodoro(request: schemas.PomodoroStartRequest):
 @router.post("/pomodoro/complete")
 async def complete_pomodoro():
     """完成番茄钟"""
-    return await task_service.complete_pomodoro()
+    return await pomodoro_service.complete_pomodoro()
 
 
 @router.post("/pomodoro/interrupt")
 async def interrupt_pomodoro(request: schemas.PomodoroInterruptRequest):
     """中断番茄钟"""
-    return await task_service.interrupt_pomodoro(request.reason)
+    return await pomodoro_service.interrupt_pomodoro(request.reason)
 
 
 @router.get("/pomodoro/status", response_model=schemas.PomodoroStatusResponse)
 async def get_pomodoro_status():
     """获取当前番茄钟状态"""
-    active = await task_service.get_active_pomodoro()
+    active = await pomodoro_service.get_active_pomodoro()
     return {"status": "success", "active_session": active}
 
 
 @router.get("/pomodoro/stats", response_model=schemas.PomodoroStatsResponse)
 async def get_pomodoro_stats():
     """获取番茄钟统计"""
-    return await task_service.get_pomodoro_stats()
+    return await pomodoro_service.get_pomodoro_stats()
 
 
 @router.get("/pomodoro/history", response_model=schemas.PomodoroHistoryResponse)
@@ -128,7 +132,7 @@ async def get_pomodoro_history(
     page_size: int = Query(20, ge=1, le=100),
 ):
     """获取番茄钟历史"""
-    return await task_service.get_pomodoro_history(page, page_size)
+    return await pomodoro_service.get_pomodoro_history(page, page_size)
 
 
 # ============================================================
@@ -138,7 +142,7 @@ async def get_pomodoro_history(
 @router.post("/calendar/events")
 async def create_calendar_event(request: schemas.CalendarEventCreateRequest):
     """创建日历事件"""
-    return await task_service.create_calendar_event(
+    return await calendar_sync_service.create_calendar_event(
         request.title,
         request.start_time,
         request.end_time,
@@ -154,14 +158,14 @@ async def list_calendar_events(
     end_date: str = Query(..., description="结束日期 YYYY-MM-DD"),
 ):
     """获取日期范围内的日历事件"""
-    events = await task_service.get_calendar_events(start_date, end_date)
+    events = await calendar_sync_service.get_calendar_events(start_date, end_date)
     return {"status": "success", "events": events}
 
 
 @router.delete("/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str):
     """删除日历事件"""
-    return await task_service.delete_calendar_event(event_id)
+    return await calendar_sync_service.delete_calendar_event(event_id)
 
 
 @router.get("/calendar/view", response_model=schemas.CalendarViewResponse)
@@ -170,7 +174,7 @@ async def get_calendar_view(
     month: int = Query(..., ge=1, le=12, description="月份"),
 ):
     """获取月度日历视图"""
-    return await task_service.get_calendar_view(year, month)
+    return await calendar_sync_service.get_calendar_view(year, month)
 
 
 # ============================================================
