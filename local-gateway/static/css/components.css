@@ -175,3 +175,24 @@ textarea { resize: vertical; min-height: 80px; }
 .pagination button:hover { background: var(--bg-tertiary); }
 .pagination button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ---- Week Calendar ---- */
+.wc-container { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: auto; max-height: 600px; }
+.wc-header-row { display: grid; grid-template-columns: 50px repeat(7, 1fr); position: sticky; top: 0; z-index: 5; background: var(--bg-card); }
+.wc-corner { border-bottom: 1px solid var(--separator); }
+.wc-day-header { padding: 8px 4px; text-align: center; font-size: 0.75rem; font-weight: 600; border-bottom: 1px solid var(--separator); border-left: 1px solid var(--border); }
+.wc-day-header.today-col { color: var(--accent); }
+.wc-date-sub { font-weight: 400; font-size: 0.7rem; color: var(--text-tertiary); }
+.wc-time-row { display: grid; grid-template-columns: 50px repeat(7, 1fr); min-height: 48px; }
+.wc-time-label { padding: 2px 8px; font-size: 0.7rem; color: var(--text-tertiary); text-align: right; border-right: 1px solid var(--border); }
+.wc-cell { border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 2px; min-height: 48px; }
+.wc-cell.is-today-col { background: rgba(10,132,255,0.03); }
+.wc-task { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; margin: 1px 0; border-radius: 3px; font-size: 0.72rem; background: rgba(10,132,255,0.08); cursor: default; }
+.wc-task.completed { opacity: 0.5; text-decoration: line-through; }
+.wc-task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.wc-task-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity var(--duration-fast); }
+.wc-task:hover .wc-task-actions { opacity: 1; }
+.wc-btn { width: 18px; height: 18px; border: none; border-radius: 3px; font-size: 0.65rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.wc-btn-done { background: var(--success); color: #fff; }
+.wc-btn-del { background: transparent; color: var(--text-tertiary); }
+.wc-btn-del:hover { background: var(--error); color: #fff; }
