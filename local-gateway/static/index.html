@@ -724,11 +724,546 @@
           </div>
         </div>
       </div>
-      <div id="view-workflows" x-show="$store.view.isActive('workflows')" x-transition.opacity.duration.250ms></div>
-      <div id="view-sync" x-show="$store.view.isActive('sync')" x-transition.opacity.duration.250ms></div>
-      <div id="view-download" x-show="$store.view.isActive('download')" x-transition.opacity.duration.250ms></div>
-      <div id="view-sandbox" x-show="$store.view.isActive('sandbox')" x-transition.opacity.duration.250ms></div>
-      <div id="view-settings" x-show="$store.view.isActive('settings')" x-transition.opacity.duration.250ms></div>
+      <div id="view-workflows" x-show="$store.view.isActive('workflows')"
+           x-data="workflows" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <div style="flex:1"></div>
+          <button class="btn btn-primary btn-sm" @click="showForm ? (showForm=false) : openNewForm()">
+            <span x-text="showForm ? '取消' : '+ 新建工作流'"></span>
+          </button>
+        </div>
+
+        <!-- Create Workflow Form -->
+        <div x-show="showForm" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>✨ 新建工作流</h3></div>
+          <div class="form-group"><label>名称</label><input x-model="form.name" placeholder="工作流名称"></div>
+          <div class="form-group"><label>描述</label><textarea x-model="form.description" rows="2" placeholder="工作流描述..."></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+            <div class="form-group"><label>触发类型</label>
+              <select x-model="form.trigger_type">
+                <option value="manual">手动</option>
+                <option value="schedule">定时</option>
+                <option value="webhook">Webhook</option>
+                <option value="event">事件</option>
+              </select>
+            </div>
+            <div class="form-group"><label>触发配置 (JSON)</label>
+              <input x-model="form.trigger_config" placeholder='{"cron": "0 9 * * *"}'>
+            </div>
+          </div>
+          <div class="form-group"><label>动作列表 (JSON)</label>
+            <textarea x-model="form.actions" rows="3" placeholder='[{"type": "http", "config": {"url": "..."}}]'></textarea>
+          </div>
+          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+            <button class="btn btn-primary" @click="createWorkflow()">创建工作流</button>
+            <button class="btn" @click="showForm=false">取消</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 3">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+                <div class="skeleton" style="height:20px;width:80px;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && workflows.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚡</div>
+            <div class="empty-state-text">还没有工作流</div>
+            <button class="btn btn-primary" @click="openNewForm()">创建第一个工作流</button>
+          </div>
+        </template>
+
+        <!-- Workflow Cards -->
+        <template x-if="!loading && !error && workflows.length > 0">
+          <div>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+              <template x-for="wf in workflows" :key="getWorkflowId(wf)">
+                <div class="card" style="display:flex;flex-direction:column">
+                  <div class="card-header" style="border:none;padding-bottom:0">
+                    <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                      <h3 x-text="wf.name" style="font-size:1rem"></h3>
+                      <button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:0.7rem"
+                              :class="wf.enabled ? 'btn-success' : ''"
+                              @click="toggleWorkflow(getWorkflowId(wf))"
+                              x-text="wf.enabled ? '启用' : '禁用'"></button>
+                    </div>
+                  </div>
+                  <div style="padding:var(--space-sm);font-size:0.85rem;color:var(--text-secondary);flex:1">
+                    <p x-text="wf.description || '暂无描述'"></p>
+                    <div style="margin-top:var(--space-sm);display:flex;gap:var(--space-sm);align-items:center">
+                      <span class="badge badge-pending" x-text="triggerLabel(wf.trigger_type)"></span>
+                      <span style="font-size:0.75rem;color:var(--text-tertiary)">
+                        <template x-if="wf.last_execution">
+                          上次执行: <span x-text="formatTimeShort(wf.last_execution)"></span>
+                        </template>
+                      </span>
+                    </div>
+                  </div>
+                  <div style="padding:0 var(--space-sm) var(--space-sm);display:flex;gap:var(--space-sm)">
+                    <button class="btn btn-sm btn-primary" @click="executeWorkflow(getWorkflowId(wf), $event)">▶ 执行</button>
+                    <button class="btn btn-sm" @click="loadHistory(getWorkflowId(wf), wf.name)">
+                      <span x-text="showHistory && historyWorkflowId === getWorkflowId(wf) ? '▼ 隐藏历史' : '📋 历史'"></span>
+                    </button>
+                    <div style="flex:1"></div>
+                    <button class="btn btn-sm btn-danger" @click="deleteWorkflow(getWorkflowId(wf))">删除</button>
+                  </div>
+
+                  <!-- Execution History -->
+                  <div x-show="showHistory && historyWorkflowId === getWorkflowId(wf)"
+                       x-transition style="border-top:1px solid var(--border);padding:var(--space-sm)">
+                    <div x-show="historyLoading" class="skeleton" style="height:60px"></div>
+                    <template x-if="!historyLoading && historyItems.length === 0">
+                      <div style="padding:var(--space-sm);text-align:center;color:var(--text-tertiary);font-size:0.85rem">暂无执行记录</div>
+                    </template>
+                    <template x-for="h in historyItems" :key="h.id || h.execution_id">
+                      <div style="display:flex;align-items:center;gap:var(--space-sm);padding:6px 0;font-size:0.8rem">
+                        <span class="badge" :class="statusClass(h.status)" x-text="statusLabel(h.status)"></span>
+                        <span style="color:var(--text-secondary);flex:1" x-text="formatTime(h.started_at || h.created_at)"></span>
+                        <span style="color:var(--text-tertiary);font-size:0.75rem" x-show="h.duration" x-text="h.duration + 's'"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-sync" x-show="$store.view.isActive('sync')"
+           x-data="sync" x-transition.opacity.duration.250ms>
+
+        <!-- Sync Status Cards -->
+        <template x-if="loading">
+          <div class="stats-grid">
+            <div class="stat-card" x-for="i in 3"><div class="skeleton" style="height:60px"></div></div>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Content -->
+        <template x-if="!loading && !error">
+          <div>
+            <!-- Status Cards -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon">🔄</div>
+                <div class="stat-info">
+                  <div class="stat-value" x-text="lastSyncLabel()"></div>
+                  <div class="stat-label">上次同步</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon">📱</div>
+                <div class="stat-info">
+                  <div class="stat-value" x-text="connectedDevicesCount() + '/' + totalDevicesCount()"></div>
+                  <div class="stat-label">已连接设备</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon">📤</div>
+                <div class="stat-info">
+                  <div class="stat-value" x-text="offlineQueue.length"></div>
+                  <div class="stat-label">离线队列</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sync Actions -->
+            <div class="card" style="margin-bottom:var(--space-md)">
+              <div class="card-header"><h3>🔄 同步操作</h3></div>
+              <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+                <button class="btn" @click="doSync('push')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='push' ? '⏳...' : '📤 推送'"></span>
+                </button>
+                <button class="btn" @click="doSync('pull')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='pull' ? '⏳...' : '📥 拉取'"></span>
+                </button>
+                <button class="btn btn-primary" @click="doSync('full')" :disabled="syncing">
+                  <span x-text="syncing && syncType==='full' ? '⏳...' : '🔄 全量同步'"></span>
+                </button>
+                <button class="btn" @click="syncOffline()" :disabled="syncing || offlineQueue.length === 0">
+                  <span x-text="syncing && syncType==='offline' ? '⏳...' : '📤 同步离线队列'"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Device List -->
+            <div class="card" style="margin-bottom:var(--space-md)">
+              <div class="card-header"><h3>📱 已注册设备</h3></div>
+              <template x-if="devices.length === 0">
+                <div class="empty-state" style="padding:var(--space-md)">
+                  <span class="empty-state-text">暂无已注册设备</span>
+                </div>
+              </template>
+              <template x-for="device in devices" :key="device.id || device.device_id">
+                <div style="display:flex;align-items:center;gap:var(--space-sm);padding:8px 0;border-bottom:1px solid var(--border)">
+                  <span class="status-dot" :class="device.is_online || device.status === 'online' ? 'connected' : ''"></span>
+                  <span style="flex:1" x-text="device.name || device.device_id || '未知设备'"></span>
+                  <span style="font-size:0.8rem;color:var(--text-tertiary)">
+                    <template x-if="device.last_heartbeat || device.last_sync">
+                      <span x-text="formatTime(device.last_heartbeat || device.last_sync)"></span>
+                    </template>
+                    <template x-if="!device.last_heartbeat && !device.last_sync">
+                      <span>从未同步</span>
+                    </template>
+                  </span>
+                </div>
+              </template>
+            </div>
+
+            <!-- Offline Queue -->
+            <div class="card" x-show="offlineQueue.length > 0">
+              <div class="card-header"><h3>📤 离线操作队列</h3></div>
+              <template x-for="item in offlineQueue" :key="item.id || item.queue_id">
+                <div style="display:flex;align-items:center;gap:var(--space-sm);padding:8px 0;font-size:0.85rem;border-bottom:1px solid var(--border)">
+                  <span x-text="item.action || item.type || '-'"></span>
+                  <span style="flex:1;color:var(--text-tertiary);font-size:0.8rem">
+                    <template x-if="item.created_at">
+                      <span x-text="formatTime(item.created_at)"></span>
+                    </template>
+                  </span>
+                  <span class="badge badge-pending" x-text="item.status || 'pending'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div id="view-download" x-show="$store.view.isActive('download')"
+           x-data="download" x-transition.opacity.duration.250ms>
+
+        <!-- Top Bar -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
+          <button class="btn btn-sm" @click="showBandwidth=!showBandwidth">
+            <span x-text="showBandwidth ? '隐藏带宽' : '⚡ 带宽'"></span>
+          </button>
+          <div style="flex:1"></div>
+          <span style="font-size:0.8rem;color:var(--text-tertiary);align-self:center" x-show="queue.length > 0">
+            队列: <span x-text="queue.length"></span> 项
+          </span>
+        </div>
+
+        <!-- Bandwidth Settings -->
+        <div x-show="showBandwidth" class="card" style="margin-bottom:var(--space-md)" x-transition>
+          <div class="card-header"><h3>⚡ 带宽控制</h3></div>
+          <div style="display:flex;gap:var(--space-sm);align-items:flex-end">
+            <div class="form-group" style="flex:1;margin-bottom:0">
+              <label>带宽限制 (KB/s, 0=不限)</label>
+              <input type="number" x-model="bandwidthLimit" min="0" placeholder="0">
+            </div>
+            <button class="btn btn-primary btn-sm" @click="saveBandwidth()">保存</button>
+          </div>
+          <div style="margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-tertiary)">
+            <span x-show="bandwidth?.current">当前速度: <span x-text="bandwidth.current"></span></span>
+          </div>
+        </div>
+
+        <!-- New Download Form -->
+        <div class="card" style="margin-bottom:var(--space-md)">
+          <div class="card-header"><h3>📥 新建下载</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:var(--space-sm);align-items:flex-end">
+            <div class="form-group" style="margin-bottom:0">
+              <label>URL</label>
+              <input x-model="form.url" placeholder="https://..." @keydown.enter="startDownload()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>文件名 (可选)</label>
+              <input x-model="form.filename" placeholder="filename.ext">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>分类 (可选)</label>
+              <select x-model="form.category">
+                <option value="">无</option>
+                <option value="documents">文档</option>
+                <option value="images">图片</option>
+                <option value="videos">视频</option>
+                <option value="music">音乐</option>
+                <option value="archives">压缩包</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" @click="startDownload()" style="height:40px;align-self:flex-end">添加</button>
+          </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <template x-if="loading">
+          <div>
+            <template x-for="i in 3">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+                <div class="skeleton" style="height:24px;width:100%;margin-top:var(--space-sm)"></div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error State -->
+        <template x-if="!loading && error">
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-text" x-text="error"></div>
+            <button class="btn btn-primary" @click="load()">重试</button>
+          </div>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!loading && !error && queue.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">📥</div>
+            <div class="empty-state-text">下载队列为空</div>
+            <div class="empty-state-hint">输入 URL 开始下载</div>
+          </div>
+        </template>
+
+        <!-- Download Queue -->
+        <template x-if="!loading && !error && queue.length > 0">
+          <div>
+            <template x-for="job in queue" :key="getJobId(job)">
+              <div class="card" style="margin-bottom:var(--space-sm)">
+                <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                  <span style="font-size:1.2rem" x-text="statusIcon(job.status)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:0.9rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                         x-text="job.filename || job.url || job.name || '未知'"></div>
+                    <div style="font-size:0.75rem;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                         x-text="job.url || ''"></div>
+                  </div>
+                  <span class="badge" :class="statusClass(job.status)" x-text="statusLabel(job.status)"></span>
+                  <div style="display:flex;gap:4px;flex-shrink:0">
+                    <button class="btn btn-sm" @click="pauseJob(getJobId(job))" :disabled="!canPause(job)"
+                            title="暂停">⏸️</button>
+                    <button class="btn btn-sm" @click="resumeJob(getJobId(job))" :disabled="!canResume(job)"
+                            title="恢复">▶️</button>
+                    <button class="btn btn-sm btn-danger" @click="cancelJob(getJobId(job))" :disabled="!canCancel(job)"
+                            title="取消">✕</button>
+                  </div>
+                </div>
+                <!-- Progress Bar -->
+                <div style="margin-top:var(--space-sm);display:flex;align-items:center;gap:var(--space-sm)">
+                  <div style="flex:1;height:6px;background:var(--bg-tertiary);border-radius:var(--radius-full);overflow:hidden">
+                    <div style="height:100%;background:var(--accent);border-radius:var(--radius-full);transition:width var(--duration-normal)"
+                         :style="'width:' + progressPercent(job) + '%'"></div>
+                  </div>
+                  <span style="font-size:0.8rem;color:var(--text-secondary);min-width:40px;text-align:right"
+                        x-text="progressPercent(job) + '%'"></span>
+                </div>
+                <!-- Meta -->
+                <div style="margin-top:4px;display:flex;gap:var(--space-md);font-size:0.75rem;color:var(--text-tertiary)">
+                  <span x-show="job.size || job.total">大小: <span x-text="job.size || job.total"></span></span>
+                  <span x-show="job.speed">速度: <span x-text="job.speed"></span></span>
+                  <span x-show="job.category">分类: <span x-text="job.category"></span></span>
+                  <span x-show="job.created_at || job.added_at">添加: <span x-text="formatTime(job.created_at || job.added_at)"></span></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+      <div id="view-sandbox" x-show="$store.view.isActive('sandbox')"
+           x-data="sandbox" x-transition.opacity.duration.250ms>
+
+        <!-- Controls -->
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md);align-items:flex-end">
+          <div class="form-group" style="margin-bottom:0;max-width:160px">
+            <label>语言</label>
+            <select x-model="language" @change="clearOutput()">
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="bash">Bash</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;max-width:100px">
+            <label>超时 (秒)</label>
+            <input type="number" x-model.number="timeout" min="5" max="120">
+          </div>
+          <button class="btn btn-sm" @click="loadPreset('python')">Python 示例</button>
+          <button class="btn btn-sm" @click="loadPreset('javascript')">JS 示例</button>
+          <button class="btn btn-sm" @click="loadPreset('bash')">Bash 示例</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" @click="execute()" :disabled="executing || !code.trim()"
+                  style="min-width:100px">
+            <span x-text="executing ? '⏳ 执行中...' : '▶ 执行'"></span>
+          </button>
+        </div>
+
+        <!-- Editor + Output Layout -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);height:calc(100vh - 260px)">
+          <!-- Code Editor -->
+          <div class="card" style="display:flex;flex-direction:column;padding:0">
+            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border);
+                        display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary)">
+                代码 (<span x-text="language"></span>)
+              </span>
+              <span style="font-size:0.75rem;color:var(--text-tertiary)">
+                行数: <span x-text="code.split('\n').length"></span>
+              </span>
+            </div>
+            <textarea x-model="code"
+                      style="flex:1;border:none;border-radius:0;resize:none;font-family:var(--font-mono,monospace);font-size:0.85rem;line-height:1.6;padding:var(--space-md);tab-size:2"
+                      :placeholder="'输入 ' + language + ' 代码...'"
+                      :disabled="executing"
+                      spellcheck="false"></textarea>
+          </div>
+
+          <!-- Output Panel -->
+          <div class="card" style="display:flex;flex-direction:column;padding:0">
+            <div style="padding:var(--space-sm) var(--space-md);border-bottom:1px solid var(--border);
+                        display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary)">输出</span>
+              <div style="display:flex;gap:var(--space-sm);align-items:center">
+                <span x-show="executionTime" style="font-size:0.75rem;color:var(--text-tertiary)">
+                  耗时: <span x-text="executionTime"></span>s
+                </span>
+                <button class="btn btn-sm btn-ghost" @click="clearOutput()" x-show="output" style="font-size:0.75rem">清空</button>
+              </div>
+            </div>
+            <div style="flex:1;overflow:auto;padding:var(--space-md);font-family:var(--font-mono,monospace);font-size:0.85rem;line-height:1.6;white-space:pre-wrap;word-break:break-all">
+
+              <!-- Executing indicator -->
+              <div x-show="executing" style="display:flex;align-items:center;gap:var(--space-sm);color:var(--text-tertiary)">
+                <span class="chat-typing">
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                  <span class="chat-typing-dot"></span>
+                </span>
+                <span>执行中...</span>
+              </div>
+
+              <!-- Empty output state -->
+              <div x-show="!executing && !output" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);text-align:center">
+                <div style="font-size:2rem;margin-bottom:var(--space-sm)">🔧</div>
+                <div style="font-size:0.9rem">编写代码并点击执行查看输出</div>
+              </div>
+
+              <!-- Output -->
+              <div x-show="!executing && output"
+                   :class="outputType === 'error' ? '' : ''"
+                   x-text="output"
+                   :style="outputType === 'error' ? 'color:var(--error)' : ''"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="view-settings" x-show="$store.view.isActive('settings')" x-transition.opacity.duration.250ms>
+        <div x-data="settings">
+          <template x-if="loading">
+            <div>
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+              </div>
+              <div class="card">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-text" style="width:40%"></div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="!loading && error">
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-text" x-text="error"></div>
+              <button class="btn btn-primary" @click="load()">重试</button>
+            </div>
+          </template>
+
+          <template x-if="!loading && !error">
+            <div>
+              <!-- AI Config -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>🤖 AI 配置</h3></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+                  <div class="form-group"><label>模型</label>
+                    <input x-model="configForm.model" placeholder="gpt-4">
+                  </div>
+                  <div class="form-group"><label>Temperature</label>
+                    <input type="number" x-model="configForm.temperature" step="0.1" min="0" max="2">
+                  </div>
+                  <div class="form-group"><label>Max Tokens</label>
+                    <input type="number" x-model="configForm.max_tokens" step="1" min="1" max="32768">
+                  </div>
+                  <div class="form-group"><label>API Base</label>
+                    <input x-model="configForm.api_base" placeholder="https://api.openai.com/v1">
+                  </div>
+                </div>
+                <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+                  <button class="btn btn-primary btn-sm" @click="saveConfig()">保存配置</button>
+                  <button class="btn btn-sm" @click="testConnection()">测试连接</button>
+                </div>
+              </div>
+
+              <!-- Appearance -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>🎨 外观</h3></div>
+                <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                  <span style="font-size:0.9rem">主题</span>
+                  <button class="btn btn-sm" @click="$store.app.toggleTheme()">
+                    <span x-text="$store.app.theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'"></span>
+                  </button>
+                  <span style="font-size:0.8rem;color:var(--text-tertiary)" x-text="'当前: ' + ($store.app.theme === 'dark' ? '暗色' : '亮色')"></span>
+                </div>
+              </div>
+
+              <!-- Keyboard Shortcuts -->
+              <div class="card" style="margin-bottom:var(--space-md)">
+                <div class="card-header"><h3>⌨️ 快捷键</h3></div>
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-sm) var(--space-lg);font-size:0.875rem">
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘K</kbd></span>
+                  <span>命令面板</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘B</kbd></span>
+                  <span>折叠侧边栏</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘1-5</kbd></span>
+                  <span>切换仪表盘 / 任务 / 笔记 / 习惯 / 日历</span>
+                  <span><kbd style="padding:2px 6px;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.8rem">⌘Enter</kbd></span>
+                  <span>发送 / 执行</span>
+                </div>
+              </div>
+
+              <!-- About -->
+              <div class="card">
+                <div class="card-header"><h3>ℹ️ 关于</h3></div>
+                <div style="font-size:0.875rem;color:var(--text-secondary);line-height:1.8">
+                  <div>应用: LocalCommandCenter</div>
+                  <div>版本: <span x-text="$store.app.version || '-'"></span></div>
+                  <div>状态: <span :class="$store.app.connected ? 'badge badge-completed' : 'badge badge-error'"
+                                  x-text="$store.app.connected ? '已连接' : '未连接'"></span></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -740,11 +1275,82 @@
 </div>
 
 <script defer src="/static/js/app.js"></script>
+<script defer>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('settings', () => ({
+    loading: true,
+    error: null,
+    configForm: { api_base: '', model: '', temperature: 0.7, max_tokens: 2048 },
+
+    async init() {
+      this.$watch('$store.view.current', (val) => {
+        if (val === 'settings') this.load();
+      });
+      if (Alpine.store('view').current === 'settings') await this.load();
+    },
+
+    async load() {
+      this.loading = true;
+      this.error = null;
+      try {
+        const data = await fetch('/api/chat/config').then(r => r.json());
+        if (data.status === 'success') {
+          const cfg = data.config || data;
+          this.configForm = {
+            api_base: cfg.api_base || '',
+            model: cfg.model || '',
+            temperature: cfg.temperature ?? 0.7,
+            max_tokens: cfg.max_tokens ?? 2048,
+          };
+        }
+      } catch (e) {
+        this.error = '无法加载配置';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async saveConfig() {
+      try {
+        const resp = await fetch('/api/chat/config', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.configForm),
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+          window.toast ? window.toast('配置已保存', 'success') : alert('配置已保存');
+        } else {
+          throw new Error(data.message || '保存失败');
+        }
+      } catch (e) {
+        window.toast ? window.toast('保存配置失败', 'error') : alert('保存配置失败');
+      }
+    },
+
+    async testConnection() {
+      try {
+        const data = await fetch('/api/chat/test', { method: 'POST' }).then(r => r.json());
+        if (data.status === 'success') {
+          window.toast ? window.toast('连接测试成功', 'success') : alert('连接测试成功');
+        } else {
+          window.toast ? window.toast(data.message || '连接测试失败', 'error') : alert(data.message || '连接测试失败');
+        }
+      } catch (e) {
+        window.toast ? window.toast('连接测试失败', 'error') : alert('连接测试失败');
+      }
+    },
+  }));
+});
+</script>
 <script type="module" src="/static/js/components/dashboard.js"></script>
 <script type="module" src="/static/js/components/tasks.js"></script>
 <script type="module" src="/static/js/components/notes.js"></script>
 <script type="module" src="/static/js/components/habits.js"></script>
 <script type="module" src="/static/js/components/calendar.js"></script>
 <script type="module" src="/static/js/components/ai-chat.js"></script>
+<script type="module" src="/static/js/components/workflows.js"></script>
+<script type="module" src="/static/js/components/sync.js"></script>
+<script type="module" src="/static/js/components/download.js"></script>
+<script type="module" src="/static/js/components/sandbox.js"></script>
 </body>
 </html>
