@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from config import DB_PATH
 from services import task_service
 from services import pomodoro_service
+from services import habit_service
 from services.sync_service import sync_engine
 from routers.sync import OfflineOperation, _enqueue_operation
 
@@ -50,7 +51,7 @@ class QuickAction(BaseModel):
 _QUICK_ACTION_DISPATCH = {
     "complete_task": task_service.complete_task,
     "start_pomodoro": pomodoro_service.start_pomodoro,
-    "checkin_habit": task_service.checkin_habit,
+    "checkin_habit": habit_service.checkin_habit,
 }
 
 

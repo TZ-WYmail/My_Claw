@@ -7,6 +7,8 @@ from fastapi import APIRouter, Query
 
 from models import schemas
 from services import task_service
+from services import tag_service
+from services import subtask_service
 from services import pomodoro_service
 
 router = APIRouter(prefix="/advanced", tags=["advanced"])
@@ -19,9 +21,9 @@ router = APIRouter(prefix="/advanced", tags=["advanced"])
 @router.post("/tags", response_model=schemas.TagListResponse)
 async def create_tag(request: schemas.TagCreateRequest):
     """创建标签"""
-    result = await task_service.create_tag(request.name, request.color)
+    result = await tag_service.create_tag(request.name, request.color)
     if result["status"] == "success":
-        tags = await task_service.get_all_tags()
+        tags = await tag_service.get_all_tags()
         return {"status": "success", "tags": tags}
     return {"status": "error", "tags": []}
 
@@ -29,26 +31,26 @@ async def create_tag(request: schemas.TagCreateRequest):
 @router.get("/tags", response_model=schemas.TagListResponse)
 async def list_tags():
     """获取所有标签"""
-    tags = await task_service.get_all_tags()
+    tags = await tag_service.get_all_tags()
     return {"status": "success", "tags": tags}
 
 
 @router.delete("/tags/{tag_id}")
 async def delete_tag(tag_id: int):
     """删除标签"""
-    return await task_service.delete_tag(tag_id)
+    return await tag_service.delete_tag(tag_id)
 
 
 @router.post("/tasks/{task_id}/tags")
 async def add_task_tags(task_id: str, tags: list[str]):
     """为任务添加标签"""
-    return await task_service.add_task_tags(task_id, tags)
+    return await tag_service.add_task_tags(task_id, tags)
 
 
 @router.delete("/tasks/{task_id}/tags")
 async def remove_task_tags(task_id: str, tags: list[str]):
     """移除任务的标签"""
-    return await task_service.remove_task_tags(task_id, tags)
+    return await tag_service.remove_task_tags(task_id, tags)
 
 
 # ============================================================
@@ -58,9 +60,9 @@ async def remove_task_tags(task_id: str, tags: list[str]):
 @router.post("/subtasks", response_model=schemas.SubtaskListResponse)
 async def create_subtask(request: schemas.SubtaskCreateRequest):
     """创建子任务"""
-    result = await task_service.create_subtask(request.task_id, request.name)
+    result = await subtask_service.create_subtask(request.task_id, request.name)
     if result["status"] == "success":
-        subtasks = await task_service.get_subtasks(request.task_id)
+        subtasks = await subtask_service.get_subtasks(request.task_id)
         return {"status": "success", "subtasks": subtasks}
     return {"status": "error", "subtasks": []}
 
@@ -68,20 +70,20 @@ async def create_subtask(request: schemas.SubtaskCreateRequest):
 @router.get("/tasks/{task_id}/subtasks", response_model=schemas.SubtaskListResponse)
 async def list_subtasks(task_id: str):
     """获取任务的所有子任务"""
-    subtasks = await task_service.get_subtasks(task_id)
+    subtasks = await subtask_service.get_subtasks(task_id)
     return {"status": "success", "subtasks": subtasks}
 
 
 @router.put("/subtasks/{subtask_id}")
 async def update_subtask(subtask_id: str, request: schemas.SubtaskUpdateRequest):
     """更新子任务"""
-    return await task_service.update_subtask(subtask_id, request.name, request.status)
+    return await subtask_service.update_subtask(subtask_id, request.name, request.status)
 
 
 @router.delete("/subtasks/{subtask_id}")
 async def delete_subtask(subtask_id: str):
     """删除子任务"""
-    return await task_service.delete_subtask(subtask_id)
+    return await subtask_service.delete_subtask(subtask_id)
 
 
 # ============================================================

@@ -16,6 +16,7 @@ import httpx
 
 from config import BASE_DIR
 from services import task_service
+from services import habit_service
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +318,7 @@ async def handle_incoming_webhook(
     elif event_type == "habit.checkin":
         habit_id = data.get("habit_id")
         if habit_id:
-            result = await task_service.checkin_habit(
+            result = await habit_service.checkin_habit(
                 habit_id,
                 count=data.get("count", 1),
                 note=data.get("note", ""),
