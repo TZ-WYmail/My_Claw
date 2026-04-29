@@ -3,12 +3,17 @@
  * 支持离线缓存、后台同步、推送通知
  */
 
-const CACHE_NAME = 'lcc-cache-v1';
+const CACHE_NAME = 'lcc-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/static/index.html',
-  '/static/style.css',
-  '/static/app.js',
+  '/static/css/variables.css',
+  '/static/css/components.css',
+  '/static/css/animations.css',
+  '/static/css/layout.css',
+  '/static/js/app.js',
+  '/static/js/api.js',
+  '/static/js/utils.js',
   '/static/manifest.json',
 ];
 
