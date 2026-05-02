@@ -430,7 +430,10 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
             # 如果没有 tool_calls，直接返回
             if not message.get("tool_calls"):
                 reply = message.get("content", "")
-                history.append({"role": "assistant", "content": reply})
+                assistant_msg = {"role": "assistant", "content": reply}
+                if message.get("reasoning_content"):
+                    assistant_msg["reasoning_content"] = message["reasoning_content"]
+                history.append(assistant_msg)
                 _save_conversation_message(conversation_id, "assistant", reply, model=ai_config.model)
                 _persist_history(conversation_id, history)
                 return {
@@ -478,8 +481,11 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
             tool_message = {
                 "role": "assistant",
                 "content": message.get("content") or None,
-                "tool_calls": tool_calls_fixed
+                "tool_calls": tool_calls_fixed,
             }
+            # DeepSeek reasoning models require reasoning_content to be passed back
+            if message.get("reasoning_content"):
+                tool_message["reasoning_content"] = message["reasoning_content"]
             history.append(tool_message)
 
             logger.debug(f"Added assistant message with {len(tool_calls_fixed)} tool_calls")
@@ -583,6 +589,7 @@ def _validate_messages(messages: list[dict]) -> list[dict]:
 
 async def _call_ai(messages: list[dict]) -> Optional[dict]:
     """调用 AI API（OpenAI 兼容格式）"""
+    validated = _validate_messages(messages)
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
@@ -593,7 +600,7 @@ async def _call_ai(messages: list[dict]) -> Optional[dict]:
                 },
                 json={
                     "model": ai_config.model,
-                    "messages": _validate_messages(messages),
+                    "messages": validated,
                     "tools": TOOLS_SCHEMA,
                     "tool_choice": "auto",
                 },
@@ -601,7 +608,10 @@ async def _call_ai(messages: list[dict]) -> Optional[dict]:
             resp.raise_for_status()
             return resp.json()
     except httpx.HTTPStatusError as e:
-        logger.error(f"AI API HTTP 错误: {e.response.status_code} {e.response.text[:500]}")
+        body = e.response.text[:1000]
+        logger.error(f"AI API HTTP 错误: {e.response.status_code} body={body}")
+        # Log the messages that caused the error for debugging
+        logger.error(f"Failed messages: {_json.dumps(validated, ensure_ascii=False)[:2000]}")
         return None
     except Exception as e:
         logger.error(f"AI API 调用失败: {e}")
@@ -1015,76 +1025,89 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
             tool_calls_list = []
             current_tool_calls = {}  # id -> {id, function: {name, arguments}}
 
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                async with client.stream(
-                    "POST",
-                    f"{ai_config.api_base}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {ai_config.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": ai_config.model,
-                        "messages": _validate_messages(history),
-                        "tools": TOOLS_SCHEMA,
-                        "tool_choice": "auto",
-                        "stream": True,
-                    },
-                ) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        line = line.strip()
-                        if not line or not line.startswith("data:"):
-                            continue
-                        payload = line[5:].strip()
-                        if payload == "[DONE]":
-                            break
+            validated = _validate_messages(history)
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{ai_config.api_base}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {ai_config.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": ai_config.model,
+                            "messages": validated,
+                            "tools": TOOLS_SCHEMA,
+                            "tool_choice": "auto",
+                            "stream": True,
+                        },
+                    ) as resp:
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            line = line.strip()
+                            if not line or not line.startswith("data:"):
+                                continue
+                            payload = line[5:].strip()
+                            if payload == "[DONE]":
+                                break
 
-                        try:
-                            chunk = _json.loads(payload)
-                        except _json.JSONDecodeError:
-                            continue
+                            try:
+                                chunk = _json.loads(payload)
+                            except _json.JSONDecodeError:
+                                continue
 
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        if not delta:
-                            continue
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            if not delta:
+                                continue
 
-                        # 处理 reasoning_content (DeepSeek thinking)
-                        rc = delta.get("reasoning_content")
-                        if rc:
-                            thinking_text += rc
-                            yield sse("thinking", {"content": rc})
+                            # 处理 reasoning_content (DeepSeek thinking)
+                            rc = delta.get("reasoning_content")
+                            if rc:
+                                thinking_text += rc
+                                yield sse("thinking", {"content": rc})
 
-                        # 处理正式 content
-                        c = delta.get("content")
-                        if c:
-                            content_text += c
-                            yield sse("content", {"content": c})
+                            # 处理正式 content
+                            c = delta.get("content")
+                            if c:
+                                content_text += c
+                                yield sse("content", {"content": c})
 
-                        # 处理 tool_calls (流式增量)
-                        tcs = delta.get("tool_calls")
-                        if tcs:
-                            for tc in tcs:
-                                tc_id = tc.get("id", "")
-                                tc_idx = tc.get("index", len(current_tool_calls))
+                            # 处理 tool_calls (流式增量)
+                            tcs = delta.get("tool_calls")
+                            if tcs:
+                                for tc in tcs:
+                                    tc_id = tc.get("id", "")
+                                    tc_idx = tc.get("index", len(current_tool_calls))
 
-                                if tc_id:
-                                    # 新 tool call 开始
-                                    current_tool_calls[tc_idx] = {
-                                        "id": tc_id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": tc.get("function", {}).get("name", ""),
-                                            "arguments": tc.get("function", {}).get("arguments", ""),
-                                        },
-                                    }
-                                elif tc_idx in current_tool_calls:
-                                    # 增量 arguments
-                                    fn_delta = tc.get("function", {})
-                                    if fn_delta.get("arguments"):
-                                        current_tool_calls[tc_idx]["function"]["arguments"] += fn_delta["arguments"]
-                                    if fn_delta.get("name"):
-                                        current_tool_calls[tc_idx]["function"]["name"] += fn_delta["name"]
+                                    if tc_id:
+                                        # 新 tool call 开始
+                                        current_tool_calls[tc_idx] = {
+                                            "id": tc_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": tc.get("function", {}).get("name", ""),
+                                                "arguments": tc.get("function", {}).get("arguments", ""),
+                                            },
+                                        }
+                                    elif tc_idx in current_tool_calls:
+                                        # 增量 arguments
+                                        fn_delta = tc.get("function", {})
+                                        if fn_delta.get("arguments"):
+                                            current_tool_calls[tc_idx]["function"]["arguments"] += fn_delta["arguments"]
+                                        if fn_delta.get("name"):
+                                            current_tool_calls[tc_idx]["function"]["name"] += fn_delta["name"]
+
+            except httpx.HTTPStatusError as e:
+                body = ""
+                try:
+                    body = e.response.text[:1000]
+                except Exception:
+                    pass
+                logger.error(f"Stream API HTTP 错误: {e.response.status_code} body={body}")
+                logger.error(f"Failed messages: {_json.dumps(validated, ensure_ascii=False)[:2000]}")
+                yield sse("error", {"message": f"API 返回 {e.response.status_code}: {body[:200]}"})
+                return
 
             # 整理 tool_calls
             tool_calls_list = list(current_tool_calls.values())
@@ -1092,7 +1115,10 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
             if not tool_calls_list:
                 # 无工具调用，直接返回
                 reply = content_text
-                history.append({"role": "assistant", "content": reply})
+                assistant_msg = {"role": "assistant", "content": reply}
+                if thinking_text:
+                    assistant_msg["reasoning_content"] = thinking_text
+                history.append(assistant_msg)
 
                 # 保存到对话记录
                 _save_conversation_message(conversation_id, "assistant", reply, thinking=thinking_text)
@@ -1107,6 +1133,9 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
                 "content": content_text or None,
                 "tool_calls": tool_calls_list,
             }
+            # DeepSeek reasoning models require reasoning_content to be passed back
+            if thinking_text:
+                tool_message["reasoning_content"] = thinking_text
             history.append(tool_message)
 
             # 执行工具
