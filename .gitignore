@@ -21,3 +21,10 @@ test.md
 IMPLEMENTATION_SUMMARY.md
 PHASE3_SUMMARY.md
 PHASE4_SUMMARY.md
+
+# Vite build output
+local-gateway/static/assets/
+local-gateway/static/sw.js
+local-gateway/static/workbox-*.js
+local-gateway/static/registerSW.js
+local-gateway/static/manifest.webmanifest
