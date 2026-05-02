@@ -19,6 +19,8 @@ class TaskAction(str, enum.Enum):
     delete_task = "delete_task"
     get_weekly_plan = "get_weekly_plan"
     complete_task = "complete_task"
+    batch_complete = "batch_complete"
+    batch_delete = "batch_delete"
 
 
 class Recurrence(str, enum.Enum):
@@ -70,6 +72,10 @@ class TaskManagerRequest(BaseModel):
     task_id: Optional[str] = Field(
         None,
         description="任务唯一标识符，delete_task / complete_task 时必填",
+    )
+    task_ids: Optional[list[str]] = Field(
+        None,
+        description="任务 ID 列表，batch_complete / batch_delete 时必填",
     )
     due_time: Optional[str] = Field(
         None,

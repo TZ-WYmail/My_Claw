@@ -186,6 +186,36 @@ async def complete_task(task_id: str) -> dict:
     return {"status": "success", "message": f"任务 {task_id} 已完成"}
 
 
+async def batch_complete_tasks(task_ids: list[str]) -> dict:
+    """批量标记任务完成"""
+    if not task_ids:
+        return {"status": "error", "message": "task_ids 不能为空"}
+    placeholders = ",".join("?" for _ in task_ids)
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            f"UPDATE tasks SET status = 'completed', updated_at = datetime('now') WHERE task_id IN ({placeholders}) AND status != 'deleted'",
+            task_ids,
+        )
+        await db.commit()
+        count = cursor.rowcount
+    return {"status": "success", "message": f"已完成 {count} 项任务", "success_count": count}
+
+
+async def batch_delete_tasks(task_ids: list[str]) -> dict:
+    """批量软删除任务"""
+    if not task_ids:
+        return {"status": "error", "message": "task_ids 不能为空"}
+    placeholders = ",".join("?" for _ in task_ids)
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            f"UPDATE tasks SET status = 'deleted', updated_at = datetime('now') WHERE task_id IN ({placeholders}) AND status != 'deleted'",
+            task_ids,
+        )
+        await db.commit()
+        count = cursor.rowcount
+    return {"status": "success", "message": f"已删除 {count} 项任务", "success_count": count}
+
+
 async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
     """获取指定周的任务列表。不传参则取当前周。"""
     if monday_iso and sunday_iso:

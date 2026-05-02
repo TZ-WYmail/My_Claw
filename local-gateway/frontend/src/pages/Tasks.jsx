@@ -151,6 +151,7 @@ function AllTasksView() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [showForm, setShowForm] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -160,6 +161,7 @@ function AllTasksView() {
       setTasks(res.tasks || []);
       setTotal(res.total || 0);
       setTotalPages(res.total_pages || 0);
+      setSelectedIds(new Set());
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -186,11 +188,55 @@ function AllTasksView() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  // Batch operations
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === tasks.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(tasks.map(t => t.task_id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBatchComplete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      const res = await apiPost('/api/task', { action: 'batch_complete', task_ids: ids });
+      if (res.status === 'error') throw new Error(res.message);
+      toast(res.message || `已完成 ${ids.length} 项任务`, 'success');
+      fetchTasks();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const handleBatchDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`确认删除 ${ids.length} 项任务？`)) return;
+    try {
+      const res = await apiPost('/api/task', { action: 'batch_delete', task_ids: ids });
+      if (res.status === 'error') throw new Error(res.message);
+      toast(res.message || `已删除 ${ids.length} 项任务`, 'success');
+      fetchTasks();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
   const handleSearch = (e) => { setKeyword(e.target.value); setPage(1); };
   const handleStatusFilter = (e) => { setStatusFilter(e.target.value); setPage(1); };
 
+  const allSelected = tasks.length > 0 && selectedIds.size === tasks.length;
+
   return (
-    <div>
+    <div style={{ position: 'relative', paddingBottom: selectedIds.size > 0 ? 60 : 0 }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
         <input
@@ -238,6 +284,9 @@ function AllTasksView() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: 40 }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                </th>
                 <th>任务</th>
                 <th>截止时间</th>
                 <th>优先级</th>
@@ -248,7 +297,10 @@ function AllTasksView() {
             </thead>
             <tbody>
               {tasks.map(t => (
-                <tr key={t.task_id}>
+                <tr key={t.task_id} style={{ background: selectedIds.has(t.task_id) ? 'rgba(10,132,255,0.06)' : undefined }}>
+                  <td>
+                    <input type="checkbox" checked={selectedIds.has(t.task_id)} onChange={() => toggleSelect(t.task_id)} />
+                  </td>
                   <td>
                     <div style={{ fontWeight: 500 }}>{t.task_name}</div>
                     {t.description && (
@@ -298,6 +350,22 @@ function AllTasksView() {
             ))
           }
           <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>&raquo;</button>
+        </div>
+      )}
+
+      {/* Floating batch action bar */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)',
+          padding: 'var(--space-sm) var(--space-lg)',
+          background: 'var(--bg-card)', borderTop: '1px solid var(--border)',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.12)',
+        }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>已选 {selectedIds.size} 项</span>
+          <button className="btn btn-sm btn-success" onClick={handleBatchComplete}>批量完成</button>
+          <button className="btn btn-sm btn-danger" onClick={handleBatchDelete}>批量删除</button>
+          <button className="btn btn-sm btn-ghost" onClick={clearSelection}>取消选择</button>
         </div>
       )}
     </div>

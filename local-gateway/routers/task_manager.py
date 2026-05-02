@@ -50,6 +50,22 @@ async def handle_task(request: TaskManagerRequest):
             )
         result = await task_service.complete_task(request.task_id)
 
+    elif request.action.value == "batch_complete":
+        if not request.task_ids:
+            return TaskManagerResponse(
+                status="error",
+                message="batch_complete 需要提供 task_ids",
+            )
+        result = await task_service.batch_complete_tasks(request.task_ids)
+
+    elif request.action.value == "batch_delete":
+        if not request.task_ids:
+            return TaskManagerResponse(
+                status="error",
+                message="batch_delete 需要提供 task_ids",
+            )
+        result = await task_service.batch_delete_tasks(request.task_ids)
+
     elif request.action.value == "get_weekly_plan":
         # 支持传入日期范围（前端日历导航用）
         monday = request.due_time or ""
