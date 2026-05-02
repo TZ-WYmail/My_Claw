@@ -475,7 +475,7 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
 
             tool_message = {
                 "role": "assistant",
-                "content": message.get("content") if message.get("content") else "",
+                "content": message.get("content") or None,
                 "tool_calls": tool_calls_fixed
             }
             history.append(tool_message)
@@ -567,11 +567,14 @@ def _validate_messages(messages: list[dict]) -> list[dict]:
         validated.append(msg)
 
     # Final pass: ensure ALL tool_calls have type="function"
+    # DeepSeek requires content=null (not "") when tool_calls present
     for msg in validated:
         if msg.get("role") == "assistant" and msg.get("tool_calls"):
             for tc in msg["tool_calls"]:
                 if tc.get("type") != "function":
                     tc["type"] = "function"
+            if not msg.get("content"):
+                msg["content"] = None
 
     return validated
 
@@ -1097,7 +1100,7 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
             # 有工具调用
             tool_message = {
                 "role": "assistant",
-                "content": content_text if content_text else "",
+                "content": content_text or None,
                 "tool_calls": tool_calls_list,
             }
             history.append(tool_message)
