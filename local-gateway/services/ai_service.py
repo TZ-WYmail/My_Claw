@@ -411,6 +411,9 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
     if len(history) > 42:
         history[:] = [history[0]] + history[-40:]
 
+    # 保存用户消息到本地
+    _save_conversation_message(conversation_id, "user", user_message)
+
     try:
         # Agentic Loop: LLM 自主规划 → 调用工具 → 观察结果 → 继续或回答
         # 最多 15 轮 tool calling（支持复杂多步任务）
@@ -427,6 +430,7 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
             if not message.get("tool_calls"):
                 reply = message.get("content", "")
                 history.append({"role": "assistant", "content": reply})
+                _save_conversation_message(conversation_id, "assistant", reply, model=ai_config.model)
                 return {
                     "status": "success",
                     "reply": reply,
@@ -947,3 +951,215 @@ async def test_connection(api_base: str = None, api_key: str = None, model: str 
         return {"status": "error", "message": f"HTTP {e.response.status_code}", "reply": f"❌ API 返回错误 ({e.response.status_code}): {detail}"}
     except Exception as e:
         return {"status": "error", "message": str(e), "reply": f"❌ 测试失败: {e}"}
+
+
+# ============================================================
+# 流式对话 — SSE + thinking/reasoning_content 支持
+# ============================================================
+
+import json as _json
+from starlette.responses import StreamingResponse as _StreamingResponse
+
+
+async def chat_stream(user_message: str, conversation_id: str = "default"):
+    """
+    流式 AI 对话，以 SSE 格式推送事件：
+      - event: model       → 当前使用的模型
+      - event: thinking    → 推理/思考内容 (DeepSeek reasoning_content)
+      - event: content     → 正式回复内容
+      - event: tool_call   → 工具调用
+      - event: tool_result → 工具执行结果
+      - event: done        → 完成
+      - event: error       → 错误
+    """
+    def sse(event: str, data: dict):
+        return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+    if not ai_config.api_key:
+        yield sse("error", {"message": "AI API Key 未配置"})
+        return
+
+    # 初始化对话历史
+    if conversation_id not in _conversations:
+        _conversations[conversation_id] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+        ]
+
+    import time as _time
+    _conversation_timestamps[conversation_id] = _time.time()
+    _cleanup_old_conversations()
+
+    history = _conversations[conversation_id]
+    history.append({"role": "user", "content": user_message})
+
+    if len(history) > 42:
+        history[:] = [history[0]] + history[-40:]
+
+    # 保存用户消息到本地
+    _save_conversation_message(conversation_id, "user", user_message)
+
+    # 发送模型信息
+    yield sse("model", {"model": ai_config.model, "provider": "DeepSeek" if "deepseek" in ai_config.api_base else "Other"})
+
+    try:
+        for step in range(15):
+            # 流式调用 AI
+            thinking_text = ""
+            content_text = ""
+            tool_calls_list = []
+            current_tool_calls = {}  # id -> {id, function: {name, arguments}}
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    f"{ai_config.api_base}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {ai_config.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": ai_config.model,
+                        "messages": _validate_messages(history),
+                        "tools": TOOLS_SCHEMA,
+                        "tool_choice": "auto",
+                        "stream": True,
+                    },
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        line = line.strip()
+                        if not line or not line.startswith("data:"):
+                            continue
+                        payload = line[5:].strip()
+                        if payload == "[DONE]":
+                            break
+
+                        try:
+                            chunk = _json.loads(payload)
+                        except _json.JSONDecodeError:
+                            continue
+
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        if not delta:
+                            continue
+
+                        # 处理 reasoning_content (DeepSeek thinking)
+                        rc = delta.get("reasoning_content")
+                        if rc:
+                            thinking_text += rc
+                            yield sse("thinking", {"content": rc})
+
+                        # 处理正式 content
+                        c = delta.get("content")
+                        if c:
+                            content_text += c
+                            yield sse("content", {"content": c})
+
+                        # 处理 tool_calls (流式增量)
+                        tcs = delta.get("tool_calls")
+                        if tcs:
+                            for tc in tcs:
+                                tc_id = tc.get("id", "")
+                                tc_idx = tc.get("index", len(current_tool_calls))
+
+                                if tc_id:
+                                    # 新 tool call 开始
+                                    current_tool_calls[tc_idx] = {
+                                        "id": tc_id,
+                                        "type": "function",
+                                        "function": {
+                                            "name": tc.get("function", {}).get("name", ""),
+                                            "arguments": tc.get("function", {}).get("arguments", ""),
+                                        },
+                                    }
+                                elif tc_idx in current_tool_calls:
+                                    # 增量 arguments
+                                    fn_delta = tc.get("function", {})
+                                    if fn_delta.get("arguments"):
+                                        current_tool_calls[tc_idx]["function"]["arguments"] += fn_delta["arguments"]
+                                    if fn_delta.get("name"):
+                                        current_tool_calls[tc_idx]["function"]["name"] += fn_delta["name"]
+
+            # 整理 tool_calls
+            tool_calls_list = list(current_tool_calls.values())
+
+            if not tool_calls_list:
+                # 无工具调用，直接返回
+                reply = content_text
+                history.append({"role": "assistant", "content": reply})
+
+                # 保存到对话记录
+                _save_conversation_message(conversation_id, "assistant", reply, thinking=thinking_text)
+
+                yield sse("done", {"reply": reply, "thinking": thinking_text})
+                return
+
+            # 有工具调用
+            tool_message = {
+                "role": "assistant",
+                "content": content_text if content_text else "",
+                "tool_calls": tool_calls_list,
+            }
+            history.append(tool_message)
+
+            # 执行工具
+            for tc in tool_calls_list:
+                fn_name = tc["function"]["name"]
+                fn_args_str = tc["function"]["arguments"]
+
+                yield sse("tool_call", {
+                    "name": fn_name,
+                    "arguments": fn_args_str,
+                    "id": tc["id"],
+                })
+
+                try:
+                    fn_args = _json.loads(fn_args_str)
+                except _json.JSONDecodeError:
+                    fn_args = {}
+
+                tool_result = await _execute_tool(fn_name, fn_args)
+
+                yield sse("tool_result", {
+                    "name": fn_name,
+                    "result": tool_result,
+                })
+
+                history.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": _json.dumps(tool_result, ensure_ascii=False),
+                })
+
+            # 继续循环让 AI 处理工具结果
+
+        # 超出循环
+        yield sse("done", {"reply": content_text or "已完成多步操作。", "thinking": thinking_text})
+
+    except httpx.ConnectError:
+        yield sse("error", {"message": "无法连接 AI 服务"})
+    except Exception as e:
+        logger.exception("流式 AI 对话异常")
+        yield sse("error", {"message": str(e)})
+
+
+def _save_conversation_message(conversation_id: str, role: str, content: str, thinking: str = "", model: str = ""):
+    """保存对话消息到本地文件"""
+    import time
+    from config import BASE_DIR
+
+    conv_dir = BASE_DIR / "data" / "conversations"
+    conv_dir.mkdir(parents=True, exist_ok=True)
+
+    msg = {
+        "id": str(int(time.time() * 1000)),
+        "role": role,
+        "content": content,
+        "thinking": thinking,
+        "model": model or ai_config.model,
+        "timestamp": time.time(),
+    }
+
+    conv_file = conv_dir / f"{conversation_id}.jsonl"
+    with open(conv_file, "a", encoding="utf-8") as f:
+        f.write(_json.dumps(msg, ensure_ascii=False) + "\n")

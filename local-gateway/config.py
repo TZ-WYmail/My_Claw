@@ -98,9 +98,9 @@ class AIConfig:
     _CONFIG_FILE = BASE_DIR / "data" / "ai_config.json"
 
     def __init__(self):
-        self.api_base = os.getenv("AI_API_BASE", "https://open.bigmodel.cn/api/coding/paas/v4")
+        self.api_base = os.getenv("AI_API_BASE", "https://api.deepseek.com")
         self.api_key = os.getenv("AI_API_KEY", "")
-        self.model = os.getenv("AI_MODEL", "glm-4-flash")
+        self.model = os.getenv("AI_MODEL", "deepseek-v4-pro")
         self.gateway_base_url = os.getenv("GATEWAY_BASE_URL", "http://localhost:8900")
         # 启动时从本地文件加载
         self._load()
@@ -165,6 +165,9 @@ GATEWAY_BASE_URL = ai_config.gateway_base_url
 
 # 支持的模型列表（常见选项）
 AI_MODEL_OPTIONS = [
+    {"id": "deepseek-v4-pro", "name": "DeepSeek-V4-Pro (高精度)", "provider": "DeepSeek"},
+    {"id": "deepseek-chat", "name": "DeepSeek-Chat", "provider": "DeepSeek"},
+    {"id": "deepseek-reasoner", "name": "DeepSeek-Reasoner (推理)", "provider": "DeepSeek"},
     {"id": "glm-4-flash", "name": "GLM-4-Flash (免费/快速)", "provider": "智谱"},
     {"id": "glm-4-air", "name": "GLM-4-Air (均衡)", "provider": "智谱"},
     {"id": "glm-4-plus", "name": "GLM-4-Plus (高精度)", "provider": "智谱"},
@@ -172,6 +175,4 @@ AI_MODEL_OPTIONS = [
     {"id": "gpt-4o-mini", "name": "GPT-4o-mini (快速)", "provider": "OpenAI"},
     {"id": "gpt-4o", "name": "GPT-4o (高精度)", "provider": "OpenAI"},
     {"id": "gpt-3.5-turbo", "name": "GPT-3.5-Turbo (经济)", "provider": "OpenAI"},
-    {"id": "deepseek-chat", "name": "DeepSeek-Chat", "provider": "DeepSeek"},
-    {"id": "deepseek-reasoner", "name": "DeepSeek-Reasoner (推理)", "provider": "DeepSeek"},
 ]

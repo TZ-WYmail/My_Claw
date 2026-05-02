@@ -32,13 +32,14 @@ export default function Settings() {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const data = await apiGet('/api/chat/config');
+      const res = await apiGet('/api/chat/config');
+      const cfg = res.config || res;
       setConfig({
-        model: data.model || '',
-        temperature: data.temperature ?? 0.7,
-        max_tokens: data.max_tokens ?? 2048,
-        api_base: data.api_base || '',
-        api_key: data.api_key || '',
+        model: cfg.model || '',
+        temperature: cfg.temperature ?? 0.7,
+        max_tokens: cfg.max_tokens ?? 2048,
+        api_base: cfg.api_base || '',
+        api_key: cfg.api_key_masked || cfg.api_key || '',
       });
       setConfigLoaded(true);
     } catch {

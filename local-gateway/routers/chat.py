@@ -1,11 +1,13 @@
 """
 POST /api/chat — AI 对话端点
+POST /api/chat/stream — AI 流式对话端点 (SSE)
 GET  /api/chat/config — 获取 AI 配置
 POST /api/chat/config — 保存 AI 配置（持久化到本地）
 POST /api/chat/test — 测试 AI 连接
 GET  /api/chat/models — 获取可选模型列表
 """
 from fastapi import APIRouter
+from starlette.responses import StreamingResponse
 
 from config import ai_config, AI_MODEL_OPTIONS
 from models.schemas import (
@@ -15,7 +17,7 @@ from models.schemas import (
     ChatRequest,
     ChatResponse,
 )
-from services.ai_service import chat, clear_conversation, test_connection
+from services.ai_service import chat, chat_stream, clear_conversation, test_connection
 
 router = APIRouter()
 
@@ -28,6 +30,23 @@ async def handle_chat(request: ChatRequest):
         conversation_id=request.conversation_id,
     )
     return ChatResponse(**result)
+
+
+@router.post("/chat/stream")
+async def handle_chat_stream(request: ChatRequest):
+    """流式 AI 对话 — 返回 SSE 事件流"""
+    return StreamingResponse(
+        chat_stream(
+            user_message=request.message,
+            conversation_id=request.conversation_id,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat/clear")
@@ -84,3 +103,45 @@ async def test_ai_connection(request: AIConfigRequest):
 async def get_models():
     """获取可选模型列表"""
     return {"status": "success", "models": AI_MODEL_OPTIONS}
+
+
+@router.get("/chat/history/{conversation_id}")
+async def get_chat_history(conversation_id: str):
+    """获取对话历史记录"""
+    from config import BASE_DIR
+    import json
+
+    conv_file = BASE_DIR / "data" / "conversations" / f"{conversation_id}.jsonl"
+    if not conv_file.exists():
+        return {"status": "success", "messages": []}
+
+    messages = []
+    with open(conv_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    messages.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+    return {"status": "success", "messages": messages}
+
+
+@router.get("/chat/conversations")
+async def list_conversations():
+    """列出所有对话"""
+    from config import BASE_DIR
+
+    conv_dir = BASE_DIR / "data" / "conversations"
+    if not conv_dir.exists():
+        return {"status": "success", "conversations": []}
+
+    conversations = []
+    for f in sorted(conv_dir.glob("*.jsonl"), reverse=True):
+        conversations.append({
+            "id": f.stem,
+            "updated_at": f.stat().st_mtime,
+        })
+
+    return {"status": "success", "conversations": conversations}

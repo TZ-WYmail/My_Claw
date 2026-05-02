@@ -28,3 +28,6 @@ local-gateway/static/sw.js
 local-gateway/static/workbox-*.js
 local-gateway/static/registerSW.js
 local-gateway/static/manifest.webmanifest
+
+# Conversation history
+local-gateway/data/conversations/

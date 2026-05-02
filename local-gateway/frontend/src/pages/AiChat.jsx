@@ -10,6 +10,8 @@ export default function AiChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [currentModel, setCurrentModel] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
   const [conversationId] = useState('default');
 
   // Config state
@@ -24,23 +26,41 @@ export default function AiChat() {
       const res = await apiGet('/api/chat/config');
       if (res.status === 'success' && res.config) {
         setConfig(res.config);
+        setCurrentModel(res.config.model || '');
         setConfigForm({
           api_base: res.config.api_base || '',
-          api_key: res.config.api_key || '',
+          api_key: res.config.api_key_masked || res.config.api_key || '',
           model: res.config.model || '',
         });
       }
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { fetchConfig(); }, [fetchConfig]);
+  // Load conversation history
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await apiGet(`/api/chat/history/${conversationId}`);
+      if (res.status === 'success' && res.messages?.length > 0) {
+        setMessages(res.messages.map((m, i) => ({
+          id: m.id || i,
+          role: m.role,
+          content: m.content || '',
+          thinking: m.thinking || '',
+          model: m.model || '',
+          timestamp: m.timestamp,
+        })));
+      }
+    } catch { /* silent */ }
+  }, [conversationId]);
+
+  useEffect(() => { fetchConfig(); loadHistory(); }, [fetchConfig, loadHistory]);
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Send message with streaming
+  // Send message with SSE streaming
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || streaming) return;
@@ -49,13 +69,14 @@ export default function AiChat() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setStreaming(true);
+    setIsThinking(false);
 
-    // Create assistant placeholder
     const assistantId = Date.now() + 1;
-    setMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantId, tool_calls: [] }]);
+    const assistantMsg = { role: 'assistant', content: '', thinking: '', model: '', id: assistantId, tool_calls: [] };
+    setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const resp = await fetch('/api/chat', {
+      const resp = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, conversation_id: conversationId }),
@@ -63,60 +84,78 @@ export default function AiChat() {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      const contentType = resp.headers.get('content-type') || '';
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      if (contentType.includes('text/event-stream') || contentType.includes('text/plain')) {
-        // SSE streaming
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+        // Parse SSE: look for "event: xxx\ndata: xxx\n\n"
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
 
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+        for (const part of parts) {
+          const eventMatch = part.match(/^event:\s*(.+)$/m);
+          const dataMatch = part.match(/^data:\s*(.+)$/m);
+          if (!eventMatch || !dataMatch) continue;
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith(':')) continue;
-            if (trimmed.startsWith('data:')) {
-              const data = trimmed.slice(5).trim();
-              if (data === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(data);
-                handleStreamChunk(parsed, assistantId);
-              } catch {
-                // Plain text chunk
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantId ? { ...m, content: m.content + data } : m
-                ));
-              }
-            } else {
-              // Plain text line
+          const event = eventMatch[1].trim();
+          let data;
+          try { data = JSON.parse(dataMatch[1]); } catch { continue; }
+
+          switch (event) {
+            case 'model':
+              setCurrentModel(data.model || '');
               setMessages(prev => prev.map(m =>
-                m.id === assistantId ? { ...m, content: m.content + trimmed + '\n' } : m
+                m.id === assistantId ? { ...m, model: data.model || '' } : m
               ));
-            }
+              break;
+
+            case 'thinking':
+              setIsThinking(true);
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, thinking: m.thinking + (data.content || '') } : m
+              ));
+              break;
+
+            case 'content':
+              setIsThinking(false);
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, content: m.content + (data.content || '') } : m
+              ));
+              break;
+
+            case 'tool_call':
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, tool_calls: [...m.tool_calls, { function: { name: data.name, arguments: data.arguments } }] }
+                  : m
+              ));
+              break;
+
+            case 'tool_result':
+              // Tool result shown inline, no separate UI needed
+              break;
+
+            case 'done':
+              setIsThinking(false);
+              break;
+
+            case 'error':
+              setIsThinking(false);
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, content: `[错误] ${data.message || '未知错误'}` } : m
+              ));
+              toast(data.message || '对话失败', 'error');
+              break;
           }
-        }
-      } else {
-        // JSON response (non-streaming)
-        const res = await resp.json();
-        if (res.status === 'error') throw new Error(res.message || '对话失败');
-        const content = res.reply || res.message || '';
-        setMessages(prev => prev.map(m =>
-          m.id === assistantId ? { ...m, content } : m
-        ));
-        if (res.tool_calls) {
-          setMessages(prev => prev.map(m =>
-            m.id === assistantId ? { ...m, tool_calls: res.tool_calls } : m
-          ));
         }
       }
     } catch (e) {
+      setIsThinking(false);
       setMessages(prev => prev.map(m =>
         m.id === assistantId ? { ...m, content: `[错误] ${e.message}` } : m
       ));
@@ -125,24 +164,6 @@ export default function AiChat() {
       setStreaming(false);
     }
   }, [input, streaming, conversationId, toast]);
-
-  function handleStreamChunk(parsed, assistantId) {
-    if (parsed.content) {
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, content: m.content + parsed.content } : m
-      ));
-    }
-    if (parsed.tool_calls) {
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, tool_calls: parsed.tool_calls } : m
-      ));
-    }
-    if (parsed.reply) {
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, content: parsed.reply } : m
-      ));
-    }
-  }
 
   // Save config
   const saveConfig = async () => {
@@ -155,6 +176,7 @@ export default function AiChat() {
       if (res.status === 'error') throw new Error(res.message);
       toast('配置已保存', 'success');
       setConfig(res.config || configForm);
+      setCurrentModel(configForm.model);
       fetchConfig();
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -198,6 +220,30 @@ export default function AiChat() {
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* Main Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Header with model info */}
+        <div style={{
+          padding: '8px var(--space-md)', borderBottom: '1px solid var(--border)',
+          background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center',
+          gap: 'var(--space-sm)', fontSize: '0.82rem',
+        }}>
+          <span style={{ fontWeight: 600 }}>AI 对话</span>
+          {currentModel && (
+            <span className="badge badge-pending" style={{ fontSize: '0.72rem' }}>
+              {currentModel}
+            </span>
+          )}
+          {isThinking && (
+            <span style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)', animation: 'float 1s ease-in-out infinite' }} />
+              思考中...
+            </span>
+          )}
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-sm btn-ghost" onClick={() => setShowConfig(s => !s)} title="AI 配置">
+            ⚙️
+          </button>
+        </div>
+
         {/* Messages */}
         <div style={{
           flex: 1, overflowY: 'auto', padding: 'var(--space-md)',
@@ -222,14 +268,39 @@ export default function AiChat() {
                 ...(msg.role === 'user' ? {
                   background: 'var(--accent)', color: '#fff',
                   borderBottomRightRadius: 4,
-                } : msg.role === 'system' ? {
-                  background: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
-                  fontStyle: 'italic',
                 } : {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderBottomLeftRadius: 4,
                 }),
               }}>
+                {/* Model badge for assistant messages */}
+                {msg.role === 'assistant' && msg.model && (
+                  <div style={{ marginBottom: 6, fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
+                    {msg.model}
+                  </div>
+                )}
+
+                {/* Thinking block */}
+                {msg.thinking && (
+                  <details style={{ marginBottom: 8 }}>
+                    <summary style={{
+                      fontSize: '0.78rem', color: 'var(--warning)', cursor: 'pointer',
+                      userSelect: 'none', padding: '2px 0',
+                    }}>
+                      💭 思考过程 {isThinking && msg.id === messages[messages.length - 1]?.id && '...'}
+                    </summary>
+                    <div style={{
+                      fontSize: '0.82rem', color: 'var(--text-tertiary)', lineHeight: 1.5,
+                      padding: '8px 10px', marginTop: 4,
+                      background: 'rgba(255,159,10,0.06)', borderRadius: 'var(--radius-sm)',
+                      border: '1px solid rgba(255,159,10,0.12)',
+                      whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto',
+                    }}>
+                      {msg.thinking}
+                    </div>
+                  </details>
+                )}
+
                 {/* Tool calls display */}
                 {msg.tool_calls && msg.tool_calls.length > 0 && (
                   <div style={{ marginBottom: 8 }}>
@@ -253,22 +324,23 @@ export default function AiChat() {
                 )}
 
                 {/* Message content */}
-                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content || (streaming && msg.role === 'assistant' ? '' : '')}</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
               </div>
             </div>
           ))}
 
-          {/* Typing indicator */}
-          {streaming && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (
+          {/* Typing indicator when no content yet */}
+          {streaming && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' &&
+           !messages[messages.length - 1]?.content && !messages[messages.length - 1]?.thinking && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{
                 padding: '10px 16px', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4,
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 display: 'flex', gap: 4, alignItems: 'center',
               }}>
-                <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out infinite' }} />
-                <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.2s infinite' }} />
-                <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.4s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.2s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.4s infinite' }} />
               </div>
             </div>
           )}
@@ -313,7 +385,10 @@ export default function AiChat() {
           width: 300, borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)',
           padding: 'var(--space-lg)', overflowY: 'auto', flexShrink: 0,
         }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 'var(--space-md)' }}>AI 配置</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>AI 配置</h3>
+            <button className="btn btn-sm btn-ghost" onClick={() => setShowConfig(false)}>✕</button>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
             <div className="form-group">
@@ -321,7 +396,7 @@ export default function AiChat() {
               <input
                 value={configForm.api_base}
                 onChange={e => setConfigForm(f => ({ ...f, api_base: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
+                placeholder="https://api.deepseek.com"
               />
             </div>
             <div className="form-group">
@@ -338,7 +413,7 @@ export default function AiChat() {
               <input
                 value={configForm.model}
                 onChange={e => setConfigForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="gpt-4o / glm-4"
+                placeholder="deepseek-v4-pro"
               />
             </div>
 
@@ -364,36 +439,6 @@ export default function AiChat() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Config toggle button (when panel is hidden) */}
-      {!showConfig && (
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => setShowConfig(true)}
-          style={{
-            position: 'absolute', top: 'var(--space-sm)', right: 'var(--space-sm)',
-            zIndex: 10,
-          }}
-          title="AI 配置"
-        >
-          ⚙️
-        </button>
-      )}
-
-      {/* Config panel close */}
-      {showConfig && (
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => setShowConfig(false)}
-          style={{
-            position: 'absolute', top: 'var(--space-sm)', right: 'var(--space-sm)',
-            zIndex: 10,
-          }}
-          title="关闭配置"
-        >
-          ✕
-        </button>
       )}
     </div>
   );
