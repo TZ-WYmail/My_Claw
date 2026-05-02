@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi, apiGet } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort, operationIcon } from '../utils/format';
+
+const POLL_INTERVAL = 15000; // 15s
 
 export default function Dashboard() {
   const { loading, error, request } = useApi();
   const toast = useToast();
   const [data, setData] = useState(null);
+  const pollRef = useRef(null);
 
   const fetchDashboard = useCallback(() => {
     request(async () => {
@@ -17,7 +20,11 @@ export default function Dashboard() {
     }).catch(e => toast(e.message, 'error'));
   }, [request, toast]);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  useEffect(() => {
+    fetchDashboard();
+    pollRef.current = setInterval(fetchDashboard, POLL_INTERVAL);
+    return () => clearInterval(pollRef.current);
+  }, [fetchDashboard]);
 
   if (loading && !data) return <DashboardSkeleton />;
   if (error && !data) return <DashboardError error={error} onRetry={fetchDashboard} />;
@@ -26,10 +33,10 @@ export default function Dashboard() {
   const { tasks = {}, downloads = {}, storage = {}, recent_logs = [], recent_downloads = [] } = data;
 
   const stats = [
-    { icon: '📋', value: tasks.pending ?? 0, label: '待办任务' },
+    { icon: '📋', value: tasks.active ?? tasks.pending ?? 0, label: '进行中' },
     { icon: '✅', value: tasks.completed ?? 0, label: '已完成' },
     { icon: '📥', value: downloads.total ?? 0, label: '下载总数' },
-    { icon: '💾', value: storage.used ?? '-', label: '已用空间' },
+    { icon: '💾', value: storage.total_size ?? '-', label: '已用空间' },
   ];
 
   return (

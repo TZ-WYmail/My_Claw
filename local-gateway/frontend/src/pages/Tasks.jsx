@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { formatTimeShort, RECURRENCE_MAP, badgeClass } from '../utils/format';
+import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
 
 const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
 const PRIORITY_COLORS = { 0: 'error', 1: 'warning', 2: 'pending', 3: 'completed' };
@@ -32,23 +32,41 @@ export default function Tasks() {
 
 /* ── Week View ────────────────────────────────────────── */
 
+function getWeekRange(offset) {
+  const now = new Date();
+  const day = now.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset + offset * 7);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { monday: fmt(monday), sunday: fmt(sunday), mondayDate: monday, sundayDate: sunday };
+}
+
 function WeekView() {
   const { loading, request } = useApi();
   const toast = useToast();
   const [offset, setOffset] = useState(0);
-  const [weekHtml, setWeekHtml] = useState('');
+  const [tasks, setTasks] = useState([]);
+
+  const { monday, sunday, mondayDate, sundayDate } = getWeekRange(offset);
 
   const fetchWeek = useCallback(async () => {
     try {
       const res = await request(async () =>
-        apiPost('/api/task', { action: 'get_weekly_plan', offset, due_time: '', task_name: '' })
+        apiPost('/api/task', {
+          action: 'get_weekly_plan',
+          due_time: monday + 'T00:00:00',
+          task_name: sunday + 'T23:59:59',
+        })
       );
       if (res.status === 'error') throw new Error(res.message);
-      setWeekHtml(res.message || res.html || renderWeekFallback(res.tasks || []));
+      setTasks(res.tasks || []);
     } catch (e) {
       toast(e.message, 'error');
     }
-  }, [request, toast, offset]);
+  }, [request, toast, monday, sunday]);
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
 
@@ -56,12 +74,15 @@ function WeekView() {
   const goNext = () => { setOffset(o => o + 1); };
   const goToday = () => { setOffset(0); };
 
+  const weekLabel = `${mondayDate.getMonth() + 1}/${mondayDate.getDate()} - ${sundayDate.getMonth() + 1}/${sundayDate.getDate()}`;
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
         <button className="btn btn-sm" onClick={goPrev}>&larr; 上一周</button>
         <button className="btn btn-sm btn-primary" onClick={goToday}>本周</button>
         <button className="btn btn-sm" onClick={goNext}>下一周 &rarr;</button>
+        <span style={{ fontSize: '0.9rem', fontWeight: 500, marginLeft: 'var(--space-sm)' }}>{weekLabel}</span>
       </div>
 
       {loading ? (
@@ -70,26 +91,52 @@ function WeekView() {
             <div className="skeleton skeleton-text" key={i} style={{ height: 60, marginBottom: 'var(--space-sm)' }} />
           ))}
         </div>
-      ) : (
+      ) : tasks.length === 0 ? (
         <div className="card">
-          {weekHtml ? (
-            <div dangerouslySetInnerHTML={{ __html: weekHtml }} />
-          ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon">📅</div>
-              <div className="empty-state-text">本周暂无任务</div>
-            </div>
-          )}
+          <div className="empty-state">
+            <div className="empty-state-icon">📅</div>
+            <div className="empty-state-text">本周暂无任务</div>
+          </div>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>任务</th>
+                <th>截止时间</th>
+                <th>优先级</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map(t => (
+                <tr key={t.task_id}>
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{t.task_name}</div>
+                    {t.description && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
+                        {t.description.length > 60 ? t.description.slice(0, 60) + '...' : t.description}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{formatTimeShort(t.due_time)}</td>
+                  <td>
+                    <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
+                      {PRIORITY_MAP[t.priority] || '中'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge badge-${badgeClass(t.status)}`}>{statusLabel(t.status)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
-}
-
-function renderWeekFallback(tasks) {
-  if (!tasks || tasks.length === 0) return '';
-  const rows = tasks.map(t => `<tr><td>${t.task_name}</td><td>${t.due_time}</td><td>${t.status}</td></tr>`).join('');
-  return `<table class="data-table"><tr><th>任务</th><th>截止</th><th>状态</th></tr>${rows}</table>`;
 }
 
 /* ── All Tasks View ───────────────────────────────────── */
@@ -218,7 +265,7 @@ function AllTasksView() {
                   </td>
                   <td>{RECURRENCE_MAP[t.recurrence] || t.recurrence}</td>
                   <td>
-                    <span className={`badge badge-${badgeClass(t.status)}`}>{t.status}</span>
+                    <span className={`badge badge-${badgeClass(t.status)}`}>{statusLabel(t.status)}</span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>

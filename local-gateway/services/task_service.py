@@ -223,7 +223,7 @@ async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
             "task_name": row["task_name"],
             "due_time": row["due_time"],
             "recurrence": row["recurrence"],
-            "status": _translate_status(row["status"]),
+            "status": row["status"],
             "priority": row["priority"],
             "description": row["description"],
             "estimated_minutes": row["estimated_minutes"],
@@ -673,7 +673,7 @@ async def get_all_tasks(
             "task_name": row["task_name"],
             "due_time": row["due_time"],
             "recurrence": row["recurrence"],
-            "status": _translate_status(row["status"]),
+            "status": row["status"],
             "priority": row["priority"],
             "description": row["description"],
             "estimated_minutes": row["estimated_minutes"],
@@ -853,6 +853,9 @@ async def get_dashboard_stats() -> dict:
     """获取仪表盘统计信息"""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         # 任务统计
+        cursor = await db.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'")
+        tasks_active = (await cursor.fetchone())[0]
+
         cursor = await db.execute("SELECT COUNT(*) FROM tasks WHERE status = 'pending'")
         tasks_pending = (await cursor.fetchone())[0]
 
@@ -878,13 +881,13 @@ async def get_dashboard_stats() -> dict:
 
         # 最近下载
         cursor = await db.execute(
-            "SELECT filename, category, file_size, status, created_at FROM download_history ORDER BY created_at DESC LIMIT 5"
+            "SELECT filename, category, file_size, security_scan, status, created_at FROM download_history ORDER BY created_at DESC LIMIT 5"
         )
         recent_downloads = [dict(row) for row in await cursor.fetchall()]
 
     return {
         "status": "success",
-        "tasks": {"pending": tasks_pending, "completed": tasks_completed},
+        "tasks": {"active": tasks_active, "pending": tasks_pending, "completed": tasks_completed},
         "downloads": {"total": downloads_total, "completed": downloads_completed},
         "storage": {
             "total_size": human_size(total_size),

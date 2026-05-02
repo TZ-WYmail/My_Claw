@@ -26,9 +26,18 @@ export function escapeHtml(str) {
 
 export const RECURRENCE_MAP = { once: '一次', daily: '每天', weekly: '每周', monthly: '每月' };
 
+const STATUS_LABELS = {
+  pending: '待执行', completed: '已完成', deleted: '已删除',
+  '待执行': '待执行', '已完成': '已完成', '已删除': '已删除',
+};
+
+export function statusLabel(status) {
+  return STATUS_LABELS[status] || status;
+}
+
 export function badgeClass(status) {
-  if (status === '已完成') return 'completed';
-  if (status === '已删除') return 'error';
+  if (status === 'completed' || status === '已完成') return 'completed';
+  if (status === 'deleted' || status === '已删除') return 'error';
   return 'pending';
 }
 
