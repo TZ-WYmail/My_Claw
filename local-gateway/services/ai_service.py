@@ -396,10 +396,11 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
 
     # 初始化对话历史
     if conversation_id not in _conversations:
+        loaded = _load_conversation_history(conversation_id)
         _conversations[conversation_id] = [
             {"role": "system", "content": SYSTEM_PROMPT},
-        ]
-    
+        ] + loaded
+
     import time as _time
     _conversation_timestamps[conversation_id] = _time.time()
     _cleanup_old_conversations()
@@ -431,6 +432,7 @@ async def chat(user_message: str, conversation_id: str = "default") -> dict:
                 reply = message.get("content", "")
                 history.append({"role": "assistant", "content": reply})
                 _save_conversation_message(conversation_id, "assistant", reply, model=ai_config.model)
+                _persist_history(conversation_id, history)
                 return {
                     "status": "success",
                     "reply": reply,
@@ -984,9 +986,10 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
 
     # 初始化对话历史
     if conversation_id not in _conversations:
+        loaded = _load_conversation_history(conversation_id)
         _conversations[conversation_id] = [
             {"role": "system", "content": SYSTEM_PROMPT},
-        ]
+        ] + loaded
 
     import time as _time
     _conversation_timestamps[conversation_id] = _time.time()
@@ -1093,6 +1096,7 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
 
                 # 保存到对话记录
                 _save_conversation_message(conversation_id, "assistant", reply, thinking=thinking_text)
+                _persist_history(conversation_id, history)
 
                 yield sse("done", {"reply": reply, "thinking": thinking_text})
                 return
@@ -1137,6 +1141,7 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
             # 继续循环让 AI 处理工具结果
 
         # 超出循环
+        _persist_history(conversation_id, history)
         yield sse("done", {"reply": content_text or "已完成多步操作。", "thinking": thinking_text})
 
     except httpx.ConnectError:
@@ -1147,7 +1152,7 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
 
 
 def _save_conversation_message(conversation_id: str, role: str, content: str, thinking: str = "", model: str = ""):
-    """保存对话消息到本地文件"""
+    """保存对话消息到本地文件（用于前端展示）"""
     import time
     from config import BASE_DIR
 
@@ -1166,3 +1171,48 @@ def _save_conversation_message(conversation_id: str, role: str, content: str, th
     conv_file = conv_dir / f"{conversation_id}.jsonl"
     with open(conv_file, "a", encoding="utf-8") as f:
         f.write(_json.dumps(msg, ensure_ascii=False) + "\n")
+
+
+def _persist_history(conversation_id: str, history: list[dict]):
+    """将完整 API 格式对话历史持久化到文件（用于服务重启后恢复上下文）"""
+    from config import BASE_DIR
+
+    conv_dir = BASE_DIR / "data" / "conversations"
+    conv_dir.mkdir(parents=True, exist_ok=True)
+
+    # 跳过 system prompt，保存其余消息
+    messages = [msg for msg in history if msg.get("role") != "system"]
+    conv_file = conv_dir / f"{conversation_id}_history.jsonl"
+    with open(conv_file, "w", encoding="utf-8") as f:
+        for msg in messages:
+            f.write(_json.dumps(msg, ensure_ascii=False) + "\n")
+
+
+def _load_conversation_history(conversation_id: str) -> list[dict]:
+    """从持久化文件恢复完整 API 格式对话历史（最近 20 轮）"""
+    from config import BASE_DIR
+
+    conv_file = BASE_DIR / "data" / "conversations" / f"{conversation_id}_history.jsonl"
+    if not conv_file.exists():
+        return []
+
+    messages = []
+    try:
+        with open(conv_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    messages.append(_json.loads(line))
+                except _json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        logger.warning(f"加载对话历史失败: {e}")
+        return []
+
+    # 保留最近 40 条消息（约 20 轮）
+    if len(messages) > 40:
+        messages = messages[-40:]
+
+    return messages
