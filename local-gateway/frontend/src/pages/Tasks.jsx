@@ -49,6 +49,7 @@ function WeekView() {
   const toast = useToast();
   const [offset, setOffset] = useState(0);
   const [tasks, setTasks] = useState([]);
+  const [popupTaskId, setPopupTaskId] = useState(null);
 
   const { monday, sunday, mondayDate, sundayDate } = getWeekRange(offset);
 
@@ -76,8 +77,102 @@ function WeekView() {
 
   const weekLabel = `${mondayDate.getMonth() + 1}/${mondayDate.getDate()} - ${sundayDate.getMonth() + 1}/${sundayDate.getDate()}`;
 
+  // Build 7 day columns
+  const dayCols = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mondayDate);
+    d.setDate(d.getDate() + i);
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    const fmtDate = `${d.getMonth() + 1}/${d.getDate()}`;
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { date: d, isoDate, weekday: weekdays[i], label: fmtDate };
+  });
+
+  const START_HOUR = 6;
+  const END_HOUR = 23;
+  const TOTAL_HOURS = END_HOUR - START_HOUR; // 17
+  const ROW_HEIGHT = 40;
+
+  // Parse ISO time string to get hours and minutes
+  const parseTime = (isoStr) => {
+    if (!isoStr) return null;
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return null;
+    return { hour: d.getHours(), minute: d.getMinutes() };
+  };
+
+  // Get the date portion of an ISO string
+  const parseDate = (isoStr) => {
+    if (!isoStr) return null;
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  // Format HH:MM from an ISO string
+  const fmtHM = (isoStr) => {
+    const t = parseTime(isoStr);
+    if (!t) return '';
+    return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
+  };
+
+  const PRIORITY_BG = { 0: '#ff3b30', 1: '#ff9500', 2: '#0a84ff', 3: '#8e8e93' };
+
+  // Separate scheduled and unscheduled tasks
+  const scheduled = tasks.filter(t => t.start_time);
+  const unscheduled = tasks.filter(t => !t.start_time);
+
+  // Group scheduled tasks by their day
+  const tasksByDay = {};
+  dayCols.forEach(col => { tasksByDay[col.isoDate] = []; });
+  scheduled.forEach(t => {
+    const dayKey = parseDate(t.start_time);
+    if (dayKey && tasksByDay[dayKey]) {
+      tasksByDay[dayKey].push(t);
+    }
+  });
+
+  // Compute current time indicator
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const isCurrentWeek = offset === 0;
+  const nowHour = now.getHours();
+  const nowMinute = now.getMinutes();
+  const showNowLine = isCurrentWeek && nowHour >= START_HOUR && nowHour <= END_HOUR;
+  const nowTopPx = ((nowHour - START_HOUR) + nowMinute / 60) * ROW_HEIGHT;
+
+  // Complete / delete handlers
+  const handleComplete = async (taskId) => {
+    try {
+      const res = await apiPost('/api/task', { action: 'complete_task', task_id: taskId });
+      if (res.status === 'error') throw new Error(res.message);
+      toast('任务已完成', 'success');
+      setPopupTaskId(null);
+      fetchWeek();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const handleDelete = async (taskId) => {
+    if (!confirm('确认删除此任务?')) return;
+    try {
+      const res = await apiPost('/api/task', { action: 'delete_task', task_id: taskId });
+      if (res.status === 'error') throw new Error(res.message);
+      toast('任务已删除', 'success');
+      setPopupTaskId(null);
+      fetchWeek();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    if (popupTaskId === null) return;
+    const handler = () => setPopupTaskId(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [popupTaskId]);
+
   return (
     <div>
+      {/* Navigation bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
         <button className="btn btn-sm" onClick={goPrev}>&larr; 上一周</button>
         <button className="btn btn-sm btn-primary" onClick={goToday}>本周</button>
@@ -99,44 +194,279 @@ function WeekView() {
           </div>
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>任务</th>
-                <th>截止时间</th>
-                <th>优先级</th>
-                <th>状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map(t => (
-                <tr key={t.task_id}>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{t.task_name}</div>
-                    {t.description && (
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
-                        {t.description.length > 60 ? t.description.slice(0, 60) + '...' : t.description}
+        <>
+          {/* Timeline grid */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {/* Column headers */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '60px repeat(7, 1fr)',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--bg-card)',
+            }}>
+              <div style={{ padding: '8px 4px', fontSize: '0.75rem', color: 'var(--text-tertiary)', textAlign: 'center' }}></div>
+              {dayCols.map(col => {
+                const isToday = col.isoDate === todayIso;
+                return (
+                  <div key={col.isoDate} style={{
+                    padding: '8px 4px',
+                    textAlign: 'center',
+                    fontSize: '0.78rem',
+                    fontWeight: isToday ? 600 : 400,
+                    color: isToday ? 'var(--accent)' : 'var(--text-primary)',
+                    borderBottom: isToday ? '2px solid var(--accent)' : 'none',
+                  }}>
+                    <div>周{col.weekday}</div>
+                    <div style={{ fontSize: '0.7rem', color: isToday ? 'var(--accent)' : 'var(--text-tertiary)' }}>{col.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Scrollable timeline area */}
+            <div style={{
+              overflowY: 'auto',
+              maxHeight: 500,
+              position: 'relative',
+            }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '60px repeat(7, 1fr)',
+                position: 'relative',
+              }}>
+                {/* Time labels column */}
+                <div style={{ position: 'relative' }}>
+                  {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
+                    const hour = START_HOUR + i;
+                    return (
+                      <div key={hour} style={{
+                        height: ROW_HEIGHT,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        fontSize: '0.7rem',
+                        color: 'var(--text-tertiary)',
+                        paddingTop: 2,
+                        borderTop: '1px solid var(--border)',
+                      }}>
+                        {`${String(hour).padStart(2, '0')}:00`}
                       </div>
-                    )}
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{formatTimeShort(t.due_time)}</td>
-                  <td>
+                    );
+                  })}
+                </div>
+
+                {/* 7 day columns with task blocks */}
+                {dayCols.map(col => {
+                  const dayTasks = tasksByDay[col.isoDate] || [];
+                  const isToday = col.isoDate === todayIso;
+                  return (
+                    <div key={col.isoDate} style={{ position: 'relative' }}>
+                      {/* Hour grid lines */}
+                      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                        <div key={i} style={{
+                          height: ROW_HEIGHT,
+                          borderTop: '1px solid var(--border)',
+                        }} />
+                      ))}
+
+                      {/* Task blocks */}
+                      {dayTasks.map(t => {
+                        const startTime = parseTime(t.start_time);
+                        const endTime = parseTime(t.end_time);
+                        if (!startTime) return null;
+
+                        const startOffset = startTime.hour + startTime.minute / 60 - START_HOUR;
+                        let duration;
+                        if (endTime) {
+                          duration = (endTime.hour + endTime.minute / 60) - (startTime.hour + startTime.minute / 60);
+                        } else {
+                          duration = 1; // default 1 hour if no end time
+                        }
+                        if (duration < 0.25) duration = 0.25; // minimum 15 min
+
+                        const topPx = startOffset * ROW_HEIGHT;
+                        const heightPx = duration * ROW_HEIGHT;
+                        const bgColor = PRIORITY_BG[t.priority] ?? PRIORITY_BG[2];
+                        const timeRange = endTime ? `${fmtHM(t.start_time)}-${fmtHM(t.end_time)}` : fmtHM(t.start_time);
+                        const isPopupOpen = popupTaskId === t.task_id;
+
+                        return (
+                          <div key={t.task_id} style={{ position: 'absolute', top: topPx, left: 2, right: 2, height: Math.max(heightPx, 18), zIndex: 2 }}>
+                            <div
+                              onClick={(e) => { e.stopPropagation(); setPopupTaskId(isPopupOpen ? null : t.task_id); }}
+                              style={{
+                                backgroundColor: bgColor,
+                                color: '#fff',
+                                borderRadius: 4,
+                                padding: '2px 4px',
+                                fontSize: '0.7rem',
+                                lineHeight: 1.3,
+                                overflow: 'hidden',
+                                cursor: 'pointer',
+                                height: '100%',
+                                boxSizing: 'border-box',
+                                position: 'relative',
+                              }}
+                            >
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
+                                {t.task_name}
+                              </div>
+                              {heightPx >= 30 && (
+                                <div style={{ opacity: 0.85, fontSize: '0.65rem' }}>{timeRange}</div>
+                              )}
+                            </div>
+
+                            {/* Popup */}
+                            {isPopupOpen && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  zIndex: 50,
+                                  minWidth: 180,
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                                  padding: 'var(--space-sm)',
+                                  marginTop: 4,
+                                }}
+                              >
+                                <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>{t.task_name}</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                  {timeRange}
+                                </div>
+                                <div style={{ marginBottom: 8 }}>
+                                  <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
+                                    {PRIORITY_MAP[t.priority] || '中'}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                                  {t.status === 'pending' && (
+                                    <button className="btn btn-sm btn-success" onClick={() => handleComplete(t.task_id)}>完成</button>
+                                  )}
+                                  {t.status !== 'deleted' && (
+                                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(t.task_id)}>删除</button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Current time indicator */}
+                      {showNowLine && isToday && (
+                        <div style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          top: nowTopPx,
+                          height: 2,
+                          backgroundColor: '#ff3b30',
+                          zIndex: 5,
+                          pointerEvents: 'none',
+                        }}>
+                          <div style={{
+                            position: 'absolute',
+                            left: -3,
+                            top: -3,
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: '#ff3b30',
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Unscheduled tasks */}
+          {unscheduled.length > 0 && (
+            <div className="card" style={{ marginTop: 'var(--space-md)' }}>
+              <h4 style={{ fontSize: '0.85rem', marginBottom: 'var(--space-sm)', color: 'var(--text-secondary)' }}>未安排时间</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+                {unscheduled.map(t => (
+                  <div
+                    key={t.task_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-sm)',
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      background: 'var(--bg-secondary)',
+                      cursor: 'pointer',
+                      position: 'relative',
+                    }}
+                    onClick={(e) => { e.stopPropagation(); setPopupTaskId(popupTaskId === t.task_id ? null : t.task_id); }}
+                  >
                     <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
                       {PRIORITY_MAP[t.priority] || '中'}
                     </span>
-                  </td>
-                  <td>
-                    <span className={`badge badge-${badgeClass(t.status)}`}>{statusLabel(t.status)}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{t.task_name}</span>
+                    {t.due_time && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
+                        截止 {fmtHM(t.due_time)}
+                      </span>
+                    )}
+
+                    {/* Popup for unscheduled */}
+                    {popupTaskId === t.task_id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          zIndex: 50,
+                          minWidth: 180,
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 8,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                          padding: 'var(--space-sm)',
+                          marginTop: 2,
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>{t.task_name}</div>
+                        <div style={{ marginBottom: 8 }}>
+                          <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
+                            {PRIORITY_MAP[t.priority] || '中'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                          {t.status === 'pending' && (
+                            <button className="btn btn-sm btn-success" onClick={() => handleComplete(t.task_id)}>完成</button>
+                          )}
+                          {t.status !== 'deleted' && (
+                            <button className="btn btn-sm btn-danger" onClick={() => handleDelete(t.task_id)}>删除</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
+}
+
+function getOverdueDays(dueTime) {
+  if (!dueTime) return 0;
+  const due = new Date(dueTime);
+  const now = new Date();
+  return Math.max(0, Math.floor((now - due) / (1000 * 60 * 60 * 24)));
 }
 
 /* ── All Tasks View ───────────────────────────────────── */
@@ -152,6 +482,7 @@ function AllTasksView() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [showForm, setShowForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [justCompleted, setJustCompleted] = useState(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -173,8 +504,34 @@ function AllTasksView() {
     try {
       const res = await apiPost('/api/task', { action: 'complete_task', task_id: taskId });
       if (res.status === 'error') throw new Error(res.message);
-      toast('任务已完成', 'success');
-      fetchTasks();
+
+      // Show completion animation
+      setJustCompleted(taskId);
+
+      // Show progress toast
+      const pendingRes = await apiPost('/api/task', { action: 'get_pending_tasks' });
+      if (pendingRes.status === 'success') {
+        const today = new Date().toISOString().slice(0, 10);
+        const todayTasks = pendingRes.tasks.filter(t =>
+          (t.start_time && t.start_time.startsWith(today)) ||
+          (t.due_time && t.due_time.startsWith(today))
+        );
+        const todayCompleted = todayTasks.filter(t => t.status === 'completed').length;
+        const todayTotal = todayTasks.length;
+        if (todayTotal > 0 && todayCompleted === todayTotal) {
+          toast('太棒了！今日任务全部完成 🎉', 'success');
+        } else {
+          toast(`已完成！今日进度 ${todayCompleted}/${todayTotal}`, 'success');
+        }
+      } else {
+        toast('任务已完成', 'success');
+      }
+
+      // Wait for animation, then refresh
+      setTimeout(() => {
+        setJustCompleted(null);
+        fetchTasks();
+      }, 800);
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -296,13 +653,41 @@ function AllTasksView() {
               </tr>
             </thead>
             <tbody>
-              {tasks.map(t => (
-                <tr key={t.task_id} style={{ background: selectedIds.has(t.task_id) ? 'rgba(10,132,255,0.06)' : undefined }}>
+              {tasks.map(t => {
+                const overdueDays = t.status === 'pending' ? getOverdueDays(t.due_time) : 0;
+                let rowStyle = {};
+                if (overdueDays >= 7) {
+                  rowStyle = { borderLeft: '3px solid #ff3b30' };
+                } else if (overdueDays >= 2) {
+                  rowStyle = { borderLeft: '3px solid #ff9500' };
+                } else if (overdueDays >= 1) {
+                  rowStyle = { borderLeft: '3px solid #ffcc00' };
+                }
+                return (
+                <tr key={t.task_id} style={{
+                  background: selectedIds.has(t.task_id) ? 'rgba(10,132,255,0.06)' : undefined,
+                  ...rowStyle,
+                  ...(justCompleted === t.task_id ? {
+                    opacity: 0.4,
+                    textDecoration: 'line-through',
+                    transition: 'opacity 0.5s ease, text-decoration 0.3s',
+                  } : {}),
+                }}>
                   <td>
                     <input type="checkbox" checked={selectedIds.has(t.task_id)} onChange={() => toggleSelect(t.task_id)} />
                   </td>
                   <td>
-                    <div style={{ fontWeight: 500 }}>{t.task_name}</div>
+                    <div style={{ fontWeight: 500 }}>
+                      {t.task_name}
+                      {overdueDays >= 7 && (
+                        <span style={{ background: '#ff3b30', color: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: '0.65rem', marginLeft: 4 }}>
+                          严重逾期
+                        </span>
+                      )}
+                      {overdueDays >= 2 && overdueDays < 7 && (
+                        <span style={{ color: '#ff9500', marginLeft: 4, fontSize: '0.75rem' }}>!</span>
+                      )}
+                    </div>
                     {t.description && (
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
                         {t.description.length > 60 ? t.description.slice(0, 60) + '...' : t.description}
@@ -330,7 +715,8 @@ function AllTasksView() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -377,7 +763,8 @@ function AllTasksView() {
 function TaskForm({ onCreated, toast }) {
   const { loading, request } = useApi();
   const [form, setForm] = useState({
-    task_name: '', due_time: '', recurrence: 'once', priority: 2, description: '',
+    task_name: '', due_time: '', start_time: '', end_time: '',
+    recurrence: 'once', priority: 2, description: '',
     estimated_minutes: '', tags: '',
   });
 
@@ -386,12 +773,16 @@ function TaskForm({ onCreated, toast }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.task_name.trim()) { toast('请输入任务名称', 'error'); return; }
-    if (!form.due_time) { toast('请选择截止时间', 'error'); return; }
+    let dueTime = form.due_time ? new Date(form.due_time).toISOString() :
+                  form.end_time ? new Date(form.end_time).toISOString() : null;
+    if (!dueTime) { toast('请选择截止时间', 'error'); return; }
     try {
       const res = await request(async () => apiPost('/api/task', {
         action: 'add_task',
         task_name: form.task_name.trim(),
-        due_time: new Date(form.due_time).toISOString(),
+        due_time: dueTime,
+        start_time: form.start_time ? new Date(form.start_time).toISOString() : undefined,
+        end_time: form.end_time ? new Date(form.end_time).toISOString() : undefined,
         recurrence: form.recurrence,
         priority: Number(form.priority),
         description: form.description || undefined,
@@ -416,6 +807,14 @@ function TaskForm({ onCreated, toast }) {
           <div className="form-group">
             <label>截止时间 *</label>
             <input type="datetime-local" value={form.due_time} onChange={e => update('due_time', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>开始时间</label>
+            <input type="datetime-local" value={form.start_time} onChange={e => update('start_time', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>结束时间</label>
+            <input type="datetime-local" value={form.end_time} onChange={e => update('end_time', e.target.value)} />
           </div>
           <div className="form-group">
             <label>重复</label>

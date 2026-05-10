@@ -6,6 +6,8 @@ POST /api/chat/config — 保存 AI 配置（持久化到本地）
 POST /api/chat/test — 测试 AI 连接
 GET  /api/chat/models — 获取可选模型列表
 """
+import uuid
+
 from fastapi import APIRouter
 from starlette.responses import StreamingResponse
 
@@ -17,7 +19,14 @@ from models.schemas import (
     ChatRequest,
     ChatResponse,
 )
-from services.ai_service import chat, chat_stream, clear_conversation, test_connection
+from services.ai_service import (
+    chat,
+    chat_stream,
+    clear_conversation,
+    _list_all_conversations,
+    _save_conversation_meta,
+    test_connection,
+)
 
 router = APIRouter()
 
@@ -131,17 +140,20 @@ async def get_chat_history(conversation_id: str):
 @router.get("/chat/conversations")
 async def list_conversations():
     """列出所有对话"""
-    from config import BASE_DIR
-
-    conv_dir = BASE_DIR / "data" / "conversations"
-    if not conv_dir.exists():
-        return {"status": "success", "conversations": []}
-
-    conversations = []
-    for f in sorted(conv_dir.glob("*.jsonl"), reverse=True):
-        conversations.append({
-            "id": f.stem,
-            "updated_at": f.stat().st_mtime,
-        })
-
+    conversations = _list_all_conversations()
     return {"status": "success", "conversations": conversations}
+
+
+@router.post("/chat/conversations")
+async def create_conversation():
+    """创建新对话"""
+    conversation_id = str(uuid.uuid4())[:8]
+    _save_conversation_meta(conversation_id)
+    return {"status": "success", "conversation_id": conversation_id}
+
+
+@router.delete("/chat/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """删除对话"""
+    clear_conversation(conversation_id)
+    return {"status": "success", "message": "对话已删除"}

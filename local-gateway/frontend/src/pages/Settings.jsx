@@ -30,6 +30,21 @@ export default function Settings() {
   const [testing, setTesting] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
 
+  // Notification config state
+  const [notifConfig, setNotifConfig] = useState({
+    smtp_host: '',
+    smtp_port: 465,
+    smtp_user: '',
+    smtp_password: '',
+    notify_email: '',
+    reminder_minutes_before: 15,
+    reminder_due_minutes: 30,
+  });
+  const [notifLoaded, setNotifLoaded] = useState(false);
+  const [notifTesting, setNotifTesting] = useState(false);
+  const [notifTestResult, setNotifTestResult] = useState(null);
+  const [notifExpanded, setNotifExpanded] = useState(false);
+
   const fetchConfig = useCallback(async () => {
     try {
       const res = await apiGet('/api/chat/config');
@@ -48,6 +63,66 @@ export default function Settings() {
   }, [toast]);
 
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
+
+  const fetchNotifConfig = useCallback(async () => {
+    try {
+      const res = await apiGet('/api/notification/config');
+      const cfg = res.config || {};
+      setNotifConfig({
+        smtp_host: cfg.smtp_host || '',
+        smtp_port: cfg.smtp_port ?? 465,
+        smtp_user: cfg.smtp_user || '',
+        smtp_password: '',
+        notify_email: cfg.notify_email || '',
+        reminder_minutes_before: cfg.reminder_minutes_before ?? 15,
+        reminder_due_minutes: cfg.reminder_due_minutes ?? 30,
+      });
+      setNotifLoaded(true);
+    } catch {
+      toast('获取通知配置失败', 'error');
+    }
+  }, [toast]);
+
+  useEffect(() => { fetchNotifConfig(); }, [fetchNotifConfig]);
+
+  const handleNotifSave = async () => {
+    try {
+      await request(() => apiPost('/api/notification/config', {
+        smtp_host: notifConfig.smtp_host,
+        smtp_port: parseInt(notifConfig.smtp_port, 10),
+        smtp_user: notifConfig.smtp_user,
+        smtp_password: notifConfig.smtp_password || undefined,
+        notify_email: notifConfig.notify_email,
+        reminder_minutes_before: parseInt(notifConfig.reminder_minutes_before, 10),
+        reminder_due_minutes: parseInt(notifConfig.reminder_due_minutes, 10),
+      }));
+      toast('通知配置已保存', 'success');
+      fetchNotifConfig();
+    } catch {
+      toast('保存通知配置失败', 'error');
+    }
+  };
+
+  const handleNotifTest = async () => {
+    setNotifTesting(true);
+    setNotifTestResult(null);
+    try {
+      const data = await apiPost('/api/notification/test', {});
+      setNotifTestResult(data);
+      if (data.status === 'success') {
+        toast('测试邮件发送成功', 'success');
+      } else {
+        toast('测试邮件发送失败', 'error');
+      }
+    } catch {
+      setNotifTestResult({ status: 'error', message: '请求失败' });
+      toast('测试邮件发送失败', 'error');
+    } finally {
+      setNotifTesting(false);
+    }
+  };
+
+  const updateNotifField = (field, value) => setNotifConfig(prev => ({ ...prev, [field]: value }));
 
   const handleSave = async () => {
     try {
@@ -176,6 +251,136 @@ export default function Settings() {
             <div className="skeleton skeleton-text" style={{ width: '60%' }} />
             <div className="skeleton skeleton-text" style={{ width: '80%' }} />
             <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+          </>
+        )}
+      </div>
+
+      {/* Notification Config */}
+      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
+        <div
+          className="card-header"
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => setNotifExpanded(prev => !prev)}
+        >
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <span style={{ fontSize: '1.1rem' }}>&#9881;</span>
+            通知配置
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 400 }}>
+              {notifExpanded ? '▲' : '▼'}
+            </span>
+          </h3>
+          {notifExpanded && (
+            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={e => { e.stopPropagation(); handleNotifTest(); }}
+                disabled={notifTesting}
+              >
+                {notifTesting ? '发送中...' : '测试邮件'}
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={e => { e.stopPropagation(); handleNotifSave(); }}
+                disabled={loading}
+              >
+                保存配置
+              </button>
+            </div>
+          )}
+        </div>
+
+        {notifExpanded && (
+          <>
+            {notifTestResult && (
+              <div style={{
+                padding: 'var(--space-sm) var(--space-md)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: 'var(--space-md)',
+                fontSize: '0.85rem',
+                background: notifTestResult.status === 'success' ? 'rgba(48,209,88,0.08)' : 'rgba(255,69,58,0.08)',
+                color: notifTestResult.status === 'success' ? 'var(--success)' : 'var(--error)',
+                border: `1px solid ${notifTestResult.status === 'success' ? 'var(--success)' : 'var(--error)'}`,
+              }}>
+                {notifTestResult.status === 'success'
+                  ? '测试邮件发送成功，请检查收件箱'
+                  : `发送失败 — ${notifTestResult.message || '未知错误'}`}
+              </div>
+            )}
+            {notifLoaded ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                <div className="form-group">
+                  <label>SMTP 服务器</label>
+                  <input
+                    value={notifConfig.smtp_host}
+                    onChange={e => updateNotifField('smtp_host', e.target.value)}
+                    placeholder="如: smtp.qq.com"
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                  <div className="form-group">
+                    <label>端口</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={notifConfig.smtp_port}
+                      onChange={e => updateNotifField('smtp_port', e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>发件邮箱</label>
+                    <input
+                      value={notifConfig.smtp_user}
+                      onChange={e => updateNotifField('smtp_user', e.target.value)}
+                      placeholder="sender@example.com"
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>授权码</label>
+                  <input
+                    type="password"
+                    value={notifConfig.smtp_password}
+                    onChange={e => updateNotifField('smtp_password', e.target.value)}
+                    placeholder="SMTP 授权码（已配置则留空）"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>收件邮箱</label>
+                  <input
+                    value={notifConfig.notify_email}
+                    onChange={e => updateNotifField('notify_email', e.target.value)}
+                    placeholder="receiver@example.com"
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                  <div className="form-group">
+                    <label>开始前提醒（分钟）</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={notifConfig.reminder_minutes_before}
+                      onChange={e => updateNotifField('reminder_minutes_before', e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>截止前提醒（分钟）</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={notifConfig.reminder_due_minutes}
+                      onChange={e => updateNotifField('reminder_due_minutes', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="skeleton skeleton-text" style={{ width: '60%' }} />
+                <div className="skeleton skeleton-text" style={{ width: '80%' }} />
+                <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+              </>
+            )}
           </>
         )}
       </div>

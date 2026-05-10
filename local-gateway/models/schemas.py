@@ -21,6 +21,7 @@ class TaskAction(str, enum.Enum):
     complete_task = "complete_task"
     batch_complete = "batch_complete"
     batch_delete = "batch_delete"
+    get_pending_tasks = "get_pending_tasks"
 
 
 class Recurrence(str, enum.Enum):
@@ -81,6 +82,14 @@ class TaskManagerRequest(BaseModel):
         None,
         description="ISO 8601 截止/提醒时间，add_task 时必填",
     )
+    start_time: Optional[str] = Field(
+        None,
+        description="ISO 8601 任务执行开始时间",
+    )
+    end_time: Optional[str] = Field(
+        None,
+        description="ISO 8601 任务执行结束时间",
+    )
     recurrence: Optional[Recurrence] = None
     priority: Optional[Priority] = Field(
         Priority.medium,
@@ -111,6 +120,10 @@ class TaskInfo(BaseModel):
     description: Optional[str] = None
     estimated_minutes: Optional[int] = None
     tags: list[str] = []
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    completed_at: Optional[str] = None
+    overdue: Optional[bool] = None
 
 
 class TaskManagerResponse(BaseModel):
@@ -119,6 +132,9 @@ class TaskManagerResponse(BaseModel):
     message: Optional[str] = None
     next_reminder: Optional[str] = None
     tasks: Optional[list[TaskInfo]] = None
+    warnings: Optional[list[str]] = None
+    total: Optional[int] = None
+    overdue_count: Optional[int] = None
 
 
 # ============================================================
@@ -132,6 +148,8 @@ class BatchTaskItem(BaseModel):
     priority: Optional[Priority] = Field(Priority.medium, description="优先级")
     description: Optional[str] = Field(None, description="任务描述")
     estimated_minutes: Optional[int] = Field(None, description="预估时间（分钟）")
+    start_time: Optional[str] = Field(None, description="任务执行开始时间（ISO 8601）")
+    end_time: Optional[str] = Field(None, description="任务执行结束时间（ISO 8601）")
 
 
 class BatchTaskRequest(BaseModel):
@@ -150,6 +168,7 @@ class BatchTaskResponse(BaseModel):
     daily_plan: Optional[dict] = None
     daily_timeline: Optional[list[str]] = None
     by_date: Optional[dict] = None
+    existing_tasks: Optional[list[dict]] = None
     message: Optional[str] = None
 
 
@@ -327,6 +346,7 @@ class DashboardResponse(BaseModel):
     storage: dict = {}
     recent_logs: list[dict] = []
     recent_downloads: list[dict] = []
+    streak: dict = {}
 
 
 class DownloadHistoryResponse(BaseModel):

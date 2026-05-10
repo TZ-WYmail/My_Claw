@@ -63,3 +63,11 @@ async def all_tasks(
         status_filter=status, keyword=keyword, tag=tag, priority=priority, page=page, page_size=page_size,
     )
     return AllTasksResponse(**result)
+
+
+@router.get("/streak")
+async def get_streak():
+    """获取 streak 和今日进度数据"""
+    from services.streak_service import get_streak_info
+    info = await get_streak_info()
+    return {"status": "success", **info}

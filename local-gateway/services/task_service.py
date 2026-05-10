@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     priority     INTEGER NOT NULL DEFAULT 2,  -- 0=urgent, 1=high, 2=medium, 3=low
     description  TEXT,
     estimated_minutes INTEGER,  -- 预估时间（分钟）
+    start_time    TEXT,  -- 任务执行开始时间（ISO 8601，可空）
+    end_time      TEXT,  -- 任务执行结束时间（ISO 8601，可空）
+    completed_at  TEXT,  -- 任务完成时间（可空）
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -120,10 +123,86 @@ async def init_db():
     from services.calendar_sync_service import init_calendar_db
     await init_calendar_db()
 
+    # 迁移：为已有数据库添加 start_time / end_time / completed_at 列
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute("PRAGMA table_info(tasks)")
+        existing_columns = {row[1] for row in await cursor.fetchall()}
+        for col in ("start_time", "end_time", "completed_at"):
+            if col not in existing_columns:
+                await db.execute(f"ALTER TABLE tasks ADD COLUMN {col} TEXT")
+        await db.commit()
+
 
 # ============================================================
 # CRUD 操作
 # ============================================================
+
+async def _check_conflicts(start_time: str, end_time: str, exclude_task_id: str = None) -> list[str]:
+    """
+    检查任务时间段是否与已有任务冲突。
+    返回 warnings 列表。
+    """
+    if not start_time or not end_time:
+        return []
+
+    warnings = []
+
+    try:
+        # 提取日期部分
+        task_date = start_time[:10]
+        task_start = datetime.fromisoformat(start_time)
+        task_end = datetime.fromisoformat(end_time)
+    except (ValueError, TypeError):
+        return []
+
+    if task_start >= task_end:
+        return []
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        # 查找同一天的所有 pending 任务
+        cursor = await db.execute(
+            """SELECT task_id, task_name, start_time, end_time, due_time, estimated_minutes
+               FROM tasks
+               WHERE status = 'pending'
+               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
+               AND start_time IS NOT NULL AND end_time IS NOT NULL""",
+            (task_date, task_date),
+        )
+        rows = await cursor.fetchall()
+
+        # 计算当日总工时
+        total_hours = 0
+
+        for row in rows:
+            if exclude_task_id and row["task_id"] == exclude_task_id:
+                continue
+
+            try:
+                existing_start = datetime.fromisoformat(row["start_time"])
+                existing_end = datetime.fromisoformat(row["end_time"])
+
+                # 累加工时
+                duration = (existing_end - existing_start).total_seconds() / 3600
+                total_hours += duration
+
+                # 时间重叠检测
+                if task_start < existing_end and task_end > existing_start:
+                    warnings.append(
+                        f"{start_time[11:16]}-{end_time[11:16]} 与已有任务「{row['task_name']}」时间冲突"
+                    )
+            except (ValueError, TypeError):
+                continue
+
+        # 加入新任务自身工时
+        new_hours = (task_end - task_start).total_seconds() / 3600
+        total_hours += new_hours
+
+        if total_hours > 8:
+            warnings.append(f"当日任务总工时已达 {total_hours:.1f}h，超过 8h 上限")
+
+    return warnings
+
 
 async def add_task(
     task_name: str,
@@ -133,15 +212,17 @@ async def add_task(
     description: str = None,
     estimated_minutes: int = None,
     tags: list[str] = None,
+    start_time: str = None,
+    end_time: str = None,
 ) -> dict:
     """添加任务并返回任务信息"""
     task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.execute(
-            """INSERT INTO tasks (task_id, task_name, due_time, recurrence, priority, description, estimated_minutes)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (task_id, task_name, due_time, recurrence, priority, description, estimated_minutes),
+            """INSERT INTO tasks (task_id, task_name, due_time, recurrence, priority, description, estimated_minutes, start_time, end_time)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (task_id, task_name, due_time, recurrence, priority, description, estimated_minutes, start_time, end_time),
         )
         await db.commit()
 
@@ -152,11 +233,26 @@ async def add_task(
     # 计算下次提醒时间
     next_reminder = _calc_next_reminder(due_time, recurrence)
 
+    # 冲突检测
+    warnings = []
+    if start_time and end_time:
+        warnings = await _check_conflicts(start_time, end_time)
+
+    # 注册任务提醒
+    try:
+        from services.notification_service import schedule_task_reminders
+        schedule_task_reminders(task_id, start_time=start_time, due_time=due_time, task_name=task_name)
+    except Exception:
+        pass  # 通知服务不可用时不影响主流程
+
     return {
         "status": "success",
         "task_id": task_id,
         "message": f"任务已添加，将在 {_human_readable_time(due_time)} 触发提醒",
         "next_reminder": next_reminder,
+        "start_time": start_time,
+        "end_time": end_time,
+        "warnings": warnings,
     }
 
 
@@ -170,6 +266,12 @@ async def delete_task(task_id: str) -> dict:
         await db.commit()
         if cursor.rowcount == 0:
             return {"status": "error", "message": f"任务 {task_id} 不存在"}
+    # 取消任务提醒
+    try:
+        from services.notification_service import cancel_task_reminders
+        cancel_task_reminders(task_id)
+    except Exception:
+        pass
     return {"status": "success", "message": f"任务 {task_id} 已删除"}
 
 
@@ -177,12 +279,18 @@ async def complete_task(task_id: str) -> dict:
     """标记任务完成"""
     async with aiosqlite.connect(str(DB_PATH)) as db:
         cursor = await db.execute(
-            "UPDATE tasks SET status = 'completed', updated_at = datetime('now') WHERE task_id = ?",
+            "UPDATE tasks SET status = 'completed', completed_at = datetime('now'), updated_at = datetime('now') WHERE task_id = ?",
             (task_id,),
         )
         await db.commit()
         if cursor.rowcount == 0:
             return {"status": "error", "message": f"任务 {task_id} 不存在"}
+    # 取消任务提醒
+    try:
+        from services.notification_service import cancel_task_reminders
+        cancel_task_reminders(task_id)
+    except Exception:
+        pass
     return {"status": "success", "message": f"任务 {task_id} 已完成"}
 
 
@@ -193,7 +301,7 @@ async def batch_complete_tasks(task_ids: list[str]) -> dict:
     placeholders = ",".join("?" for _ in task_ids)
     async with aiosqlite.connect(str(DB_PATH)) as db:
         cursor = await db.execute(
-            f"UPDATE tasks SET status = 'completed', updated_at = datetime('now') WHERE task_id IN ({placeholders}) AND status != 'deleted'",
+            f"UPDATE tasks SET status = 'completed', completed_at = datetime('now'), updated_at = datetime('now') WHERE task_id IN ({placeholders}) AND status != 'deleted'",
             task_ids,
         )
         await db.commit()
@@ -232,7 +340,7 @@ async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             """
-            SELECT task_id, task_name, due_time, recurrence, status, priority, description, estimated_minutes
+            SELECT task_id, task_name, due_time, recurrence, status, priority, description, estimated_minutes, start_time, end_time, completed_at
             FROM tasks
             WHERE status != 'deleted'
               AND due_time >= ? AND due_time <= ?
@@ -257,6 +365,9 @@ async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
             "priority": row["priority"],
             "description": row["description"],
             "estimated_minutes": row["estimated_minutes"],
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "completed_at": row["completed_at"],
             "tags": tags_map.get(row["task_id"], []),
         }
         tasks.append(task)
@@ -265,6 +376,54 @@ async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
         "status": "success",
         "tasks": tasks,
         "message": f"本周共有 {len(tasks)} 项任务",
+    }
+
+
+async def get_pending_tasks() -> dict:
+    """获取所有未完成任务，标记是否逾期"""
+    now = datetime.now().isoformat()
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT task_id, task_name, due_time, start_time, end_time, recurrence,
+                      status, priority, description, estimated_minutes
+               FROM tasks
+               WHERE status = 'pending'
+               ORDER BY priority ASC, due_time ASC""",
+        )
+        rows = await cursor.fetchall()
+
+    # 批量获取标签
+    task_ids = [row["task_id"] for row in rows]
+    tags_map = await get_task_tags_batch(task_ids)
+
+    tasks = []
+    for row in rows:
+        overdue = row["due_time"] < now
+        tasks.append({
+            "task_id": row["task_id"],
+            "task_name": row["task_name"],
+            "due_time": row["due_time"],
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "recurrence": row["recurrence"],
+            "status": row["status"],
+            "priority": row["priority"],
+            "description": row["description"],
+            "estimated_minutes": row["estimated_minutes"],
+            "overdue": overdue,
+            "tags": tags_map.get(row["task_id"], []),
+        })
+
+    overdue_count = sum(1 for t in tasks if t["overdue"])
+
+    return {
+        "status": "success",
+        "tasks": tasks,
+        "total": len(tasks),
+        "overdue_count": overdue_count,
+        "message": f"共 {len(tasks)} 项待办，其中 {overdue_count} 项已逾期",
     }
 
 
@@ -311,19 +470,30 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
                 continue
 
             task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+            task_start_time = t.get("start_time")
+            task_end_time = t.get("end_time")
 
             try:
                 await db.execute(
-                    "INSERT INTO tasks (task_id, task_name, due_time, recurrence) VALUES (?, ?, ?, ?)",
-                    (task_id, task_name, due_time, recurrence),
+                    "INSERT INTO tasks (task_id, task_name, due_time, recurrence, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)",
+                    (task_id, task_name, due_time, recurrence, task_start_time, task_end_time),
                 )
+                # 冲突检测
+                task_warnings = []
+                task_start = t.get("start_time")
+                task_end = t.get("end_time")
+                if task_start and task_end:
+                    task_warnings = await _check_conflicts(task_start, task_end)
                 results.append({
                     "task_id": task_id,
                     "task_name": task_name,
                     "due_time": due_time,
                     "recurrence": recurrence,
+                    "start_time": task_start_time,
+                    "end_time": task_end_time,
                     "status": "success",
                     "message": f"✅ {task_name} → {_human_readable_time(due_time)}",
+                    "warnings": task_warnings,
                 })
                 success_count += 1
             except Exception as e:
@@ -405,6 +575,8 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
             "conflict": conflict,
             "overdue": overdue,
             "estimated_hours": _estimate_hours(task_name) if iso_time else 0,
+            "start_time": t.get("start_time"),
+            "end_time": t.get("end_time"),
         })
 
     # 生成每日分布规划（将任务按时间线分配到每天）
@@ -425,6 +597,24 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
         tasks_str = "; ".join([f"{t['task_name']}({t['hours']}h)" for t in info["tasks"]])
         daily_timeline.append(f"📅 {day} ({weekday}) — {info['total_hours']}h: {tasks_str}")
 
+    # 查询相关日期的已有任务
+    existing_tasks = []
+    if by_date:
+        date_list = list(by_date.keys())
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            db.row_factory = aiosqlite.Row
+            for date_str in date_list:
+                cursor = await db.execute(
+                    """SELECT task_id, task_name, due_time, start_time, end_time, priority, status
+                       FROM tasks
+                       WHERE status = 'pending'
+                       AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)""",
+                    (date_str, date_str),
+                )
+                rows = await cursor.fetchall()
+                for row in rows:
+                    existing_tasks.append(dict(row))
+
     return {
         "status": "success",
         "total": len(raw_tasks),
@@ -433,6 +623,7 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
         "daily_plan": daily_plan,
         "daily_timeline": daily_timeline,
         "by_date": {k: v for k, v in sorted(by_date.items())},
+        "existing_tasks": existing_tasks,
         "message": f"解析完成: {len(analyzed)} 项任务, 跨 {len(by_date)} 个截止日, 分布到 {len(daily_plan)} 个工作日",
     }
 
@@ -669,7 +860,8 @@ async def get_all_tasks(
             cursor = await db.execute(
                 f"""
                 SELECT t.task_id, t.task_name, t.due_time, t.recurrence, t.status,
-                       t.priority, t.description, t.estimated_minutes, t.created_at
+                       t.priority, t.description, t.estimated_minutes, t.created_at,
+                       t.start_time, t.end_time, t.completed_at
                 FROM tasks t
                 JOIN task_tags tt ON t.task_id = tt.task_id
                 JOIN tags tg ON tt.tag_id = tg.tag_id
@@ -683,7 +875,8 @@ async def get_all_tasks(
             cursor = await db.execute(
                 f"""
                 SELECT task_id, task_name, due_time, recurrence, status,
-                       priority, description, estimated_minutes, created_at
+                       priority, description, estimated_minutes, created_at,
+                       start_time, end_time, completed_at
                 FROM tasks WHERE {where_clause}
                 ORDER BY priority ASC, due_time ASC
                 LIMIT ? OFFSET ?
@@ -708,6 +901,9 @@ async def get_all_tasks(
             "description": row["description"],
             "estimated_minutes": row["estimated_minutes"],
             "created_at": row["created_at"],
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "completed_at": row["completed_at"],
             "tags": tags_map.get(row["task_id"], []),
         }
         tasks.append(task)
@@ -915,6 +1111,10 @@ async def get_dashboard_stats() -> dict:
         )
         recent_downloads = [dict(row) for row in await cursor.fetchall()]
 
+    # Streak 和今日进度
+    from services.streak_service import get_streak_info
+    streak_info = await get_streak_info()
+
     return {
         "status": "success",
         "tasks": {"active": tasks_active, "pending": tasks_pending, "completed": tasks_completed},
@@ -926,6 +1126,7 @@ async def get_dashboard_stats() -> dict:
         },
         "recent_logs": recent_logs,
         "recent_downloads": recent_downloads,
+        "streak": streak_info,
     }
 
 

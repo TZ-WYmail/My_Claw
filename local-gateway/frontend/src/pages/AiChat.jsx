@@ -12,7 +12,9 @@ export default function AiChat() {
   const [streaming, setStreaming] = useState(false);
   const [currentModel, setCurrentModel] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [conversationId] = useState('default');
+  const [conversations, setConversations] = useState([]);
+  const [activeConvId, setActiveConvId] = useState('default');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Config state
   const [config, setConfig] = useState(null);
@@ -36,10 +38,20 @@ export default function AiChat() {
     } catch { /* silent */ }
   }, []);
 
+  // Fetch conversations
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await apiGet('/api/chat/conversations');
+      if (res.status === 'success') {
+        setConversations(res.conversations || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   // Load conversation history
   const loadHistory = useCallback(async () => {
     try {
-      const res = await apiGet(`/api/chat/history/${conversationId}`);
+      const res = await apiGet(`/api/chat/history/${activeConvId}`);
       if (res.status === 'success' && res.messages?.length > 0) {
         setMessages(res.messages.map((m, i) => ({
           id: m.id || i,
@@ -51,9 +63,56 @@ export default function AiChat() {
         })));
       }
     } catch { /* silent */ }
-  }, [conversationId]);
+  }, [activeConvId]);
 
-  useEffect(() => { fetchConfig(); loadHistory(); }, [fetchConfig, loadHistory]);
+  useEffect(() => { fetchConfig(); fetchConversations(); loadHistory(); }, [fetchConfig, fetchConversations, loadHistory]);
+
+  // New conversation
+  const createConversation = async () => {
+    try {
+      const res = await apiPost('/api/chat/conversations', {});
+      if (res.status === 'success') {
+        setActiveConvId(res.conversation_id);
+        setMessages([]);
+        fetchConversations();
+      }
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Switch conversation
+  const switchConversation = async (convId) => {
+    setActiveConvId(convId);
+    try {
+      const res = await apiGet(`/api/chat/history/${convId}`);
+      if (res.status === 'success' && res.messages?.length > 0) {
+        setMessages(res.messages.map((m, i) => ({
+          id: m.id || i, role: m.role, content: m.content || '',
+          thinking: m.thinking || '', model: m.model || '', timestamp: m.timestamp,
+        })));
+      } else {
+        setMessages([]);
+      }
+    } catch { setMessages([]); }
+  };
+
+  // Delete conversation
+  const deleteConversation = async (convId, e) => {
+    e.stopPropagation();
+    if (!confirm('确认删除此对话？')) return;
+    try {
+      await fetch(`/api/chat/conversations/${convId}`, { method: 'DELETE' }).then(r => r.json());
+      toast('对话已删除', 'success');
+      if (activeConvId === convId) {
+        const remaining = conversations.filter(c => c.id !== convId);
+        if (remaining.length > 0) {
+          switchConversation(remaining[0].id);
+        } else {
+          createConversation();
+        }
+      }
+      fetchConversations();
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   // Auto-scroll
   useEffect(() => {
@@ -79,7 +138,7 @@ export default function AiChat() {
       const resp = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, conversation_id: conversationId }),
+        body: JSON.stringify({ message: text, conversation_id: activeConvId }),
       });
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -163,7 +222,7 @@ export default function AiChat() {
     } finally {
       setStreaming(false);
     }
-  }, [input, streaming, conversationId, toast]);
+  }, [input, streaming, activeConvId, toast]);
 
   // Save config
   const saveConfig = async () => {
@@ -202,9 +261,10 @@ export default function AiChat() {
   // Clear conversation
   const clearChat = async () => {
     try {
-      await apiPost('/api/chat/clear', { conversation_id: conversationId });
+      await fetch(`/api/chat/conversations/${activeConvId}`, { method: 'DELETE' }).then(r => r.json());
       setMessages([]);
-      toast('对话已清除', 'success');
+      fetchConversations();
+      toast('对话已删除', 'success');
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -218,6 +278,52 @@ export default function AiChat() {
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+      {/* Left Sidebar - Conversation List */}
+      {sidebarOpen && (
+        <div style={{
+          width: 240, borderRight: '1px solid var(--border)',
+          background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column',
+          flexShrink: 0, overflow: 'hidden',
+        }}>
+          {/* New conversation button */}
+          <div style={{ padding: 'var(--space-sm) var(--space-md)', borderBottom: '1px solid var(--border)' }}>
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={createConversation}>
+              + 新对话
+            </button>
+          </div>
+          {/* Conversation list */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-xs)' }}>
+            {conversations.map(conv => (
+              <div
+                key={conv.id}
+                onClick={() => switchConversation(conv.id)}
+                style={{
+                  padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', marginBottom: 2, position: 'relative',
+                  background: conv.id === activeConvId ? 'rgba(10,132,255,0.1)' : 'transparent',
+                  borderLeft: conv.id === activeConvId ? '3px solid var(--accent)' : '3px solid transparent',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  fontSize: '0.85rem',
+                }}
+                onMouseEnter={e => { if (conv.id !== activeConvId) e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                onMouseLeave={e => { if (conv.id !== activeConvId) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {conv.title || '新对话'}
+                </span>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={(e) => deleteConversation(conv.id, e)}
+                  style={{ padding: '0 4px', fontSize: '0.7rem', opacity: 0.5, minWidth: 20 }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Header with model info */}
@@ -226,6 +332,9 @@ export default function AiChat() {
           background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center',
           gap: 'var(--space-sm)', fontSize: '0.82rem',
         }}>
+          <button className="btn btn-sm btn-ghost" onClick={() => setSidebarOpen(s => !s)} title="对话列表">
+            ☰
+          </button>
           <span style={{ fontWeight: 600 }}>AI 对话</span>
           {currentModel && (
             <span className="badge badge-pending" style={{ fontSize: '0.72rem' }}>

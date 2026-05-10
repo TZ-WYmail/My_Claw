@@ -35,6 +35,7 @@ from routers import (
     job_status,
     mobile,
     notes,
+    notification as notification_router,
     safe_downloader,
     sandbox_executor,
     shortcuts,
@@ -74,9 +75,17 @@ async def lifespan(app: FastAPI):
     # 初始化同步引擎
     await sync_engine.initialize()
     logger.info(f"✅ 同步引擎初始化完成")
+    # 初始化通知调度器
+    from services.notification_service import setup_scheduler, shutdown_scheduler
+    setup_scheduler()
+    logger.info("✅ 通知调度器初始化完成")
+    # 恢复所有 pending 任务的提醒
+    from services.notification_service import restore_all_reminders
+    await restore_all_reminders()
     logger.info(f"📡 服务监听: http://{HOST}:{PORT}")
     yield
     logger.info(f"🛑 {SERVICE_NAME} 正在关闭...")
+    shutdown_scheduler()
 
 
 # ============================================================
@@ -122,6 +131,7 @@ app.include_router(workflows.router, prefix="/api")
 app.include_router(sync.router, prefix="/api")
 app.include_router(mobile.router, prefix="/api")
 app.include_router(encryption.router, prefix="/api")
+app.include_router(notification_router.router, prefix="/api")
 
 
 # ============================================================

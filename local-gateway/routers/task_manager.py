@@ -32,6 +32,8 @@ async def handle_task(request: TaskManagerRequest):
             description=request.description,
             estimated_minutes=request.estimated_minutes,
             tags=request.tags,
+            start_time=request.start_time,
+            end_time=request.end_time,
         )
 
     elif request.action.value == "delete_task":
@@ -72,6 +74,9 @@ async def handle_task(request: TaskManagerRequest):
         sunday = request.task_name or ""  # 复用字段传 sunday
         result = await task_service.get_weekly_plan(monday, sunday)
 
+    elif request.action.value == "get_pending_tasks":
+        result = await task_service.get_pending_tasks()
+
     else:
         result = {"status": "error", "message": f"未知操作: {request.action}"}
 
@@ -93,6 +98,8 @@ async def handle_batch_task(request: BatchTaskRequest):
             "priority": getattr(t, 'priority', 2),
             "description": getattr(t, 'description', None),
             "estimated_minutes": getattr(t, 'estimated_minutes', None),
+            "start_time": getattr(t, 'start_time', None),
+            "end_time": getattr(t, 'end_time', None),
         }
         for t in request.tasks
     ]
@@ -111,6 +118,8 @@ async def handle_batch_task(request: BatchTaskRequest):
                 "priority": a.get("priority", 2),
                 "description": a.get("description"),
                 "estimated_minutes": a.get("estimated_minutes"),
+                "start_time": a.get("start_time"),
+                "end_time": a.get("end_time"),
             }
             for a in analyzed["analyzed"]
             if a["time_valid"]
