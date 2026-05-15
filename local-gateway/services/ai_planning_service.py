@@ -844,6 +844,20 @@ def _build_replan_context(tasks: list[dict], preview: dict, interrupt_task: dict
     }
 
 
+def _estimate_impact_scope(task_name: str, context: dict, suggestion: dict | None = None) -> dict:
+    conflict_chain = context.get("conflict_chain", [])
+    matched = next((item for item in conflict_chain if item.get("task_name") == task_name), None)
+    if not matched:
+        return {"days": 1, "tasks": 1, "dependency_changes": False}
+
+    reason_text = " ".join(matched.get("reasons", []))
+    return {
+        "days": max(1, len(matched.get("dates", [])) or 1),
+        "tasks": max(1, len(conflict_chain)),
+        "dependency_changes": "依赖" in reason_text or (suggestion or {}).get("reason_type") == "dependency_conflict",
+    }
+
+
 def _parse_json_response(content: str) -> dict:
     try:
         return json.loads(content)
@@ -895,7 +909,12 @@ async def _llm_reorder_conflict_tasks(context: dict) -> dict:
       "target_day": "2026-05-20",
       "confidence": 0.8,
       "severity": "must_change|optional",
-      "reason_type": "capacity_conflict|dependency_conflict|calendar_conflict|time_window_conflict|optimization"
+      "reason_type": "capacity_conflict|dependency_conflict|calendar_conflict|time_window_conflict|optimization",
+      "impact_scope": {{
+        "days": 2,
+        "tasks": 3,
+        "dependency_changes": true
+      }}
     }}
   ],
   "chain_summary": ["冲突链说明1", "冲突链说明2"],
@@ -931,6 +950,8 @@ async def _llm_reorder_conflict_tasks(context: dict) -> dict:
                     item["severity"] = "must_change" if item.get("suggestion") in {"advance", "delay", "split"} else "optional"
                 if "reason_type" not in item:
                     item["reason_type"] = "optimization"
+                if "impact_scope" not in item:
+                    item["impact_scope"] = _estimate_impact_scope(item.get("task_name", ""), context, item)
             return {"status": "success", **parsed}
     except Exception as exc:
         logger.exception("LLM 冲突链重排失败")
@@ -966,6 +987,7 @@ def _fallback_reorder_conflict_tasks(context: dict) -> dict:
             "confidence": 0.65 if suggestion == "delay" else 0.75,
             "severity": "must_change" if len(item["dates"]) >= 1 else "optional",
             "reason_type": reason_type,
+            "impact_scope": _estimate_impact_scope(task_name, context, {"reason_type": reason_type}),
         })
 
     if overload_days:
@@ -1036,6 +1058,7 @@ def _apply_reorder_suggestions(
                 "confidence": suggestion.get("confidence"),
                 "severity": suggestion.get("severity"),
                 "reason_type": suggestion.get("reason_type"),
+                "impact_scope": suggestion.get("impact_scope"),
             })
             updated_tasks.append(updated_task)
             continue
@@ -1050,6 +1073,7 @@ def _apply_reorder_suggestions(
                 "confidence": suggestion.get("confidence"),
                 "severity": suggestion.get("severity"),
                 "reason_type": suggestion.get("reason_type"),
+                "impact_scope": suggestion.get("impact_scope"),
             })
         elif action == "split" and target_day:
             updated_task = _shift_task_day(updated_task, target_day)
@@ -1062,6 +1086,7 @@ def _apply_reorder_suggestions(
                 "confidence": suggestion.get("confidence"),
                 "severity": suggestion.get("severity"),
                 "reason_type": suggestion.get("reason_type"),
+                "impact_scope": suggestion.get("impact_scope"),
             })
         else:
             applied_actions.append({
@@ -1072,6 +1097,7 @@ def _apply_reorder_suggestions(
                 "confidence": suggestion.get("confidence"),
                 "severity": suggestion.get("severity"),
                 "reason_type": suggestion.get("reason_type"),
+                "impact_scope": suggestion.get("impact_scope"),
             })
 
         updated_tasks.append(updated_task)

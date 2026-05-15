@@ -31,7 +31,13 @@ export default function AiChat() {
   const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
   const [reasonFilter, setReasonFilter] = useState('all');
 
-  const filteredSuggestions = (replanResult?.reordered_tasks || []).filter(item => reasonFilter === 'all' || item.reason_type === reasonFilter);
+  const filteredSuggestions = (replanResult?.reordered_tasks || [])
+    .filter(item => reasonFilter === 'all' || item.reason_type === reasonFilter)
+    .sort((a, b) => {
+      const aImpact = (a.impact_scope?.days || 0) * 100 + (a.impact_scope?.tasks || 0);
+      const bImpact = (b.impact_scope?.days || 0) * 100 + (b.impact_scope?.tasks || 0);
+      return bImpact - aImpact;
+    });
   const mustChangeSuggestions = filteredSuggestions.filter(item => item.severity === 'must_change');
   const optionalSuggestions = filteredSuggestions.filter(item => item.severity !== 'must_change');
 
@@ -705,7 +711,7 @@ export default function AiChat() {
                                 }}
                                 style={{ marginRight: 6 }}
                               />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
                             </label>
                           ))}
                         </div>
@@ -727,7 +733,7 @@ export default function AiChat() {
                                 }}
                                 style={{ marginRight: 6 }}
                               />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
                             </label>
                           ))}
                         </div>
@@ -742,7 +748,7 @@ export default function AiChat() {
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>已应用动作</div>
                       {(replanResult.applied_actions || []).slice(0, 6).map((item, index) => (
                         <div key={`applied-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason_type || '-'} / {item.severity || '-'} / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
+                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason_type || '-'} / {item.severity || '-'} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
                         </div>
                       ))}
                     </div>
