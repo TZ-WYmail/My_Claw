@@ -20,6 +20,31 @@ function renderInlineMarkdown(text = '') {
   return html;
 }
 
+function highlightCode(code = '', language = '') {
+  const escaped = escapeHtml(code);
+  const lang = String(language || '').toLowerCase();
+
+  if (lang === 'mermaid') {
+    return escaped;
+  }
+
+  const patterns = [];
+  if (['js', 'javascript', 'ts', 'typescript', 'python', 'py', 'bash', 'shell', 'json'].includes(lang)) {
+    patterns.push(
+      { regex: /\b(const|let|var|function|return|if|else|for|while|import|from|export|class|async|await|try|catch|def|lambda|yield|True|False|None|print|in|and|or|not|echo)\b/g, cls: 'token-keyword' },
+      { regex: /(\".*?\"|\'.*?\'|\`.*?\`)/g, cls: 'token-string' },
+      { regex: /\b(\d+(\.\d+)?)\b/g, cls: 'token-number' },
+      { regex: /(\/\/.*$|#.*$)/gm, cls: 'token-comment' },
+    );
+  }
+
+  let html = escaped;
+  patterns.forEach(({ regex, cls }) => {
+    html = html.replace(regex, (match) => `<span class="${cls}">${match}</span>`);
+  });
+  return html;
+}
+
 function renderMarkdownToHtml(markdown = '') {
   const normalized = String(markdown || '').replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
@@ -98,12 +123,19 @@ function renderMarkdownToHtml(markdown = '') {
 
   const flushCode = () => {
     if (!codeBuffer.length) return;
-    const code = escapeHtml(codeBuffer.join('\n'));
+    const rawCode = codeBuffer.join('\n');
+    const code = highlightCode(rawCode, codeLanguage);
     const languageLabel = codeLanguage ? `<div class="markdown-code-lang">${escapeHtml(codeLanguage)}</div>` : '';
-    const encoded = encodeURIComponent(codeBuffer.join('\n'));
-    html.push(
-      `<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${code}</code></pre></div>`
-    );
+    const encoded = encodeURIComponent(rawCode);
+    if (String(codeLanguage || '').toLowerCase() === 'mermaid') {
+      html.push(
+        `<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${escapeHtml(rawCode)}</code></pre><div class="markdown-mermaid-note">Mermaid 图表源码已保留，可复制到支持 Mermaid 的工具中查看。</div></div>`
+      );
+    } else {
+      html.push(
+        `<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${code}</code></pre></div>`
+      );
+    }
     codeBuffer = [];
     codeLanguage = '';
   };

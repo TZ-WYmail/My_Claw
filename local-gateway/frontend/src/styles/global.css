@@ -261,7 +261,8 @@ textarea { resize: vertical; min-height: 80px; }
   border-collapse: collapse;
   margin: 0.8em 0;
   font-size: 0.92em;
-  overflow: hidden;
+  display: block;
+  overflow-x: auto;
 }
 .markdown-body th,
 .markdown-body td {
@@ -273,6 +274,29 @@ textarea { resize: vertical; min-height: 80px; }
 .markdown-body th {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
+}
+.markdown-mermaid-block {
+  position: relative;
+  margin: 0.6em 0;
+}
+.markdown-mermaid-note {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+.markdown-body .token-keyword {
+  color: #c678dd;
+  font-weight: 600;
+}
+.markdown-body .token-string {
+  color: #98c379;
+}
+.markdown-body .token-number {
+  color: #d19a66;
+}
+.markdown-body .token-comment {
+  color: #7f848e;
+  font-style: italic;
 }
 
 /* Animations */
