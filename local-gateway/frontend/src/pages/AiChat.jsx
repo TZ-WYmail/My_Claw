@@ -26,19 +26,48 @@ function renderMarkdownToHtml(markdown = '') {
   const html = [];
   let inCodeBlock = false;
   let codeBuffer = [];
-  let listBuffer = [];
+  let unorderedListBuffer = [];
+  let orderedListBuffer = [];
   let blockquoteBuffer = [];
+  let tableBuffer = [];
 
-  const flushList = () => {
-    if (!listBuffer.length) return;
-    html.push(`<ul>${listBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
-    listBuffer = [];
+  const flushUnorderedList = () => {
+    if (!unorderedListBuffer.length) return;
+    html.push(`<ul>${unorderedListBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
+    unorderedListBuffer = [];
+  };
+
+  const flushOrderedList = () => {
+    if (!orderedListBuffer.length) return;
+    html.push(`<ol>${orderedListBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ol>`);
+    orderedListBuffer = [];
   };
 
   const flushBlockquote = () => {
     if (!blockquoteBuffer.length) return;
     html.push(`<blockquote>${blockquoteBuffer.map(item => renderInlineMarkdown(item)).join('<br/>')}</blockquote>`);
     blockquoteBuffer = [];
+  };
+
+  const flushTable = () => {
+    if (tableBuffer.length < 2) {
+      tableBuffer = [];
+      return;
+    }
+    const [headerLine, separatorLine, ...bodyLines] = tableBuffer;
+    if (!/\|/.test(separatorLine)) {
+      tableBuffer = [];
+      return;
+    }
+    const splitRow = (line) => line.split('|').map(cell => cell.trim()).filter((_, index, arr) => !(index === 0 && arr[0] === '') && !(index === arr.length - 1 && arr[arr.length - 1] === ''));
+    const headers = splitRow(headerLine);
+    const rows = bodyLines.map(splitRow);
+    html.push(
+      `<table><thead><tr>${headers.map(cell => `<th>${renderInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${
+        rows.map(row => `<tr>${row.map(cell => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')
+      }</tbody></table>`
+    );
+    tableBuffer = [];
   };
 
   const flushCode = () => {
@@ -51,8 +80,10 @@ function renderMarkdownToHtml(markdown = '') {
     const line = rawLine ?? '';
 
     if (line.trim().startsWith('```')) {
-      flushList();
+      flushUnorderedList();
+      flushOrderedList();
       flushBlockquote();
+      flushTable();
       if (inCodeBlock) {
         flushCode();
         inCodeBlock = false;
@@ -68,16 +99,20 @@ function renderMarkdownToHtml(markdown = '') {
     }
 
     if (!line.trim()) {
-      flushList();
+      flushUnorderedList();
+      flushOrderedList();
       flushBlockquote();
+      flushTable();
       html.push('');
       return;
     }
 
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) {
-      flushList();
+      flushUnorderedList();
+      flushOrderedList();
       flushBlockquote();
+      flushTable();
       const level = headingMatch[1].length;
       html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
       return;
@@ -86,24 +121,49 @@ function renderMarkdownToHtml(markdown = '') {
     const listMatch = line.match(/^\s*[-*+]\s+(.*)$/);
     if (listMatch) {
       flushBlockquote();
-      listBuffer.push(listMatch[1]);
+      flushOrderedList();
+      flushTable();
+      unorderedListBuffer.push(listMatch[1]);
+      return;
+    }
+
+    const orderedListMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (orderedListMatch) {
+      flushBlockquote();
+      flushUnorderedList();
+      flushTable();
+      orderedListBuffer.push(orderedListMatch[1]);
       return;
     }
 
     const quoteMatch = line.match(/^\s*>\s?(.*)$/);
     if (quoteMatch) {
-      flushList();
+      flushUnorderedList();
+      flushOrderedList();
+      flushTable();
       blockquoteBuffer.push(quoteMatch[1]);
       return;
     }
 
-    flushList();
+    if (line.includes('|')) {
+      flushUnorderedList();
+      flushOrderedList();
+      flushBlockquote();
+      tableBuffer.push(line);
+      return;
+    }
+
+    flushUnorderedList();
+    flushOrderedList();
     flushBlockquote();
+    flushTable();
     html.push(`<p>${renderInlineMarkdown(line)}</p>`);
   });
 
-  flushList();
+  flushUnorderedList();
+  flushOrderedList();
   flushBlockquote();
+  flushTable();
   flushCode();
 
   return html.filter(Boolean).join('');
