@@ -218,6 +218,37 @@ textarea { resize: vertical; min-height: 80px; }
   background: transparent;
   padding: 0;
 }
+.markdown-code-block {
+  position: relative;
+  margin: 0.6em 0;
+}
+.markdown-code-block pre {
+  margin: 0;
+  padding-top: 28px;
+}
+.markdown-code-lang {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+.markdown-code-copy {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.markdown-code-copy:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
 .markdown-body a {
   color: var(--accent);
   text-decoration: none;

@@ -26,20 +26,46 @@ function renderMarkdownToHtml(markdown = '') {
   const html = [];
   let inCodeBlock = false;
   let codeBuffer = [];
+  let codeLanguage = '';
   let unorderedListBuffer = [];
   let orderedListBuffer = [];
   let blockquoteBuffer = [];
   let tableBuffer = [];
 
+  const buildNestedListHtml = (items, type = 'ul') => {
+    if (!items.length) return '';
+    const root = [];
+    const stack = [{ indent: -1, items: root }];
+
+    items.forEach((item) => {
+      const node = { ...item, children: [] };
+      while (stack.length > 1 && item.indent <= stack[stack.length - 1].indent) {
+        stack.pop();
+      }
+      stack[stack.length - 1].items.push(node);
+      stack.push({ indent: item.indent, items: node.children });
+    });
+
+    const renderNodes = (nodes, listType) => {
+      const tag = listType === 'ol' ? 'ol' : 'ul';
+      return `<${tag}>${nodes.map(node => {
+        const childType = (node.children[0]?.ordered ?? false) ? 'ol' : 'ul';
+        return `<li>${renderInlineMarkdown(node.content)}${node.children.length ? renderNodes(node.children, childType) : ''}</li>`;
+      }).join('')}</${tag}>`;
+    };
+
+    return renderNodes(root, type);
+  };
+
   const flushUnorderedList = () => {
     if (!unorderedListBuffer.length) return;
-    html.push(`<ul>${unorderedListBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
+    html.push(buildNestedListHtml(unorderedListBuffer.map(item => ({ ...item, ordered: false })), 'ul'));
     unorderedListBuffer = [];
   };
 
   const flushOrderedList = () => {
     if (!orderedListBuffer.length) return;
-    html.push(`<ol>${orderedListBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ol>`);
+    html.push(buildNestedListHtml(orderedListBuffer.map(item => ({ ...item, ordered: true })), 'ol'));
     orderedListBuffer = [];
   };
 
@@ -72,8 +98,14 @@ function renderMarkdownToHtml(markdown = '') {
 
   const flushCode = () => {
     if (!codeBuffer.length) return;
-    html.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+    const code = escapeHtml(codeBuffer.join('\n'));
+    const languageLabel = codeLanguage ? `<div class="markdown-code-lang">${escapeHtml(codeLanguage)}</div>` : '';
+    const encoded = encodeURIComponent(codeBuffer.join('\n'));
+    html.push(
+      `<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${code}</code></pre></div>`
+    );
     codeBuffer = [];
+    codeLanguage = '';
   };
 
   lines.forEach((rawLine) => {
@@ -89,6 +121,7 @@ function renderMarkdownToHtml(markdown = '') {
         inCodeBlock = false;
       } else {
         inCodeBlock = true;
+        codeLanguage = line.trim().slice(3).trim();
       }
       return;
     }
@@ -118,21 +151,21 @@ function renderMarkdownToHtml(markdown = '') {
       return;
     }
 
-    const listMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+    const listMatch = line.match(/^(\s*)[-*+]\s+(.*)$/);
     if (listMatch) {
       flushBlockquote();
       flushOrderedList();
       flushTable();
-      unorderedListBuffer.push(listMatch[1]);
+      unorderedListBuffer.push({ indent: listMatch[1].length, content: listMatch[2] });
       return;
     }
 
-    const orderedListMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+    const orderedListMatch = line.match(/^(\s*)\d+\.\s+(.*)$/);
     if (orderedListMatch) {
       flushBlockquote();
       flushUnorderedList();
       flushTable();
-      orderedListBuffer.push(orderedListMatch[1]);
+      orderedListBuffer.push({ indent: orderedListMatch[1].length, content: orderedListMatch[2] });
       return;
     }
 
@@ -324,6 +357,23 @@ export default function AiChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const handleCopy = async (event) => {
+      const target = event.target;
+      if (!target || !target.classList?.contains('markdown-code-copy')) return;
+      const code = decodeURIComponent(target.getAttribute('data-code') || '');
+      try {
+        await navigator.clipboard.writeText(code);
+        toast('代码已复制', 'success');
+      } catch {
+        toast('复制失败', 'error');
+      }
+    };
+
+    document.addEventListener('click', handleCopy);
+    return () => document.removeEventListener('click', handleCopy);
+  }, [toast]);
 
   // Send message with SSE streaming
   const sendMessage = useCallback(async () => {
