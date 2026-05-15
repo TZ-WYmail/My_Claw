@@ -135,7 +135,10 @@ export default function AiChat() {
     e.stopPropagation();
     if (!confirm('确认删除此对话？')) return;
     try {
-      await fetch(`/api/chat/conversations/${convId}`, { method: 'DELETE' }).then(r => r.json());
+      const res = await fetch(`/api/chat/conversations/${convId}`, { method: 'DELETE' }).then(r => r.json());
+      if (res.status !== 'success') {
+        throw new Error(res.message || '删除失败');
+      }
       toast('对话已删除', 'success');
       if (activeConvId === convId) {
         const remaining = conversations.filter(c => c.id !== convId);

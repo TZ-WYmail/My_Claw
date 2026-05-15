@@ -23,6 +23,7 @@ from services.ai_service import (
     chat,
     chat_stream,
     clear_conversation,
+    delete_conversation_data,
     _list_all_conversations,
     _save_conversation_meta,
     test_connection,
@@ -155,5 +156,4 @@ async def create_conversation():
 @router.delete("/chat/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """删除对话"""
-    clear_conversation(conversation_id)
-    return {"status": "success", "message": "对话已删除"}
+    return delete_conversation_data(conversation_id)

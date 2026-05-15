@@ -692,6 +692,34 @@ def clear_conversation(conversation_id: str = "default"):
         meta_f.unlink()
 
 
+def delete_conversation_data(conversation_id: str) -> dict:
+    """彻底删除一个对话的内存状态、消息文件、历史文件和元数据文件。"""
+    from config import BASE_DIR
+
+    removed_files = []
+    clear_conversation(conversation_id)
+
+    conv_dir = BASE_DIR / "data" / "conversations"
+    if conv_dir.exists():
+        for suffix in [".jsonl", "_history.jsonl", "_meta.json"]:
+            path = conv_dir / f"{conversation_id}{suffix}"
+            if path.exists():
+                path.unlink()
+                removed_files.append(path.name)
+
+    still_exists = any(
+        (conv_dir / f"{conversation_id}{suffix}").exists()
+        for suffix in [".jsonl", "_history.jsonl", "_meta.json"]
+    ) if conv_dir.exists() else False
+
+    return {
+        "status": "success" if not still_exists else "error",
+        "conversation_id": conversation_id,
+        "removed_files": removed_files,
+        "message": "对话已删除" if not still_exists else "对话文件未完全删除",
+    }
+
+
 # ============================================================
 # Code Interpreter — 本地子进程执行代码
 # ============================================================
