@@ -151,6 +151,8 @@ async def test_replan_task_plan_returns_preview():
     assert isinstance(result["risk_changes"], list)
     assert "conflict_chain" in result
     assert "reordered_tasks" in result
+    assert "suggested_plan" in result
+    assert "applied_actions" in result
 
 
 @pytest.mark.asyncio
@@ -164,3 +166,5 @@ async def test_replan_returns_conflict_chain_for_linked_tasks():
     assert result["status"] == "success"
     assert isinstance(result["conflict_chain"], list)
     assert isinstance(result["reordered_tasks"], list)
+    assert isinstance(result["applied_actions"], list)
+    assert isinstance(result["suggested_plan"].get("variant_plans"), dict)

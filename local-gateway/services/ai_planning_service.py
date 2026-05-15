@@ -966,6 +966,74 @@ def _fallback_reorder_conflict_tasks(context: dict) -> dict:
     }
 
 
+def _shift_task_day(task: dict, target_day: str, keep_time: bool = True) -> dict:
+    updated = dict(task)
+    if not target_day:
+        return updated
+
+    original_due = task.get("due_time", "")
+    due_time_part = "09:00:00"
+    if "T" in original_due:
+        due_time_part = original_due.split("T", 1)[1]
+    updated["due_time"] = f"{target_day}T{due_time_part}" if keep_time else f"{target_day}T09:00:00"
+
+    for field in ("earliest_start", "start_time", "end_time"):
+        value = task.get(field)
+        if not value or "T" not in value:
+            continue
+        time_part = value.split("T", 1)[1]
+        updated[field] = f"{target_day}T{time_part}"
+    return updated
+
+
+def _apply_reorder_suggestions(tasks: list[dict], reordered_tasks: list[dict]) -> tuple[list[dict], list[dict]]:
+    if not reordered_tasks:
+        return tasks, []
+
+    suggestion_map = {item["task_name"]: item for item in reordered_tasks if item.get("task_name")}
+    updated_tasks = []
+    applied_actions = []
+
+    for task in tasks:
+        suggestion = suggestion_map.get(task.get("task_name"))
+        if not suggestion:
+            updated_tasks.append(task)
+            continue
+
+        action = suggestion.get("suggestion", "keep")
+        target_day = suggestion.get("target_day", "")
+        updated_task = dict(task)
+
+        if action in {"advance", "delay"} and target_day:
+            updated_task = _shift_task_day(updated_task, target_day)
+            applied_actions.append({
+                "task_name": task["task_name"],
+                "action": action,
+                "target_day": target_day,
+                "reason": suggestion.get("reason", ""),
+            })
+        elif action == "split" and target_day:
+            updated_task = _shift_task_day(updated_task, target_day)
+            updated_task["estimated_minutes"] = max(30, int(updated_task.get("estimated_minutes", 60) * 0.8))
+            applied_actions.append({
+                "task_name": task["task_name"],
+                "action": action,
+                "target_day": target_day,
+                "reason": suggestion.get("reason", ""),
+            })
+        else:
+            applied_actions.append({
+                "task_name": task["task_name"],
+                "action": "keep",
+                "target_day": updated_task.get("due_time", "")[:10],
+                "reason": suggestion.get("reason", ""),
+            })
+
+        updated_tasks.append(updated_task)
+
+    return updated_tasks, applied_actions
+
+
 async def preview_task_plan(tasks: list[dict], constraints: dict | None = None) -> dict:
     normalized_tasks = _normalize_tasks(tasks)
     analyzed = await task_service.analyze_tasks(normalized_tasks)
@@ -1089,6 +1157,8 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
     llm_replan = await _llm_reorder_conflict_tasks(replan_context)
     if llm_replan.get("status") != "success":
         llm_replan = _fallback_reorder_conflict_tasks(replan_context)
+    suggested_tasks, applied_actions = _apply_reorder_suggestions(merged_tasks, llm_replan.get("reordered_tasks", []))
+    suggested_preview = await preview_task_plan(suggested_tasks, constraints)
     postpone_candidates = []
     impact_summary = []
     risk_changes = []
@@ -1130,7 +1200,9 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
         "risk_changes": risk_changes[:5],
         "conflict_chain": replan_context.get("conflict_chain", []),
         "reordered_tasks": llm_replan.get("reordered_tasks", []),
+        "applied_actions": applied_actions,
         "new_plan": preview,
+        "suggested_plan": suggested_preview,
     }
 
 

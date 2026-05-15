@@ -384,8 +384,9 @@ export default function AiChat() {
         },
       });
       if (res.status === 'error') throw new Error(res.message || '重排失败');
-      setPlanningPreview(res.new_plan);
-      setSelectedVariant(res.new_plan?.selected_variant || res.new_plan?.variants?.[0]?.id || 'balanced');
+      const suggested = res.suggested_plan || res.new_plan;
+      setPlanningPreview(suggested);
+      setSelectedVariant(suggested?.selected_variant || suggested?.variants?.[0]?.id || 'balanced');
       setReplanResult(res);
       toast(`已重排，建议后移 ${res.postpone_candidates?.length || 0} 项任务`, 'success');
     } catch (e) {
@@ -627,6 +628,16 @@ export default function AiChat() {
                       {(replanResult.reordered_tasks || []).slice(0, 6).map((item, index) => (
                         <div key={`reorder-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
                           {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(replanResult.applied_actions || []).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>已应用动作</div>
+                      {(replanResult.applied_actions || []).slice(0, 6).map((item, index) => (
+                        <div key={`applied-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason || '无'}
                         </div>
                       ))}
                     </div>
