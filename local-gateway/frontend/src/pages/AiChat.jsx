@@ -2,6 +2,113 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 
+function escapeHtml(value = '') {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInlineMarkdown(text = '') {
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  return html;
+}
+
+function renderMarkdownToHtml(markdown = '') {
+  const normalized = String(markdown || '').replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const html = [];
+  let inCodeBlock = false;
+  let codeBuffer = [];
+  let listBuffer = [];
+  let blockquoteBuffer = [];
+
+  const flushList = () => {
+    if (!listBuffer.length) return;
+    html.push(`<ul>${listBuffer.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
+    listBuffer = [];
+  };
+
+  const flushBlockquote = () => {
+    if (!blockquoteBuffer.length) return;
+    html.push(`<blockquote>${blockquoteBuffer.map(item => renderInlineMarkdown(item)).join('<br/>')}</blockquote>`);
+    blockquoteBuffer = [];
+  };
+
+  const flushCode = () => {
+    if (!codeBuffer.length) return;
+    html.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+    codeBuffer = [];
+  };
+
+  lines.forEach((rawLine) => {
+    const line = rawLine ?? '';
+
+    if (line.trim().startsWith('```')) {
+      flushList();
+      flushBlockquote();
+      if (inCodeBlock) {
+        flushCode();
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      return;
+    }
+
+    if (!line.trim()) {
+      flushList();
+      flushBlockquote();
+      html.push('');
+      return;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushList();
+      flushBlockquote();
+      const level = headingMatch[1].length;
+      html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+      return;
+    }
+
+    const listMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (listMatch) {
+      flushBlockquote();
+      listBuffer.push(listMatch[1]);
+      return;
+    }
+
+    const quoteMatch = line.match(/^\s*>\s?(.*)$/);
+    if (quoteMatch) {
+      flushList();
+      blockquoteBuffer.push(quoteMatch[1]);
+      return;
+    }
+
+    flushList();
+    flushBlockquote();
+    html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+  });
+
+  flushList();
+  flushBlockquote();
+  flushCode();
+
+  return html.filter(Boolean).join('');
+}
+
 export default function AiChat() {
   const toast = useToast();
   const messagesEndRef = useRef(null);
@@ -40,6 +147,7 @@ export default function AiChat() {
     });
   const mustChangeSuggestions = filteredSuggestions.filter(item => item.severity === 'must_change');
   const optionalSuggestions = filteredSuggestions.filter(item => item.severity !== 'must_change');
+  const renderAssistantContent = useCallback((content) => ({ __html: renderMarkdownToHtml(content) }), []);
 
   const getActivePlanningView = useCallback((preview, variantId) => {
     if (!preview) return null;
@@ -840,7 +948,11 @@ export default function AiChat() {
                 )}
 
                 {/* Message content */}
-                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                {msg.role === 'assistant' ? (
+                  <div className="markdown-body" dangerouslySetInnerHTML={renderAssistantContent(msg.content)} />
+                ) : (
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                )}
               </div>
             </div>
           ))}
