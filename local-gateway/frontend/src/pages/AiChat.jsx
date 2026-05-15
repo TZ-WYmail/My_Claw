@@ -21,6 +21,29 @@ export default function AiChat() {
   const [configForm, setConfigForm] = useState({ api_base: '', api_key: '', model: '' });
   const [showConfig, setShowConfig] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [planningText, setPlanningText] = useState('');
+  const [planningPreview, setPlanningPreview] = useState(null);
+  const [planningLoading, setPlanningLoading] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState('balanced');
+  const [interruptTaskName, setInterruptTaskName] = useState('');
+  const [interruptTaskDueTime, setInterruptTaskDueTime] = useState('');
+  const [replanResult, setReplanResult] = useState(null);
+
+  const getActivePlanningView = useCallback((preview, variantId) => {
+    if (!preview) return null;
+    const activeVariantId = variantId || preview.selected_variant || 'balanced';
+    const variantPlan = preview.variant_plans?.[activeVariantId];
+    if (!variantPlan) return preview;
+    return {
+      ...preview,
+      selected_variant: activeVariantId,
+      daily_plan: variantPlan.daily_plan || {},
+      daily_timeline: variantPlan.daily_timeline || [],
+      conflicts: variantPlan.conflicts || [],
+      overload_days: variantPlan.overload_days || [],
+      infeasible_tasks: variantPlan.infeasible_tasks || [],
+    };
+  }, []);
 
   // Fetch config
   const fetchConfig = useCallback(async () => {
@@ -268,6 +291,112 @@ export default function AiChat() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  const previewPlanning = async () => {
+    if (!planningText.trim()) {
+      toast('请输入任务列表', 'error');
+      return;
+    }
+    setPlanningLoading(true);
+    try {
+      const tasks = planningText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
+          return {
+            task_name: name,
+            due_time: due || '',
+            earliest_start: earliestStart || '',
+            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
+          };
+        });
+      const res = await apiPost('/api/ai/plan/preview', {
+        tasks,
+        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+      });
+      if (res.status === 'error') throw new Error(res.message || '预览失败');
+      setPlanningPreview(res);
+      setSelectedVariant(res.variants?.[0]?.id || 'balanced');
+      setInterruptTaskName('');
+      setInterruptTaskDueTime('');
+      setReplanResult(null);
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setPlanningLoading(false);
+    }
+  };
+
+  const confirmPlanning = async () => {
+    if (!planningPreview?.preview_id) return;
+    setPlanningLoading(true);
+    try {
+      const res = await apiPost('/api/ai/plan/confirm', {
+        preview_id: planningPreview.preview_id,
+        selected_variant: selectedVariant,
+        user_adjustments: {},
+      });
+      if (res.status === 'error') throw new Error(res.message || '创建失败');
+      toast(`已创建 ${res.success_count || 0} 项任务`, 'success');
+      setPlanningPreview(null);
+      setPlanningText('');
+      setInterruptTaskName('');
+      setInterruptTaskDueTime('');
+      setReplanResult(null);
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setPlanningLoading(false);
+    }
+  };
+
+  const replanWithInterrupt = async () => {
+    if (!planningText.trim()) {
+      toast('请先输入基础任务列表', 'error');
+      return;
+    }
+    if (!interruptTaskName.trim() || !interruptTaskDueTime.trim()) {
+      toast('请填写突发任务名称和截止时间', 'error');
+      return;
+    }
+    setPlanningLoading(true);
+    try {
+      const tasks = planningText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
+          return {
+            task_name: name,
+            due_time: due || '',
+            earliest_start: earliestStart || '',
+            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
+          };
+        });
+      const res = await apiPost('/api/ai/plan/replan', {
+        tasks,
+        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+        interrupt_task: {
+          task_name: interruptTaskName.trim(),
+          due_time: interruptTaskDueTime.trim(),
+        },
+      });
+      if (res.status === 'error') throw new Error(res.message || '重排失败');
+      setPlanningPreview(res.new_plan);
+      setSelectedVariant(res.new_plan?.selected_variant || res.new_plan?.variants?.[0]?.id || 'balanced');
+      setReplanResult(res);
+      toast(`已重排，建议后移 ${res.postpone_candidates?.length || 0} 项任务`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setPlanningLoading(false);
+    }
+  };
+
+  const activePlanningView = getActivePlanningView(planningPreview, selectedVariant);
+
   // Handle Enter
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -358,6 +487,139 @@ export default function AiChat() {
           flex: 1, overflowY: 'auto', padding: 'var(--space-md)',
           display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)',
         }}>
+          <div className="card" style={{ marginBottom: 'var(--space-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>AI 安排任务</h3>
+              <span className="badge badge-pending">preview → confirm</span>
+            </div>
+            <textarea
+              value={planningText}
+              onChange={e => setPlanningText(e.target.value)}
+              placeholder={`每行一个任务，格式：\n任务名 | 截止时间 | 最早开始时间(可选) | 依赖任务(可选,逗号分隔)\n例如：\n收集数据 | 2026-05-18 | 2026-05-16 |\n写周报 | 2026-05-19 | 2026-05-18 | 收集数据\n准备汇报 | 2026-05-20 | | 写周报`}
+              rows={5}
+              style={{ marginBottom: 'var(--space-sm)' }}
+            />
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={previewPlanning} disabled={planningLoading}>
+                  {planningLoading ? '预览中...' : '预览安排'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => setPlanningPreview(null)} disabled={!planningPreview}>
+                清空预览
+              </button>
+            </div>
+          </div>
+
+          {planningPreview && (
+            <div className="card" style={{ marginBottom: 'var(--space-sm)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 4 }}>预览结果</h3>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                    {activePlanningView?.explanation?.summary || planningPreview.explanation?.summary || '已生成结构化预览'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {(planningPreview.variants || []).map(variant => (
+                    <button
+                      key={variant.id}
+                      className={`btn btn-sm ${selectedVariant === variant.id ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => setSelectedVariant(variant.id)}
+                      title={`风险:${variant.summary?.risk_level || '-'} / 过载日:${variant.summary?.overload_day_count || 0}`}
+                    >
+                      {variant.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-sm)', fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                <span>当前方案：{selectedVariant}</span>
+                <span>风险：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.risk_level || '-'}</span>
+                <span>过载日：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.overload_day_count || 0}</span>
+                <span>冲突：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.conflict_count || 0}</span>
+                <span>深度工作日：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.deep_work_days || 0}</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 'var(--space-sm)' }}>
+                {(activePlanningView?.conflicts || []).map((item, index) => (
+                  <div key={index} style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>⚠️ {item.message}</div>
+                ))}
+                {(activePlanningView?.overload_days || []).map((item, index) => (
+                  <div key={`ol-${index}`} style={{ fontSize: '0.8rem', color: 'var(--error)' }}>
+                    过载：{item.date} / {item.total_hours}h / 可用 {item.available_hours}h
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gap: 8, marginBottom: 'var(--space-sm)' }}>
+                {(activePlanningView?.daily_timeline || []).slice(0, 5).map((line, index) => (
+                  <div key={index} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{line}</div>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gap: 8, marginBottom: 'var(--space-sm)' }}>
+                {Object.entries(activePlanningView?.daily_plan || {}).slice(0, 4).map(([date, info]) => (
+                  <div key={date} style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                      <strong style={{ fontSize: '0.82rem' }}>{date}</strong>
+                      <span style={{ fontSize: '0.76rem', color: info.overload ? 'var(--error)' : 'var(--text-tertiary)' }}>
+                        {info.total_hours}h / {info.available_hours ?? '-'}h
+                      </span>
+                    </div>
+                    {(info.calendar_events || []).length > 0 && (
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                        日历占用: {(info.calendar_events || []).map(ev => ev.title).join(' / ')}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                      {(info.tasks || []).map(task => `${task.task_name} (${task.hours}h${task.time_slot ? ` / ${task.time_slot}` : ''}${task.energy_type ? ` / ${task.energy_type}` : ''}${task.depends_on?.length ? ` / 依赖:${task.depends_on.join(',')}` : ''})`).join('；')}
+                    </div>
+                    {(info.time_blocks || []).length > 0 && (
+                      <div style={{ marginTop: 6, fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
+                        时间块：{(info.time_blocks || []).map(block => `${block.time_slot} ${block.task_name}${block.energy_type ? `(${block.energy_type})` : ''}`).join('；')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: '10px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', marginBottom: 'var(--space-sm)' }}>
+                <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8 }}>插入突发任务重排</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto', gap: 8 }}>
+                  <input
+                    value={interruptTaskName}
+                    onChange={e => setInterruptTaskName(e.target.value)}
+                    placeholder="突发任务名称"
+                  />
+                  <input
+                    value={interruptTaskDueTime}
+                    onChange={e => setInterruptTaskDueTime(e.target.value)}
+                    placeholder="截止时间，如 2026-05-18"
+                  />
+                  <button className="btn btn-ghost" onClick={replanWithInterrupt} disabled={planningLoading}>
+                    重排
+                  </button>
+                </div>
+              </div>
+
+              {replanResult && (
+                <div style={{ padding: '10px', borderRadius: 'var(--radius-sm)', background: 'rgba(10,132,255,0.06)', marginBottom: 'var(--space-sm)' }}>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8 }}>重排影响说明</div>
+                  {(replanResult.impact_summary || []).map((item, index) => (
+                    <div key={`impact-${index}`} style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{item}</div>
+                  ))}
+                  {(replanResult.risk_changes || []).map((item, index) => (
+                    <div key={`risk-${index}`} style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: 4 }}>⚠️ {item}</div>
+                  ))}
+                </div>
+              )}
+
+              <button className="btn btn-primary" onClick={confirmPlanning} disabled={planningLoading}>
+                {planningLoading ? '创建中...' : '确认创建'}
+              </button>
+            </div>
+          )}
+
           {messages.length === 0 && (
             <div className="empty-state" style={{ flex: 1 }}>
               <div className="empty-state-icon">🤖</div>
