@@ -11,10 +11,14 @@ from fastapi import APIRouter
 from models.schemas import BaseModel, Field
 from services.ai_planning_service import (
     analyze_task_patterns,
+    confirm_task_plan,
     decompose_task,
     estimate_task_time,
     generate_task_plan,
     get_smart_suggestions,
+    preview_task_plan,
+    replan_tasks,
+    replan_tasks_with_acceptance,
 )
 
 router = APIRouter(prefix="/ai", tags=["ai_planning"])
@@ -36,6 +40,30 @@ class PlanRequest(BaseModel):
     constraints: dict = Field(None, description="约束条件")
 
 
+class PreviewRequest(BaseModel):
+    tasks: list[dict] = Field(..., description="任务列表")
+    constraints: dict = Field(None, description="约束条件")
+
+
+class ConfirmPlanRequest(BaseModel):
+    preview_id: str = Field(..., description="预览 ID")
+    selected_variant: str = Field("balanced", description="选择的方案")
+    user_adjustments: dict = Field(None, description="用户调整")
+
+
+class ReplanRequest(BaseModel):
+    tasks: list[dict] = Field(..., description="任务列表")
+    constraints: dict = Field(None, description="约束条件")
+    interrupt_task: dict = Field(None, description="突发任务")
+
+
+class ReplanAcceptanceRequest(BaseModel):
+    tasks: list[dict] = Field(..., description="任务列表")
+    constraints: dict = Field(None, description="约束条件")
+    interrupt_task: dict = Field(None, description="突发任务")
+    accepted_task_names: list[str] = Field(default_factory=list, description="接受建议的任务名列表")
+
+
 class EstimateRequest(BaseModel):
     task_name: str = Field(..., description="任务名称")
     description: str = Field(None, description="任务描述")
@@ -54,6 +82,39 @@ async def ai_generate_plan(request: PlanRequest):
     """AI生成任务计划 - 基于约束条件优化安排"""
     result = await generate_task_plan(request.tasks, request.constraints)
     return result
+
+
+@router.post("/plan/preview")
+async def ai_preview_plan(request: PreviewRequest):
+    """结构化预览任务计划"""
+    return await preview_task_plan(request.tasks, request.constraints)
+
+
+@router.post("/plan/confirm")
+async def ai_confirm_plan(request: ConfirmPlanRequest):
+    """确认并创建任务计划"""
+    return await confirm_task_plan(
+        request.preview_id,
+        request.selected_variant,
+        request.user_adjustments,
+    )
+
+
+@router.post("/plan/replan")
+async def ai_replan(request: ReplanRequest):
+    """插入任务或任务变更后的重排"""
+    return await replan_tasks(request.tasks, request.constraints, request.interrupt_task)
+
+
+@router.post("/plan/replan/accept")
+async def ai_replan_with_acceptance(request: ReplanAcceptanceRequest):
+    """接受部分建议后生成新的重排方案"""
+    return await replan_tasks_with_acceptance(
+        request.tasks,
+        request.constraints,
+        request.interrupt_task,
+        request.accepted_task_names,
+    )
 
 
 @router.post("/estimate")

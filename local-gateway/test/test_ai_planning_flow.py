@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
          patch('services.pomodoro_service.DB_PATH', temp_db_path), \
          patch('services.calendar_sync_service.DB_PATH', temp_db_path):
         from services.task_service import init_db
-        from services.ai_planning_service import preview_task_plan, confirm_task_plan, replan_tasks
+        from services.ai_planning_service import preview_task_plan, confirm_task_plan, replan_tasks, replan_tasks_with_acceptance
 
 
 @pytest.fixture(autouse=True)
@@ -167,4 +167,18 @@ async def test_replan_returns_conflict_chain_for_linked_tasks():
     assert isinstance(result["conflict_chain"], list)
     assert isinstance(result["reordered_tasks"], list)
     assert isinstance(result["applied_actions"], list)
+    assert isinstance(result["suggested_plan"].get("variant_plans"), dict)
+
+
+@pytest.mark.asyncio
+async def test_replan_with_acceptance_applies_partial_suggestions():
+    result = await replan_tasks_with_acceptance([
+        {"task_name": "收集数据", "due_time": "2026-05-20"},
+        {"task_name": "写初稿", "due_time": "2026-05-20", "depends_on": ["收集数据"]},
+        {"task_name": "准备汇报", "due_time": "2026-05-20", "depends_on": ["写初稿"]},
+    ], interrupt_task={"task_name": "突发需求", "due_time": "2026-05-19"}, accepted_task_names=["写初稿"])
+
+    assert result["status"] == "success"
+    assert result["accepted_task_names"] == ["写初稿"]
+    assert any(item["task_name"] == "写初稿" for item in result["applied_actions"])
     assert isinstance(result["suggested_plan"].get("variant_plans"), dict)

@@ -986,11 +986,16 @@ def _shift_task_day(task: dict, target_day: str, keep_time: bool = True) -> dict
     return updated
 
 
-def _apply_reorder_suggestions(tasks: list[dict], reordered_tasks: list[dict]) -> tuple[list[dict], list[dict]]:
+def _apply_reorder_suggestions(
+    tasks: list[dict],
+    reordered_tasks: list[dict],
+    accepted_task_names: list[str] | None = None,
+) -> tuple[list[dict], list[dict]]:
     if not reordered_tasks:
         return tasks, []
 
     suggestion_map = {item["task_name"]: item for item in reordered_tasks if item.get("task_name")}
+    accepted_set = set(accepted_task_names or suggestion_map.keys())
     updated_tasks = []
     applied_actions = []
 
@@ -1003,6 +1008,17 @@ def _apply_reorder_suggestions(tasks: list[dict], reordered_tasks: list[dict]) -
         action = suggestion.get("suggestion", "keep")
         target_day = suggestion.get("target_day", "")
         updated_task = dict(task)
+        accepted = task.get("task_name") in accepted_set
+
+        if not accepted:
+            applied_actions.append({
+                "task_name": task["task_name"],
+                "action": "rejected",
+                "target_day": task.get("due_time", "")[:10],
+                "reason": suggestion.get("reason", ""),
+            })
+            updated_tasks.append(updated_task)
+            continue
 
         if action in {"advance", "delay"} and target_day:
             updated_task = _shift_task_day(updated_task, target_day)
@@ -1203,6 +1219,33 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
         "applied_actions": applied_actions,
         "new_plan": preview,
         "suggested_plan": suggested_preview,
+    }
+
+
+async def replan_tasks_with_acceptance(
+    tasks: list[dict],
+    constraints: dict | None = None,
+    interrupt_task: dict | None = None,
+    accepted_task_names: list[str] | None = None,
+) -> dict:
+    merged_tasks = list(tasks)
+    if interrupt_task:
+        merged_tasks.append(interrupt_task)
+
+    base_result = await replan_tasks(tasks, constraints, interrupt_task)
+    accepted_names = accepted_task_names or [item["task_name"] for item in base_result.get("reordered_tasks", [])]
+    suggested_tasks, applied_actions = _apply_reorder_suggestions(
+        merged_tasks,
+        base_result.get("reordered_tasks", []),
+        accepted_names,
+    )
+    second_preview = await preview_task_plan(suggested_tasks, constraints)
+
+    return {
+        **base_result,
+        "accepted_task_names": accepted_names,
+        "applied_actions": applied_actions,
+        "suggested_plan": second_preview,
     }
 
 

@@ -28,6 +28,7 @@ export default function AiChat() {
   const [interruptTaskName, setInterruptTaskName] = useState('');
   const [interruptTaskDueTime, setInterruptTaskDueTime] = useState('');
   const [replanResult, setReplanResult] = useState(null);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
 
   const getActivePlanningView = useCallback((preview, variantId) => {
     if (!preview) return null;
@@ -388,7 +389,46 @@ export default function AiChat() {
       setPlanningPreview(suggested);
       setSelectedVariant(suggested?.selected_variant || suggested?.variants?.[0]?.id || 'balanced');
       setReplanResult(res);
+      setAcceptedSuggestions((res.reordered_tasks || []).map(item => item.task_name));
       toast(`已重排，建议后移 ${res.postpone_candidates?.length || 0} 项任务`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setPlanningLoading(false);
+    }
+  };
+
+  const rerunWithAcceptedSuggestions = async () => {
+    if (!planningText.trim() || !replanResult) return;
+    setPlanningLoading(true);
+    try {
+      const tasks = planningText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
+          return {
+            task_name: name,
+            due_time: due || '',
+            earliest_start: earliestStart || '',
+            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
+          };
+        });
+      const res = await apiPost('/api/ai/plan/replan/accept', {
+        tasks,
+        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+        interrupt_task: interruptTaskName.trim() ? {
+          task_name: interruptTaskName.trim(),
+          due_time: interruptTaskDueTime.trim(),
+        } : null,
+        accepted_task_names: acceptedSuggestions,
+      });
+      if (res.status === 'error') throw new Error(res.message || '二次重排失败');
+      setReplanResult(res);
+      setPlanningPreview(res.suggested_plan || res.new_plan);
+      setSelectedVariant(res.suggested_plan?.selected_variant || res.new_plan?.selected_variant || 'balanced');
+      toast('已按选择建议生成新方案', 'success');
     } catch (e) {
       toast(e.message, 'error');
     } finally {
@@ -626,10 +666,25 @@ export default function AiChat() {
                     <div style={{ marginTop: 8 }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>重排建议</div>
                       {(replanResult.reordered_tasks || []).slice(0, 6).map((item, index) => (
-                        <div key={`reorder-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        <label key={`reorder-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          <input
+                            type="checkbox"
+                            checked={acceptedSuggestions.includes(item.task_name)}
+                            onChange={(e) => {
+                              setAcceptedSuggestions(prev =>
+                                e.target.checked
+                                  ? [...new Set([...prev, item.task_name])]
+                                  : prev.filter(name => name !== item.task_name)
+                              );
+                            }}
+                            style={{ marginRight: 6 }}
+                          />
                           {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason}
-                        </div>
+                        </label>
                       ))}
+                      <button className="btn btn-sm btn-ghost" onClick={rerunWithAcceptedSuggestions} disabled={planningLoading}>
+                        按已选建议二次重排
+                      </button>
                     </div>
                   )}
                   {(replanResult.applied_actions || []).length > 0 && (
