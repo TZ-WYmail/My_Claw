@@ -304,6 +304,17 @@ textarea { resize: vertical; min-height: 80px; }
   position: relative;
   margin: 0.6em 0;
 }
+.markdown-mermaid-render {
+  margin-bottom: 8px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+}
+.markdown-mermaid-source pre {
+  margin: 0;
+}
 .markdown-mermaid-note {
   margin-top: 6px;
   font-size: 0.75rem;
@@ -322,6 +333,9 @@ textarea { resize: vertical; min-height: 80px; }
 .markdown-body .token-comment {
   color: #7f848e;
   font-style: italic;
+}
+.markdown-body .token-type {
+  color: #61afef;
 }
 
 /* Animations */

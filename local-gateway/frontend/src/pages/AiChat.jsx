@@ -32,9 +32,12 @@ function highlightCode(code = '', language = '') {
   if (['js', 'javascript', 'ts', 'typescript', 'python', 'py', 'bash', 'shell', 'json'].includes(lang)) {
     patterns.push(
       { regex: /\b(const|let|var|function|return|if|else|for|while|import|from|export|class|async|await|try|catch|def|lambda|yield|True|False|None|print|in|and|or|not|echo)\b/g, cls: 'token-keyword' },
+      { regex: /\b(new|switch|case|break|continue|finally|raise|except|with|as|pass|global|nonlocal)\b/g, cls: 'token-keyword' },
       { regex: /(\".*?\"|\'.*?\'|\`.*?\`)/g, cls: 'token-string' },
       { regex: /\b(\d+(\.\d+)?)\b/g, cls: 'token-number' },
+      { regex: /\b(true|false|null|undefined)\b/gi, cls: 'token-number' },
       { regex: /(\/\/.*$|#.*$)/gm, cls: 'token-comment' },
+      { regex: /\b([A-Z][A-Za-z0-9_]+)\b/g, cls: 'token-type' },
     );
   }
 
@@ -130,7 +133,7 @@ function renderMarkdownToHtml(markdown = '') {
     const encoded = encodeURIComponent(rawCode);
     if (String(codeLanguage || '').toLowerCase() === 'mermaid') {
       html.push(
-        `<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'mermaid')}">展开</button><pre><code>${escapeHtml(rawCode)}</code></pre><div class="markdown-mermaid-note">Mermaid 图表源码已保留，可复制到支持 Mermaid 的工具中查看。</div></div>`
+        `<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'mermaid')}">展开</button><div class="markdown-mermaid-render"></div><div class="markdown-mermaid-source" data-mermaid="${encoded}"><pre><code>${escapeHtml(rawCode)}</code></pre></div><div class="markdown-mermaid-note">Mermaid 图表源码已保留；若浏览器支持，将在上方自动渲染图形。</div></div>`
       );
     } else {
       html.push(
@@ -429,6 +432,41 @@ export default function AiChat() {
     document.addEventListener('click', handleExpand);
     return () => document.removeEventListener('click', handleExpand);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const renderMermaidBlocks = async () => {
+      const blocks = document.querySelectorAll('.markdown-mermaid-source');
+      if (!blocks.length) return;
+
+      try {
+        const mermaidModule = await import('mermaid');
+        if (cancelled) return;
+        const mermaid = mermaidModule.default || mermaidModule;
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+
+        let index = 0;
+        for (const block of blocks) {
+          const source = decodeURIComponent(block.getAttribute('data-mermaid') || '');
+          const target = block.parentElement?.querySelector('.markdown-mermaid-render');
+          if (!source || !target) continue;
+          try {
+            const renderId = `mermaid-${Date.now()}-${index++}`;
+            const { svg } = await mermaid.render(renderId, source);
+            if (!cancelled) target.innerHTML = svg;
+          } catch {
+            if (!cancelled) target.innerHTML = '<div class="markdown-mermaid-note">Mermaid 渲染失败，已保留源码。</div>';
+          }
+        }
+      } catch {
+        // ignore, fallback to source-only display
+      }
+    };
+
+    renderMermaidBlocks();
+    return () => { cancelled = true; };
+  }, [messages]);
 
   // Send message with SSE streaming
   const sendMessage = useCallback(async () => {
