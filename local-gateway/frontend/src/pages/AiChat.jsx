@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 
@@ -238,10 +238,16 @@ function renderMarkdownToHtml(markdown = '') {
   return html.filter(Boolean).join('');
 }
 
+const AssistantMarkdown = memo(function AssistantMarkdown({ content }) {
+  const rendered = useMemo(() => ({ __html: renderMarkdownToHtml(content) }), [content]);
+  return <div className="markdown-body" dangerouslySetInnerHTML={rendered} />;
+});
+
 export default function AiChat() {
   const toast = useToast();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const mermaidRenderTimerRef = useRef(null);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -277,8 +283,6 @@ export default function AiChat() {
     });
   const mustChangeSuggestions = filteredSuggestions.filter(item => item.severity === 'must_change');
   const optionalSuggestions = filteredSuggestions.filter(item => item.severity !== 'must_change');
-  const renderAssistantContent = useCallback((content) => ({ __html: renderMarkdownToHtml(content) }), []);
-
   const getActivePlanningView = useCallback((preview, variantId) => {
     if (!preview) return null;
     const activeVariantId = variantId || preview.selected_variant || 'balanced';
@@ -435,6 +439,9 @@ export default function AiChat() {
 
   useEffect(() => {
     let cancelled = false;
+    if (mermaidRenderTimerRef.current) {
+      clearTimeout(mermaidRenderTimerRef.current);
+    }
 
     const renderMermaidBlocks = async () => {
       const blocks = document.querySelectorAll('.markdown-mermaid-source');
@@ -451,10 +458,14 @@ export default function AiChat() {
           const source = decodeURIComponent(block.getAttribute('data-mermaid') || '');
           const target = block.parentElement?.querySelector('.markdown-mermaid-render');
           if (!source || !target) continue;
+          if (target.getAttribute('data-rendered-source') === source) continue;
           try {
             const renderId = `mermaid-${Date.now()}-${index++}`;
             const { svg } = await mermaid.render(renderId, source);
-            if (!cancelled) target.innerHTML = svg;
+            if (!cancelled) {
+              target.innerHTML = svg;
+              target.setAttribute('data-rendered-source', source);
+            }
           } catch {
             if (!cancelled) target.innerHTML = '<div class="markdown-mermaid-note">Mermaid 渲染失败，已保留源码。</div>';
           }
@@ -464,8 +475,13 @@ export default function AiChat() {
       }
     };
 
-    renderMermaidBlocks();
-    return () => { cancelled = true; };
+    mermaidRenderTimerRef.current = setTimeout(renderMermaidBlocks, 180);
+    return () => {
+      cancelled = true;
+      if (mermaidRenderTimerRef.current) {
+        clearTimeout(mermaidRenderTimerRef.current);
+      }
+    };
   }, [messages]);
 
   // Send message with SSE streaming
@@ -1152,7 +1168,7 @@ export default function AiChat() {
 
                 {/* Message content */}
                 {msg.role === 'assistant' ? (
-                  <div className="markdown-body" dangerouslySetInnerHTML={renderAssistantContent(msg.content)} />
+                  <AssistantMarkdown content={msg.content} />
                 ) : (
                   <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                 )}
