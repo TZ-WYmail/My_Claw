@@ -8,6 +8,8 @@ export default function AiChat() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const mermaidRenderTimerRef = useRef(null);
+  const streamingBufferRef = useRef({ assistantId: null, content: '', thinking: '' });
+  const streamingFlushTimerRef = useRef(null);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -159,6 +161,34 @@ export default function AiChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const flushStreamingBuffer = useCallback(() => {
+    const { assistantId, content, thinking } = streamingBufferRef.current;
+    if (!assistantId || (!content && !thinking)) return;
+    setMessages(prev => prev.map(m => (
+      m.id === assistantId
+        ? {
+            ...m,
+            content: content ? m.content + content : m.content,
+            thinking: thinking ? m.thinking + thinking : m.thinking,
+          }
+        : m
+    )));
+    streamingBufferRef.current = { assistantId, content: '', thinking: '' };
+  }, []);
+
+  const queueStreamingChunk = useCallback((assistantId, type, chunk) => {
+    if (!chunk) return;
+    if (streamingBufferRef.current.assistantId !== assistantId) {
+      streamingBufferRef.current = { assistantId, content: '', thinking: '' };
+    }
+    streamingBufferRef.current[type] += chunk;
+    if (streamingFlushTimerRef.current) return;
+    streamingFlushTimerRef.current = setTimeout(() => {
+      flushStreamingBuffer();
+      streamingFlushTimerRef.current = null;
+    }, 80);
+  }, [flushStreamingBuffer]);
+
   useEffect(() => {
     const handleCopy = async (event) => {
       const target = event.target;
@@ -204,7 +234,8 @@ export default function AiChat() {
     }
 
     const renderMermaidBlocks = async () => {
-      const blocks = document.querySelectorAll('.markdown-mermaid-source');
+      const blocks = [...document.querySelectorAll('.markdown-mermaid-source')]
+        .filter(block => block.getAttribute('data-mermaid-complete') === 'true');
       if (!blocks.length) return;
 
       try {
@@ -235,9 +266,8 @@ export default function AiChat() {
       }
     };
 
-    const latestAssistant = [...messages].reverse().find(item => item.role === 'assistant');
-    const hasMermaidSource = latestAssistant?.content?.includes('```mermaid');
-    if (!hasMermaidSource && !document.querySelector('.markdown-mermaid-source')) {
+    const hasRenderableMermaid = document.querySelector('.markdown-mermaid-source[data-mermaid-complete="true"]');
+    if (!hasRenderableMermaid) {
       return () => {
         cancelled = true;
         if (mermaidRenderTimerRef.current) {
@@ -311,16 +341,12 @@ export default function AiChat() {
 
             case 'thinking':
               setIsThinking(true);
-              setMessages(prev => prev.map(m =>
-                m.id === assistantId ? { ...m, thinking: m.thinking + (data.content || '') } : m
-              ));
+              queueStreamingChunk(assistantId, 'thinking', data.content || '');
               break;
 
             case 'content':
               setIsThinking(false);
-              setMessages(prev => prev.map(m =>
-                m.id === assistantId ? { ...m, content: m.content + (data.content || '') } : m
-              ));
+              queueStreamingChunk(assistantId, 'content', data.content || '');
               break;
 
             case 'tool_call':
@@ -337,10 +363,12 @@ export default function AiChat() {
 
             case 'done':
               setIsThinking(false);
+              flushStreamingBuffer();
               break;
 
             case 'error':
               setIsThinking(false);
+              flushStreamingBuffer();
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, content: `[错误] ${data.message || '未知错误'}` } : m
               ));
@@ -351,14 +379,20 @@ export default function AiChat() {
       }
     } catch (e) {
       setIsThinking(false);
+      flushStreamingBuffer();
       setMessages(prev => prev.map(m =>
         m.id === assistantId ? { ...m, content: `[错误] ${e.message}` } : m
       ));
       toast(e.message, 'error');
     } finally {
+      flushStreamingBuffer();
+      if (streamingFlushTimerRef.current) {
+        clearTimeout(streamingFlushTimerRef.current);
+        streamingFlushTimerRef.current = null;
+      }
       setStreaming(false);
     }
-  }, [input, streaming, activeConvId, toast]);
+  }, [input, streaming, activeConvId, toast, flushStreamingBuffer, queueStreamingChunk]);
 
   // Save config
   const saveConfig = async () => {

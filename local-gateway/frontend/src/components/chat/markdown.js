@@ -115,14 +115,17 @@ export function renderMarkdownToHtml(markdown = '') {
     tableBuffer = [];
   };
 
-  const flushCode = () => {
+  const flushCode = (isComplete = true) => {
     if (!codeBuffer.length) return;
     const rawCode = codeBuffer.join('\n');
     const code = highlightCode(rawCode, codeLanguage);
     const languageLabel = codeLanguage ? `<div class="markdown-code-lang">${escapeHtml(codeLanguage)}</div>` : '';
     const encoded = encodeURIComponent(rawCode);
     if (String(codeLanguage || '').toLowerCase() === 'mermaid') {
-      html.push(`<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'mermaid')}">展开</button><div class="markdown-mermaid-render"></div><div class="markdown-mermaid-source" data-mermaid="${encoded}"><pre><code>${escapeHtml(rawCode)}</code></pre></div><div class="markdown-mermaid-note">Mermaid 图表源码已保留；若浏览器支持，将在上方自动渲染图形。</div></div>`);
+      const renderNote = isComplete
+        ? 'Mermaid 图表源码已保留；若浏览器支持，将在上方自动渲染图形。'
+        : 'Mermaid 代码块尚未输出完整；已先展示源码，闭合后再渲染图形。';
+      html.push(`<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'mermaid')}">展开</button><div class="markdown-mermaid-render"></div><div class="markdown-mermaid-source" data-mermaid="${encoded}" data-mermaid-complete="${isComplete ? 'true' : 'false'}"><pre><code>${escapeHtml(rawCode)}</code></pre></div><div class="markdown-mermaid-note">${renderNote}</div></div>`);
     } else {
       html.push(`<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'code')}">展开</button><pre><code>${code}</code></pre></div>`);
     }
@@ -139,7 +142,7 @@ export function renderMarkdownToHtml(markdown = '') {
       flushBlockquote();
       flushTable();
       if (inCodeBlock) {
-        flushCode();
+        flushCode(true);
         inCodeBlock = false;
       } else {
         inCodeBlock = true;
@@ -219,7 +222,7 @@ export function renderMarkdownToHtml(markdown = '') {
   flushOrderedList();
   flushBlockquote();
   flushTable();
-  flushCode();
+  flushCode(false);
 
   return html.filter(Boolean).join('');
 }
