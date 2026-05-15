@@ -31,7 +31,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['assets/*', 'registerSW.js', 'favicon.svg', 'manifest.webmanifest'],
+        globPatterns: ['assets/index-*.js', 'assets/index-*.css', 'registerSW.js', 'favicon.svg', 'manifest.webmanifest'],
         navigateFallback: '/static/index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/health/, /^\/docs/],
         runtimeCaching: [

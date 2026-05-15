@@ -475,6 +475,17 @@ export default function AiChat() {
       }
     };
 
+    const latestAssistant = [...messages].reverse().find(item => item.role === 'assistant');
+    const hasMermaidSource = latestAssistant?.content?.includes('```mermaid');
+    if (!hasMermaidSource && !document.querySelector('.markdown-mermaid-source')) {
+      return () => {
+        cancelled = true;
+        if (mermaidRenderTimerRef.current) {
+          clearTimeout(mermaidRenderTimerRef.current);
+        }
+      };
+    }
+
     mermaidRenderTimerRef.current = setTimeout(renderMermaidBlocks, 180);
     return () => {
       cancelled = true;
