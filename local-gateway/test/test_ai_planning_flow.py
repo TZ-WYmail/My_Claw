@@ -153,6 +153,9 @@ async def test_replan_task_plan_returns_preview():
     assert "reordered_tasks" in result
     assert "suggested_plan" in result
     assert "applied_actions" in result
+    if result["reordered_tasks"]:
+        assert "confidence" in result["reordered_tasks"][0]
+        assert "severity" in result["reordered_tasks"][0]
 
 
 @pytest.mark.asyncio
@@ -182,3 +185,6 @@ async def test_replan_with_acceptance_applies_partial_suggestions():
     assert result["accepted_task_names"] == ["写初稿"]
     assert any(item["task_name"] == "写初稿" for item in result["applied_actions"])
     assert isinstance(result["suggested_plan"].get("variant_plans"), dict)
+    if result["applied_actions"]:
+        assert "confidence" in result["applied_actions"][0]
+        assert "severity" in result["applied_actions"][0]

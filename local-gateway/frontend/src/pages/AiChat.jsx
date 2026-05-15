@@ -30,6 +30,9 @@ export default function AiChat() {
   const [replanResult, setReplanResult] = useState(null);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
 
+  const mustChangeSuggestions = (replanResult?.reordered_tasks || []).filter(item => item.severity === 'must_change');
+  const optionalSuggestions = (replanResult?.reordered_tasks || []).filter(item => item.severity !== 'must_change');
+
   const getActivePlanningView = useCallback((preview, variantId) => {
     if (!preview) return null;
     const activeVariantId = variantId || preview.selected_variant || 'balanced';
@@ -665,23 +668,50 @@ export default function AiChat() {
                   {(replanResult.reordered_tasks || []).length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>重排建议</div>
-                      {(replanResult.reordered_tasks || []).slice(0, 6).map((item, index) => (
-                        <label key={`reorder-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          <input
-                            type="checkbox"
-                            checked={acceptedSuggestions.includes(item.task_name)}
-                            onChange={(e) => {
-                              setAcceptedSuggestions(prev =>
-                                e.target.checked
-                                  ? [...new Set([...prev, item.task_name])]
-                                  : prev.filter(name => name !== item.task_name)
-                              );
-                            }}
-                            style={{ marginRight: 6 }}
-                          />
-                          {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason}
-                        </label>
-                      ))}
+                      {mustChangeSuggestions.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--error)', marginBottom: 4 }}>必须调整</div>
+                          {mustChangeSuggestions.slice(0, 6).map((item, index) => (
+                            <label key={`must-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                              <input
+                                type="checkbox"
+                                checked={acceptedSuggestions.includes(item.task_name)}
+                                onChange={(e) => {
+                                  setAcceptedSuggestions(prev =>
+                                    e.target.checked
+                                      ? [...new Set([...prev, item.task_name])]
+                                      : prev.filter(name => name !== item.task_name)
+                                  );
+                                }}
+                                style={{ marginRight: 6 }}
+                              />
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {optionalSuggestions.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>可选优化</div>
+                          {optionalSuggestions.slice(0, 6).map((item, index) => (
+                            <label key={`opt-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                              <input
+                                type="checkbox"
+                                checked={acceptedSuggestions.includes(item.task_name)}
+                                onChange={(e) => {
+                                  setAcceptedSuggestions(prev =>
+                                    e.target.checked
+                                      ? [...new Set([...prev, item.task_name])]
+                                      : prev.filter(name => name !== item.task_name)
+                                  );
+                                }}
+                                style={{ marginRight: 6 }}
+                              />
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                            </label>
+                          ))}
+                        </div>
+                      )}
                       <button className="btn btn-sm btn-ghost" onClick={rerunWithAcceptedSuggestions} disabled={planningLoading}>
                         按已选建议二次重排
                       </button>
@@ -692,7 +722,7 @@ export default function AiChat() {
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>已应用动作</div>
                       {(replanResult.applied_actions || []).slice(0, 6).map((item, index) => (
                         <div key={`applied-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason || '无'}
+                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.severity || '-'} / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
                         </div>
                       ))}
                     </div>

@@ -892,7 +892,9 @@ async def _llm_reorder_conflict_tasks(context: dict) -> dict:
       "task_name": "任务名",
       "suggestion": "advance|delay|split|keep",
       "reason": "原因",
-      "target_day": "2026-05-20"
+      "target_day": "2026-05-20",
+      "confidence": 0.8,
+      "severity": "must_change|optional"
     }}
   ],
   "chain_summary": ["冲突链说明1", "冲突链说明2"],
@@ -921,6 +923,11 @@ async def _llm_reorder_conflict_tasks(context: dict) -> dict:
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
             parsed = _parse_json_response(content)
+            for item in parsed.get("reordered_tasks", []):
+                if "confidence" not in item:
+                    item["confidence"] = 0.7
+                if "severity" not in item:
+                    item["severity"] = "must_change" if item.get("suggestion") in {"advance", "delay", "split"} else "optional"
             return {"status": "success", **parsed}
     except Exception as exc:
         logger.exception("LLM 冲突链重排失败")
@@ -949,6 +956,8 @@ def _fallback_reorder_conflict_tasks(context: dict) -> dict:
             "suggestion": suggestion,
             "reason": "；".join(item["reasons"][:2]) or "参与冲突链",
             "target_day": target_day,
+            "confidence": 0.65 if suggestion == "delay" else 0.75,
+            "severity": "must_change" if len(item["dates"]) >= 1 else "optional",
         })
 
     if overload_days:
@@ -1016,6 +1025,8 @@ def _apply_reorder_suggestions(
                 "action": "rejected",
                 "target_day": task.get("due_time", "")[:10],
                 "reason": suggestion.get("reason", ""),
+                "confidence": suggestion.get("confidence"),
+                "severity": suggestion.get("severity"),
             })
             updated_tasks.append(updated_task)
             continue
@@ -1027,6 +1038,8 @@ def _apply_reorder_suggestions(
                 "action": action,
                 "target_day": target_day,
                 "reason": suggestion.get("reason", ""),
+                "confidence": suggestion.get("confidence"),
+                "severity": suggestion.get("severity"),
             })
         elif action == "split" and target_day:
             updated_task = _shift_task_day(updated_task, target_day)
@@ -1036,6 +1049,8 @@ def _apply_reorder_suggestions(
                 "action": action,
                 "target_day": target_day,
                 "reason": suggestion.get("reason", ""),
+                "confidence": suggestion.get("confidence"),
+                "severity": suggestion.get("severity"),
             })
         else:
             applied_actions.append({
@@ -1043,6 +1058,8 @@ def _apply_reorder_suggestions(
                 "action": "keep",
                 "target_day": updated_task.get("due_time", "")[:10],
                 "reason": suggestion.get("reason", ""),
+                "confidence": suggestion.get("confidence"),
+                "severity": suggestion.get("severity"),
             })
 
         updated_tasks.append(updated_task)
