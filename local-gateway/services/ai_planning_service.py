@@ -800,6 +800,172 @@ def _topological_sort_tasks(tasks: list[dict]) -> tuple[list[dict], list[dict]]:
     return [by_name[name] for name in ordered_names], dependency_conflicts
 
 
+def _extract_conflict_chain(variant_plan: dict) -> list[dict]:
+    affected = {}
+    for conflict in variant_plan.get("conflicts", []):
+        task_name = conflict.get("task_name")
+        if not task_name:
+            continue
+        bucket = affected.setdefault(task_name, {"task_name": task_name, "reasons": [], "dates": set()})
+        if conflict.get("message"):
+            bucket["reasons"].append(conflict["message"])
+        if conflict.get("date"):
+            bucket["dates"].add(conflict["date"])
+
+    for overload in variant_plan.get("overload_days", []):
+        day = overload.get("date")
+        info = (variant_plan.get("daily_plan") or {}).get(day, {})
+        for task in info.get("tasks", []):
+            bucket = affected.setdefault(task["task_name"], {"task_name": task["task_name"], "reasons": [], "dates": set()})
+            bucket["reasons"].append(f"{day} 过载，任务参与冲突链")
+            bucket["dates"].add(day)
+
+    chain = []
+    for item in affected.values():
+        chain.append({
+            "task_name": item["task_name"],
+            "dates": sorted(item["dates"]),
+            "reasons": item["reasons"],
+        })
+    chain.sort(key=lambda item: (len(item["dates"]), len(item["reasons"])), reverse=True)
+    return chain
+
+
+def _build_replan_context(tasks: list[dict], preview: dict, interrupt_task: dict | None = None) -> dict:
+    selected_plan = _select_variant_plan(preview, preview.get("selected_variant", "balanced"))
+    conflict_chain = _extract_conflict_chain(selected_plan)
+    return {
+        "tasks": tasks,
+        "interrupt_task": interrupt_task,
+        "selected_variant": selected_plan.get("id"),
+        "summary": selected_plan.get("summary", {}),
+        "overload_days": selected_plan.get("overload_days", []),
+        "conflict_chain": conflict_chain,
+    }
+
+
+def _parse_json_response(content: str) -> dict:
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        import re
+        json_match = re.search(r'```json\n(.*?)\n```', content, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group(1))
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise ValueError("无法解析 AI 响应")
+
+
+async def _llm_reorder_conflict_tasks(context: dict) -> dict:
+    if not ai_config.api_key:
+        return {"status": "skipped", "reason": "AI API Key 未配置"}
+
+    prompt = f"""你是任务重排专家。请针对一组存在连锁冲突的任务，给出重排建议。
+
+当前任务:
+{json.dumps(context["tasks"], ensure_ascii=False, indent=2)}
+
+突发任务:
+{json.dumps(context.get("interrupt_task"), ensure_ascii=False, indent=2)}
+
+当前方案摘要:
+{json.dumps(context["summary"], ensure_ascii=False, indent=2)}
+
+过载日期:
+{json.dumps(context["overload_days"], ensure_ascii=False, indent=2)}
+
+冲突链:
+{json.dumps(context["conflict_chain"], ensure_ascii=False, indent=2)}
+
+要求:
+1. 识别连锁冲突，不要只调整单个任务。
+2. 优先通过重新排序、前移、后移、拆分来解决冲突。
+3. 给出受影响任务顺序和建议动作。
+4. 返回 JSON。
+
+返回格式:
+{{
+  "reordered_tasks": [
+    {{
+      "task_name": "任务名",
+      "suggestion": "advance|delay|split|keep",
+      "reason": "原因",
+      "target_day": "2026-05-20"
+    }}
+  ],
+  "chain_summary": ["冲突链说明1", "冲突链说明2"],
+  "operator_notes": ["执行建议1", "执行建议2"]
+}}
+"""
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{ai_config.api_base}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {ai_config.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": ai_config.model,
+                    "messages": [
+                        {"role": "system", "content": "你擅长处理多任务连锁冲突与重排。"},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.2,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = _parse_json_response(content)
+            return {"status": "success", **parsed}
+    except Exception as exc:
+        logger.exception("LLM 冲突链重排失败")
+        return {"status": "error", "message": str(exc)}
+
+
+def _fallback_reorder_conflict_tasks(context: dict) -> dict:
+    summary = []
+    reordered_tasks = []
+    operator_notes = []
+    overload_days = context.get("overload_days", [])
+    conflict_chain = context.get("conflict_chain", [])
+    seen = set()
+
+    for item in conflict_chain:
+        task_name = item["task_name"]
+        if task_name in seen:
+            continue
+        seen.add(task_name)
+        target_day = item["dates"][0] if item["dates"] else ""
+        suggestion = "delay"
+        if any("依赖" in reason for reason in item["reasons"]):
+            suggestion = "advance"
+        reordered_tasks.append({
+            "task_name": task_name,
+            "suggestion": suggestion,
+            "reason": "；".join(item["reasons"][:2]) or "参与冲突链",
+            "target_day": target_day,
+        })
+
+    if overload_days:
+        summary.append(f"发现 {len(overload_days)} 个过载日，需按链路整体重排")
+    if conflict_chain:
+        summary.append(f"识别到 {len(conflict_chain)} 个冲突任务节点")
+    operator_notes.append("优先处理依赖前置任务，再处理同日聚集任务")
+    operator_notes.append("不要只延后单个任务，需保持链路顺序一致")
+
+    return {
+        "status": "success",
+        "reordered_tasks": reordered_tasks,
+        "chain_summary": summary,
+        "operator_notes": operator_notes,
+    }
+
+
 async def preview_task_plan(tasks: list[dict], constraints: dict | None = None) -> dict:
     normalized_tasks = _normalize_tasks(tasks)
     analyzed = await task_service.analyze_tasks(normalized_tasks)
@@ -919,6 +1085,10 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
 
     preview = await preview_task_plan(merged_tasks, constraints)
     selected_plan = _select_variant_plan(preview, preview.get("selected_variant", "balanced"))
+    replan_context = _build_replan_context(merged_tasks, preview, interrupt_task)
+    llm_replan = await _llm_reorder_conflict_tasks(replan_context)
+    if llm_replan.get("status") != "success":
+        llm_replan = _fallback_reorder_conflict_tasks(replan_context)
     postpone_candidates = []
     impact_summary = []
     risk_changes = []
@@ -943,9 +1113,14 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
         impact_summary.append(f"当前方案出现 {selected_plan['summary']['overload_day_count']} 个过载日")
     if postpone_candidates:
         impact_summary.append(f"建议优先后移：{'、'.join(postpone_candidates[:3])}")
+    if llm_replan.get("chain_summary"):
+        impact_summary.extend(llm_replan["chain_summary"][:3])
     for conflict in selected_plan.get("conflicts", []):
         if conflict.get("type") in {"capacity_shortage", "dependency_violation_risk", "earliest_start_pressure"}:
             risk_changes.append(conflict["message"])
+    for note in llm_replan.get("operator_notes", []):
+        if note not in risk_changes:
+            risk_changes.append(note)
 
     return {
         "status": "success",
@@ -953,6 +1128,8 @@ async def replan_tasks(tasks: list[dict], constraints: dict | None = None, inter
         "postpone_candidates": postpone_candidates,
         "impact_summary": impact_summary,
         "risk_changes": risk_changes[:5],
+        "conflict_chain": replan_context.get("conflict_chain", []),
+        "reordered_tasks": llm_replan.get("reordered_tasks", []),
         "new_plan": preview,
     }
 

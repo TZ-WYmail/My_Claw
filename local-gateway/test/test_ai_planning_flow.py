@@ -149,3 +149,18 @@ async def test_replan_task_plan_returns_preview():
     assert isinstance(result["new_plan"].get("variant_plans"), dict)
     assert "impact_summary" in result
     assert isinstance(result["risk_changes"], list)
+    assert "conflict_chain" in result
+    assert "reordered_tasks" in result
+
+
+@pytest.mark.asyncio
+async def test_replan_returns_conflict_chain_for_linked_tasks():
+    result = await replan_tasks([
+        {"task_name": "收集数据", "due_time": "2026-05-20"},
+        {"task_name": "写初稿", "due_time": "2026-05-20", "depends_on": ["收集数据"]},
+        {"task_name": "准备汇报", "due_time": "2026-05-20", "depends_on": ["写初稿"]},
+    ], interrupt_task={"task_name": "突发需求", "due_time": "2026-05-19"})
+
+    assert result["status"] == "success"
+    assert isinstance(result["conflict_chain"], list)
+    assert isinstance(result["reordered_tasks"], list)

@@ -611,6 +611,26 @@ export default function AiChat() {
                   {(replanResult.risk_changes || []).map((item, index) => (
                     <div key={`risk-${index}`} style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: 4 }}>⚠️ {item}</div>
                   ))}
+                  {(replanResult.conflict_chain || []).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>冲突链</div>
+                      {(replanResult.conflict_chain || []).slice(0, 5).map((item, index) => (
+                        <div key={`chain-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          {item.task_name}：{(item.dates || []).join('、') || '无日期'} / {(item.reasons || []).slice(0, 2).join('；')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(replanResult.reordered_tasks || []).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>重排建议</div>
+                      {(replanResult.reordered_tasks || []).slice(0, 6).map((item, index) => (
+                        <div key={`reorder-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
