@@ -29,9 +29,11 @@ export default function AiChat() {
   const [interruptTaskDueTime, setInterruptTaskDueTime] = useState('');
   const [replanResult, setReplanResult] = useState(null);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
+  const [reasonFilter, setReasonFilter] = useState('all');
 
-  const mustChangeSuggestions = (replanResult?.reordered_tasks || []).filter(item => item.severity === 'must_change');
-  const optionalSuggestions = (replanResult?.reordered_tasks || []).filter(item => item.severity !== 'must_change');
+  const filteredSuggestions = (replanResult?.reordered_tasks || []).filter(item => reasonFilter === 'all' || item.reason_type === reasonFilter);
+  const mustChangeSuggestions = filteredSuggestions.filter(item => item.severity === 'must_change');
+  const optionalSuggestions = filteredSuggestions.filter(item => item.severity !== 'must_change');
 
   const getActivePlanningView = useCallback((preview, variantId) => {
     if (!preview) return null;
@@ -668,6 +670,24 @@ export default function AiChat() {
                   {(replanResult.reordered_tasks || []).length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>重排建议</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {[
+                          ['all', '全部原因'],
+                          ['capacity_conflict', '容量冲突'],
+                          ['dependency_conflict', '依赖冲突'],
+                          ['calendar_conflict', '日历冲突'],
+                          ['time_window_conflict', '时间窗口'],
+                          ['optimization', '优化建议'],
+                        ].map(([value, label]) => (
+                          <button
+                            key={value}
+                            className={`btn btn-sm ${reasonFilter === value ? 'btn-primary' : 'btn-ghost'}`}
+                            onClick={() => setReasonFilter(value)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                       {mustChangeSuggestions.length > 0 && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--error)', marginBottom: 4 }}>必须调整</div>
@@ -685,7 +705,7 @@ export default function AiChat() {
                                 }}
                                 style={{ marginRight: 6 }}
                               />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
                             </label>
                           ))}
                         </div>
@@ -707,7 +727,7 @@ export default function AiChat() {
                                 }}
                                 style={{ marginRight: 6 }}
                               />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
+                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
                             </label>
                           ))}
                         </div>
@@ -722,7 +742,7 @@ export default function AiChat() {
                       <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>已应用动作</div>
                       {(replanResult.applied_actions || []).slice(0, 6).map((item, index) => (
                         <div key={`applied-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.severity || '-'} / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
+                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason_type || '-'} / {item.severity || '-'} / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
                         </div>
                       ))}
                     </div>

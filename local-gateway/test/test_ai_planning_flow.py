@@ -156,6 +156,7 @@ async def test_replan_task_plan_returns_preview():
     if result["reordered_tasks"]:
         assert "confidence" in result["reordered_tasks"][0]
         assert "severity" in result["reordered_tasks"][0]
+        assert "reason_type" in result["reordered_tasks"][0]
 
 
 @pytest.mark.asyncio
@@ -188,3 +189,4 @@ async def test_replan_with_acceptance_applies_partial_suggestions():
     if result["applied_actions"]:
         assert "confidence" in result["applied_actions"][0]
         assert "severity" in result["applied_actions"][0]
+        assert "reason_type" in result["applied_actions"][0]
