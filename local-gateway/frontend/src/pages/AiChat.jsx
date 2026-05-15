@@ -113,10 +113,11 @@ function renderMarkdownToHtml(markdown = '') {
     const splitRow = (line) => line.split('|').map(cell => cell.trim()).filter((_, index, arr) => !(index === 0 && arr[0] === '') && !(index === arr.length - 1 && arr[arr.length - 1] === ''));
     const headers = splitRow(headerLine);
     const rows = bodyLines.map(splitRow);
+    const tableHtml = `<table><thead><tr>${headers.map(cell => `<th>${renderInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${
+      rows.map(row => `<tr>${row.map(cell => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')
+    }</tbody></table>`;
     html.push(
-      `<table><thead><tr>${headers.map(cell => `<th>${renderInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${
-        rows.map(row => `<tr>${row.map(cell => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')
-      }</tbody></table>`
+      `<div class="markdown-table-block"><button class="markdown-table-expand" data-table="${encodeURIComponent(tableHtml)}">展开表格</button>${tableHtml}</div>`
     );
     tableBuffer = [];
   };
@@ -129,11 +130,11 @@ function renderMarkdownToHtml(markdown = '') {
     const encoded = encodeURIComponent(rawCode);
     if (String(codeLanguage || '').toLowerCase() === 'mermaid') {
       html.push(
-        `<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${escapeHtml(rawCode)}</code></pre><div class="markdown-mermaid-note">Mermaid 图表源码已保留，可复制到支持 Mermaid 的工具中查看。</div></div>`
+        `<div class="markdown-mermaid-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'mermaid')}">展开</button><pre><code>${escapeHtml(rawCode)}</code></pre><div class="markdown-mermaid-note">Mermaid 图表源码已保留，可复制到支持 Mermaid 的工具中查看。</div></div>`
       );
     } else {
       html.push(
-        `<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><pre><code>${code}</code></pre></div>`
+        `<div class="markdown-code-block">${languageLabel}<button class="markdown-code-copy" data-code="${encoded}">复制</button><button class="markdown-code-expand" data-code="${encoded}" data-language="${escapeHtml(codeLanguage || 'code')}">展开</button><pre><code>${code}</code></pre></div>`
       );
     }
     codeBuffer = [];
@@ -262,6 +263,7 @@ export default function AiChat() {
   const [replanResult, setReplanResult] = useState(null);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
   const [reasonFilter, setReasonFilter] = useState('all');
+  const [viewerModal, setViewerModal] = useState({ open: false, type: 'text', title: '', content: '' });
 
   const filteredSuggestions = (replanResult?.reordered_tasks || [])
     .filter(item => reasonFilter === 'all' || item.reason_type === reasonFilter)
@@ -406,6 +408,27 @@ export default function AiChat() {
     document.addEventListener('click', handleCopy);
     return () => document.removeEventListener('click', handleCopy);
   }, [toast]);
+
+  useEffect(() => {
+    const handleExpand = (event) => {
+      const target = event.target;
+      if (!target) return;
+
+      if (target.classList?.contains('markdown-code-expand')) {
+        const code = decodeURIComponent(target.getAttribute('data-code') || '');
+        const language = target.getAttribute('data-language') || 'code';
+        setViewerModal({ open: true, type: 'code', title: `代码块 · ${language}`, content: code });
+      }
+
+      if (target.classList?.contains('markdown-table-expand')) {
+        const tableHtml = decodeURIComponent(target.getAttribute('data-table') || '');
+        setViewerModal({ open: true, type: 'table', title: '表格查看', content: tableHtml });
+      }
+    };
+
+    document.addEventListener('click', handleExpand);
+    return () => document.removeEventListener('click', handleExpand);
+  }, []);
 
   // Send message with SSE streaming
   const sendMessage = useCallback(async () => {
@@ -1208,6 +1231,26 @@ export default function AiChat() {
               <div>API: {config.api_base || '-'}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {viewerModal.open && (
+        <div className="modal-overlay" onClick={() => setViewerModal({ open: false, type: 'text', title: '', content: '' })}>
+          <div className="modal" style={{ width: 'min(92vw, 960px)', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="card-header" style={{ marginBottom: 'var(--space-sm)' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{viewerModal.title}</h3>
+              <button className="btn btn-sm btn-ghost" onClick={() => setViewerModal({ open: false, type: 'text', title: '', content: '' })}>
+                关闭
+              </button>
+            </div>
+            {viewerModal.type === 'table' ? (
+              <div className="markdown-body" dangerouslySetInnerHTML={{ __html: viewerModal.content }} />
+            ) : (
+              <pre style={{ margin: 0, padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
+                <code>{viewerModal.content}</code>
+              </pre>
+            )}
+          </div>
         </div>
       )}
     </div>

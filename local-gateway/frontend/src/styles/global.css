@@ -245,7 +245,25 @@ textarea { resize: vertical; min-height: 80px; }
   font-size: 0.72rem;
   cursor: pointer;
 }
+.markdown-code-expand,
+.markdown-table-expand {
+  position: absolute;
+  top: 6px;
+  right: 56px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
 .markdown-code-copy:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+.markdown-code-expand:hover,
+.markdown-table-expand:hover {
   color: var(--text-primary);
   background: var(--bg-tertiary);
 }
@@ -274,6 +292,13 @@ textarea { resize: vertical; min-height: 80px; }
 .markdown-body th {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
+}
+.markdown-table-block {
+  position: relative;
+  padding-top: 28px;
+}
+.markdown-table-expand {
+  right: 8px;
 }
 .markdown-mermaid-block {
   position: relative;
