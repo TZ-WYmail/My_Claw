@@ -18,7 +18,6 @@ _STREAK_FILE = BASE_DIR / "data" / "streak.json"
 
 
 def _load_streak_data() -> dict:
-    """加载 streak 数据"""
     if not _STREAK_FILE.exists():
         return {
             "current_streak": 0,
@@ -35,7 +34,6 @@ def _load_streak_data() -> dict:
 
 
 def _save_streak_data(data: dict):
-    """保存 streak 数据"""
     _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(_STREAK_FILE, "w", encoding="utf-8") as f:
@@ -47,7 +45,6 @@ def _save_streak_data(data: dict):
 async def check_and_update_streak() -> dict:
     """
     检查并更新 streak 状态。
-    规则：
     - 昨天有任务且全部完成 → streak + 1
     - 昨天有任务且未全完成 → streak 归零
     - 昨天无任务 → streak 不变
@@ -61,17 +58,14 @@ async def check_and_update_streak() -> dict:
 
     data = _load_streak_data()
 
-    # 幂等检查
     if data["last_check_date"] == today:
         return data
 
-    # 查询昨天的任务情况
     async with aiosqlite.connect(str(DB_PATH)) as db:
-        # 昨天截止或执行的任务（pending + completed）
         cursor = await db.execute(
             """SELECT status FROM tasks
                WHERE status != 'deleted'
-               AND (substr(due_time, 1, 10) = ? OR substr(start_time, 1, 10) = ?)""",
+               AND (date(due_time) = ? OR date(start_time) = ?)""",
             (yesterday, yesterday),
         )
         rows = await cursor.fetchall()
@@ -100,7 +94,6 @@ async def check_and_update_streak() -> dict:
         "completed": completed,
         "all_done": all_done,
     })
-    # 只保留最近 30 天
     if len(history) > 30:
         history = history[-30:]
     data["history"] = history
@@ -115,7 +108,6 @@ async def get_streak_info() -> dict:
     """获取 streak 信息"""
     data = _load_streak_data()
 
-    # 计算近 7 天完成率
     history = data.get("history", [])
     recent_7 = history[-7:] if len(history) >= 7 else history
     if recent_7:
@@ -124,7 +116,6 @@ async def get_streak_info() -> dict:
     else:
         weekly_rate = 0
 
-    # 今天的情况
     today = datetime.now().strftime("%Y-%m-%d")
     import aiosqlite
     from config import DB_PATH
@@ -135,7 +126,7 @@ async def get_streak_info() -> dict:
         cursor = await db.execute(
             """SELECT status FROM tasks
                WHERE status != 'deleted'
-               AND (substr(due_time, 1, 10) = ? OR substr(start_time, 1, 10) = ?)""",
+               AND (date(due_time) = ? OR date(start_time) = ?)""",
             (today, today),
         )
         rows = await cursor.fetchall()
@@ -156,29 +147,50 @@ async def get_weekly_stats() -> dict:
     """获取本周统计"""
     now = datetime.now()
     monday = now - timedelta(days=now.weekday())
+    last_monday = monday - timedelta(days=7)
+    sunday = monday + timedelta(days=6)
+    last_sunday = last_monday + timedelta(days=6)
 
     import aiosqlite
     from config import DB_PATH
 
+    this_week_dates = [(monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    last_week_dates = [(last_monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+
+    this_week_map = {d: {"total": 0, "completed": 0} for d in this_week_dates}
+    last_week_map = {d: {"total": 0, "completed": 0} for d in last_week_dates}
+    all_dates = set(this_week_dates + last_week_dates)
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        date_list = ",".join("?" for _ in all_dates)
+        cursor = await db.execute(
+            f"""SELECT COALESCE(date(due_time), date(start_time)) AS day, status, COUNT(*) AS cnt
+               FROM tasks
+               WHERE status != 'deleted'
+               AND (date(due_time) IN ({date_list}) OR date(start_time) IN ({date_list}))
+               GROUP BY day, status""",
+            list(all_dates) * 2,
+        )
+        rows = await cursor.fetchall()
+
+    for row in rows:
+        day, status, cnt = row[0], row[1], row[2]
+        if day in this_week_map:
+            this_week_map[day]["total"] += cnt
+            if status == "completed":
+                this_week_map[day]["completed"] += cnt
+        if day in last_week_map:
+            last_week_map[day]["total"] += cnt
+            if status == "completed":
+                last_week_map[day]["completed"] += cnt
+
     days_stats = []
     this_week_total = 0
     this_week_completed = 0
-
-    for i in range(7):
-        day = monday + timedelta(days=i)
-        day_str = day.strftime("%Y-%m-%d")
-
-        async with aiosqlite.connect(str(DB_PATH)) as db:
-            cursor = await db.execute(
-                """SELECT status FROM tasks
-                   WHERE status != 'deleted'
-                   AND (substr(due_time, 1, 10) = ? OR substr(start_time, 1, 10) = ?)""",
-                (day_str, day_str),
-            )
-            rows = await cursor.fetchall()
-
-        total = len(rows)
-        completed = sum(1 for r in rows if r[0] == "completed")
+    for day_str in this_week_dates:
+        info = this_week_map[day_str]
+        total = info["total"]
+        completed = info["completed"]
         this_week_total += total
         this_week_completed += completed
         days_stats.append({
@@ -188,26 +200,8 @@ async def get_weekly_stats() -> dict:
             "rate": round(completed / total * 100) if total > 0 else 0,
         })
 
-    # 上周对比
-    last_monday = monday - timedelta(days=7)
-    last_week_total = 0
-    last_week_completed = 0
-
-    for i in range(7):
-        day = last_monday + timedelta(days=i)
-        day_str = day.strftime("%Y-%m-%d")
-
-        async with aiosqlite.connect(str(DB_PATH)) as db:
-            cursor = await db.execute(
-                """SELECT status FROM tasks
-                   WHERE status != 'deleted'
-                   AND (substr(due_time, 1, 10) = ? OR substr(start_time, 1, 10) = ?)""",
-                (day_str, day_str),
-            )
-            rows = await cursor.fetchall()
-
-        last_week_total += len(rows)
-        last_week_completed += sum(1 for r in rows if r[0] == "completed")
+    last_week_total = sum(info["total"] for info in last_week_map.values())
+    last_week_completed = sum(info["completed"] for info in last_week_map.values())
 
     this_rate = round(this_week_completed / this_week_total * 100) if this_week_total > 0 else 0
     last_rate = round(last_week_completed / last_week_total * 100) if last_week_total > 0 else 0

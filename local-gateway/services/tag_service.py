@@ -166,3 +166,13 @@ async def remove_task_tags(task_id: str, tag_names: list[str]) -> dict:
             )
         await db.commit()
     return {"status": "success"}
+
+
+async def set_task_tags(task_id: str, tag_names: list[str]) -> dict:
+    """覆盖设置任务标签"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("DELETE FROM task_tags WHERE task_id = ?", (task_id,))
+        await db.commit()
+    if not tag_names:
+        return {"status": "success", "added": []}
+    return await add_task_tags(task_id, tag_names)

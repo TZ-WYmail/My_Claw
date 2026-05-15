@@ -4,7 +4,7 @@ POST /api/task/batch — 批量任务编排（预览/创建）
 """
 from fastapi import APIRouter
 
-from models.schemas import TaskManagerRequest, TaskManagerResponse, BatchTaskRequest, BatchTaskResponse
+from models.schemas import TaskManagerRequest, TaskManagerResponse, BatchTaskRequest, BatchTaskResponse, TaskUpdateRequest
 from services import task_service
 
 router = APIRouter()
@@ -81,6 +81,23 @@ async def handle_task(request: TaskManagerRequest):
         result = {"status": "error", "message": f"未知操作: {request.action}"}
 
     return TaskManagerResponse(**result)
+
+
+@router.put("/task/{task_id}")
+async def update_task(task_id: str, request: TaskUpdateRequest):
+    """更新单个任务"""
+    return await task_service.update_task(
+        task_id=task_id,
+        task_name=request.task_name,
+        due_time=request.due_time,
+        recurrence=request.recurrence.value if request.recurrence else None,
+        priority=request.priority.value if request.priority is not None else None,
+        description=request.description,
+        estimated_minutes=request.estimated_minutes,
+        start_time=request.start_time,
+        end_time=request.end_time,
+        tags=request.tags,
+    )
 
 
 @router.post("/task/batch", response_model=BatchTaskResponse)

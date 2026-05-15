@@ -95,22 +95,19 @@ class NotificationConfig:
             and self.notify_email
         )
 
+    _STR_FIELDS = ("smtp_host", "smtp_user", "smtp_password", "notify_email")
+    _INT_FIELDS = ("smtp_port", "reminder_minutes_before", "reminder_due_minutes")
+
     def update(self, **kwargs):
         """更新配置字段，仅接受非空字符串或有效整数"""
-        if kwargs.get("smtp_host") and isinstance(kwargs["smtp_host"], str):
-            self.smtp_host = kwargs["smtp_host"]
-        if kwargs.get("smtp_port") and isinstance(kwargs["smtp_port"], int):
-            self.smtp_port = kwargs["smtp_port"]
-        if kwargs.get("smtp_user") and isinstance(kwargs["smtp_user"], str):
-            self.smtp_user = kwargs["smtp_user"]
-        if kwargs.get("smtp_password") and isinstance(kwargs["smtp_password"], str):
-            self.smtp_password = kwargs["smtp_password"]
-        if kwargs.get("notify_email") and isinstance(kwargs["notify_email"], str):
-            self.notify_email = kwargs["notify_email"]
-        if isinstance(kwargs.get("reminder_minutes_before"), int) and kwargs["reminder_minutes_before"] > 0:
-            self.reminder_minutes_before = kwargs["reminder_minutes_before"]
-        if isinstance(kwargs.get("reminder_due_minutes"), int) and kwargs["reminder_due_minutes"] > 0:
-            self.reminder_due_minutes = kwargs["reminder_due_minutes"]
+        for f in self._STR_FIELDS:
+            v = kwargs.get(f)
+            if v and isinstance(v, str):
+                setattr(self, f, v)
+        for f in self._INT_FIELDS:
+            v = kwargs.get(f)
+            if isinstance(v, int) and v > 0:
+                setattr(self, f, v)
 
 
 # 全局通知配置单例
@@ -232,9 +229,8 @@ def schedule_task_reminders(task_id: str, start_time: str = None, due_time: str 
     if not _scheduler or not notification_config.is_configured():
         return
 
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
-    # 开始前提醒
     if start_time:
         try:
             start_dt = datetime.fromisoformat(start_time)
@@ -251,7 +247,6 @@ def schedule_task_reminders(task_id: str, start_time: str = None, due_time: str 
         except (ValueError, TypeError):
             pass
 
-    # 截止前提醒
     if due_time:
         try:
             due_dt = datetime.fromisoformat(due_time)
@@ -287,8 +282,8 @@ async def send_start_reminder(task_name: str, start_time: str):
     """发送任务开始前提醒"""
     time_range = ""
     try:
-        time_range = start_time[11:16]
-    except Exception:
+        time_range = datetime.fromisoformat(start_time).strftime("%H:%M")
+    except (ValueError, TypeError):
         pass
 
     body = f"<p>「{task_name}」将在 {notification_config.reminder_minutes_before} 分钟后开始 ({time_range})</p>"
@@ -299,8 +294,8 @@ async def send_due_reminder(task_name: str, due_time: str):
     """发送截止前提醒"""
     time_str = ""
     try:
-        time_str = due_time[11:16]
-    except Exception:
+        time_str = datetime.fromisoformat(due_time).strftime("%H:%M")
+    except (ValueError, TypeError):
         pass
 
     body = f"<p>「{task_name}」将在 {notification_config.reminder_due_minutes} 分钟后截止 (截止时间: {time_str})</p>"
@@ -337,13 +332,10 @@ async def restore_all_reminders():
 # 三时报 — 数据查询辅助
 # ============================================================
 
-async def _get_today_tasks() -> list[dict]:
-    """获取今日任务列表"""
+async def _get_tasks_by_date(date_str: str) -> list[dict]:
+    """按日期查询 pending 任务"""
     import aiosqlite
     from config import DB_PATH
-    from datetime import datetime
-
-    today = datetime.now().strftime("%Y-%m-%d")
 
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
@@ -351,9 +343,9 @@ async def _get_today_tasks() -> list[dict]:
             """SELECT task_id, task_name, due_time, start_time, end_time, priority, status
                FROM tasks
                WHERE status = 'pending'
-               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
+               AND (date(start_time) = ? OR date(due_time) = ?)
                ORDER BY start_time ASC, priority ASC""",
-            (today, today),
+            (date_str, date_str),
         )
         return [dict(row) for row in await cursor.fetchall()]
 
@@ -362,7 +354,6 @@ async def _get_overdue_tasks() -> list[dict]:
     """获取逾期任务列表"""
     import aiosqlite
     from config import DB_PATH
-    from datetime import datetime
 
     now = datetime.now().isoformat()
 
@@ -379,25 +370,13 @@ async def _get_overdue_tasks() -> list[dict]:
         return [dict(row) for row in await cursor.fetchall()]
 
 
-async def _get_tomorrow_tasks() -> list[dict]:
-    """获取明日任务列表"""
-    import aiosqlite
-    from config import DB_PATH
-    from datetime import datetime, timedelta
+def _get_today_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
 
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            """SELECT task_id, task_name, due_time, start_time, end_time, priority
-               FROM tasks
-               WHERE status = 'pending'
-               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
-               ORDER BY start_time ASC, priority ASC""",
-            (tomorrow, tomorrow),
-        )
-        return [dict(row) for row in await cursor.fetchall()]
+def _get_tomorrow_str() -> str:
+    from datetime import timedelta
+    return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def _overdue_days(due_time: str) -> int:
@@ -423,7 +402,7 @@ async def send_morning_report():
     from datetime import datetime
     from services.streak_service import get_streak_info
 
-    today_tasks = await _get_today_tasks()
+    today_tasks = await _get_tasks_by_date(_get_today_str())
     overdue_tasks = await _get_overdue_tasks()
     streak_info = await get_streak_info()
 
@@ -431,12 +410,10 @@ async def send_morning_report():
 
     lines = [f"🌤 早上好！\n"]
 
-    # Streak 数据
     lines.append("📊 你的数据")
     lines.append(f"  连续完成: 🔥 {streak_info['current_streak']} 天")
     lines.append(f"  本周完成率: {streak_info['weekly_rate']}%\n")
 
-    # 逾期任务
     if overdue_tasks:
         lines.append(f"⚠️ 逾期任务（{len(overdue_tasks)}项）")
         for t in overdue_tasks[:5]:
@@ -444,7 +421,6 @@ async def send_morning_report():
             lines.append(f"  - {t['task_name']}（逾期 {days}天）")
         lines.append("")
 
-    # 今日任务
     if today_tasks:
         lines.append(f"📋 今日任务（{len(today_tasks)}项）")
         for t in today_tasks:
@@ -465,41 +441,36 @@ async def send_noon_report():
 
     from datetime import datetime
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    now_str = datetime.now().isoformat()
+    today = _get_today_str()
 
     import aiosqlite
     from config import DB_PATH
 
-    # 上午任务（start_time < 13:00 或无 start_time 但 due_time 在今天）
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
-        # 上午已完成
         cursor = await db.execute(
             """SELECT task_name FROM tasks
                WHERE status = 'completed' AND completed_at IS NOT NULL
-               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
-               AND (start_time IS NULL OR substr(start_time, 12, 2) < '13')""",
+               AND (date(start_time) = ? OR date(due_time) = ?)
+               AND (start_time IS NULL OR strftime('%H', start_time) < '13')""",
             (today, today),
         )
         morning_done = [dict(row) for row in await cursor.fetchall()]
 
-        # 上午未完成
         cursor = await db.execute(
             """SELECT task_name, start_time, end_time FROM tasks
                WHERE status = 'pending'
-               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
-               AND (start_time IS NULL OR substr(start_time, 12, 2) < '13')""",
+               AND (date(start_time) = ? OR date(due_time) = ?)
+               AND (start_time IS NULL OR strftime('%H', start_time) < '13')""",
             (today, today),
         )
         morning_pending = [dict(row) for row in await cursor.fetchall()]
 
-        # 下午待执行
         cursor = await db.execute(
             """SELECT task_name, start_time, end_time, priority FROM tasks
                WHERE status = 'pending'
-               AND start_time IS NOT NULL AND substr(start_time, 12, 2) >= '13'
-               AND substr(start_time, 1, 10) = ?
+               AND start_time IS NOT NULL AND strftime('%H', start_time) >= '13'
+               AND date(start_time) = ?
                ORDER BY start_time ASC""",
             (today,),
         )
@@ -507,7 +478,6 @@ async def send_noon_report():
 
     lines = ["☀️ 下午好！\n"]
 
-    # 上午进度
     morning_total = len(morning_done) + len(morning_pending)
     if morning_total > 0:
         rate = round(len(morning_done) / morning_total * 100)
@@ -523,19 +493,21 @@ async def send_noon_report():
     else:
         lines.append("📈 今天上午没有安排任务，下午有安排。\n")
 
-    # 上午未完成
     if morning_pending:
         lines.append(f"⚠️ 上午未完成（{len(morning_pending)}项）")
         for t in morning_pending[:5]:
             time_info = ""
             if t.get("start_time"):
-                start_h = t["start_time"][11:16]
-                end_h = t["end_time"][11:16] if t.get("end_time") else ""
-                time_info = f"（原定 {start_h}-{end_h}）"
+                try:
+                    start_h = datetime.fromisoformat(t["start_time"]).strftime("%H:%M")
+                    end_h = datetime.fromisoformat(t["end_time"]).strftime("%H:%M") if t.get("end_time") else ""
+                except (ValueError, TypeError):
+                    start_h = t["start_time"][11:16] if len(t["start_time"]) > 16 else ""
+                    end_h = t.get("end_time", "")[11:16] if t.get("end_time") and len(t["end_time"]) > 16 else ""
+                time_info = f"（原定 {start_h}-{end_h}）" if end_h else f"（原定 {start_h}）"
             lines.append(f"  - {t['task_name']}{time_info}")
         lines.append("")
 
-    # 下午待执行
     if afternoon_tasks:
         lines.append(f"📋 下午待执行（{len(afternoon_tasks)}项）")
         for t in afternoon_tasks:
@@ -555,21 +527,20 @@ async def send_evening_report():
     from datetime import datetime
     from services.streak_service import get_streak_info
 
-    today_tasks = await _get_today_tasks()
-    tomorrow_tasks = await _get_tomorrow_tasks()
+    today_tasks = await _get_tasks_by_date(_get_today_str())
+    tomorrow_tasks = await _get_tasks_by_date(_get_tomorrow_str())
     streak_info = await get_streak_info()
 
-    # 获取今日已完成
     import aiosqlite
     from config import DB_PATH
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _get_today_str()
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             """SELECT task_name, start_time, end_time, completed_at FROM tasks
                WHERE status = 'completed' AND completed_at IS NOT NULL
-               AND (substr(completed_at, 1, 10) = ? OR substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)""",
+               AND (date(completed_at) = ? OR date(start_time) = ? OR date(due_time) = ?)""",
             (today, today, today),
         )
         completed_today = [dict(row) for row in await cursor.fetchall()]
@@ -580,37 +551,43 @@ async def send_evening_report():
 
     lines = ["🌙 晚上好！\n"]
 
-    # 今日总结
     lines.append("📊 今日总结")
     lines.append(f"  完成率: {completed_count}/{total_today} ({rate}%)")
     lines.append(f"  连续天数: 🔥 {streak_info['current_streak']} 天")
     lines.append(f"  最长纪录: {streak_info['longest_streak']} 天\n")
 
-    # 已完成
     if completed_today:
         lines.append(f"✅ 已完成（{completed_count}项）")
         for t in completed_today:
             time_info = ""
             if t.get("start_time") and t.get("end_time"):
-                time_info = f"（{t['start_time'][11:16]}-{t['end_time'][11:16]}）"
+                try:
+                    st = datetime.fromisoformat(t["start_time"]).strftime("%H:%M")
+                    et = datetime.fromisoformat(t["end_time"]).strftime("%H:%M")
+                    time_info = f"（{st}-{et}）"
+                except (ValueError, TypeError):
+                    pass
             lines.append(f"  ✓ {t['task_name']}{time_info}")
         lines.append("")
 
-    # 未完成
     if today_tasks:
         lines.append(f"❌ 未完成（{len(today_tasks)}项）→ 已转为逾期")
         for t in today_tasks:
-            lines.append(f"  ✗ {t['task_name']}（截止 {t['due_time'][11:16] if t.get('due_time') else '无'}）")
+            due_display = "无"
+            if t.get("due_time"):
+                try:
+                    due_display = datetime.fromisoformat(t["due_time"]).strftime("%H:%M")
+                except (ValueError, TypeError):
+                    due_display = t["due_time"]
+            lines.append(f"  ✗ {t['task_name']}（截止 {due_display}）")
         lines.append("")
 
-    # 明日预览
     if tomorrow_tasks:
         lines.append(f"📅 明日预览（{len(tomorrow_tasks)}项）")
         for t in tomorrow_tasks:
             lines.append(_format_task_line(t))
         lines.append("")
 
-    # 结束语
     if rate == 100 and total_today > 0:
         lines.append("完美的一天！明天继续！🔥")
     elif rate >= 70:
@@ -620,7 +597,6 @@ async def send_evening_report():
     else:
         lines.append("今天没有安排任务，明天试试规划一下？")
 
-    # 里程碑检测
     from services.streak_service import check_milestones, get_milestone_message
     milestones = check_milestones(streak_info['current_streak'], streak_info.get('_prev_streak', 0))
     for m in milestones:
@@ -630,7 +606,6 @@ async def send_evening_report():
     date_str = datetime.now().strftime("%Y年%m月%d日")
     await send_email(f"🌙 晚报 - {date_str} 今日总结", body)
 
-    # 如果达到里程碑，额外发送祝贺邮件
     for m in milestones:
         congrats_body = (
             f"<div style='text-align:center; padding:40px; font-family:sans-serif;'>"

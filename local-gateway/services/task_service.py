@@ -160,18 +160,16 @@ async def _check_conflicts(start_time: str, end_time: str, exclude_task_id: str 
 
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
-        # 查找同一天的所有 pending 任务
         cursor = await db.execute(
             """SELECT task_id, task_name, start_time, end_time, due_time, estimated_minutes
                FROM tasks
                WHERE status = 'pending'
-               AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)
+               AND (date(start_time) = ? OR date(due_time) = ?)
                AND start_time IS NOT NULL AND end_time IS NOT NULL""",
             (task_date, task_date),
         )
         rows = await cursor.fetchall()
 
-        # 计算当日总工时
         total_hours = 0
 
         for row in rows:
@@ -186,15 +184,13 @@ async def _check_conflicts(start_time: str, end_time: str, exclude_task_id: str 
                 duration = (existing_end - existing_start).total_seconds() / 3600
                 total_hours += duration
 
-                # 时间重叠检测
                 if task_start < existing_end and task_end > existing_start:
                     warnings.append(
-                        f"{start_time[11:16]}-{end_time[11:16]} 与已有任务「{row['task_name']}」时间冲突"
+                        f"{task_start.strftime('%H:%M')}-{task_end.strftime('%H:%M')} 与已有任务「{row['task_name']}」时间冲突"
                     )
             except (ValueError, TypeError):
                 continue
 
-        # 加入新任务自身工时
         new_hours = (task_end - task_start).total_seconds() / 3600
         total_hours += new_hours
 
@@ -292,6 +288,177 @@ async def complete_task(task_id: str) -> dict:
     except Exception:
         pass
     return {"status": "success", "message": f"任务 {task_id} 已完成"}
+
+
+async def get_task_by_id(task_id: str) -> dict | None:
+    """按 ID 获取单个任务，附带标签"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT task_id, task_name, due_time, recurrence, status, priority,
+                      description, estimated_minutes, created_at, updated_at,
+                      start_time, end_time, completed_at
+               FROM tasks WHERE task_id = ?""",
+            (task_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+
+    from services.tag_service import get_task_tags
+    task = dict(row)
+    task["tags"] = await get_task_tags(task_id)
+    return task
+
+
+async def update_task(
+    task_id: str,
+    task_name: str = None,
+    due_time: str = None,
+    recurrence: str = None,
+    priority: int = None,
+    description: str = None,
+    estimated_minutes: int = None,
+    start_time: str = None,
+    end_time: str = None,
+    tags: list[str] = None,
+) -> dict:
+    """更新任务基础信息"""
+    updates = []
+    params = []
+
+    if task_name is not None:
+        updates.append("task_name = ?")
+        params.append(task_name)
+    if due_time is not None:
+        updates.append("due_time = ?")
+        params.append(due_time)
+    if recurrence is not None:
+        updates.append("recurrence = ?")
+        params.append(recurrence)
+    if priority is not None:
+        updates.append("priority = ?")
+        params.append(priority)
+    if description is not None:
+        updates.append("description = ?")
+        params.append(description)
+    if estimated_minutes is not None:
+        updates.append("estimated_minutes = ?")
+        params.append(estimated_minutes)
+    if start_time is not None:
+        updates.append("start_time = ?")
+        params.append(start_time)
+    if end_time is not None:
+        updates.append("end_time = ?")
+        params.append(end_time)
+
+    if not updates and tags is None:
+        return {"status": "error", "message": "没有要更新的字段"}
+
+    if updates:
+        updates.append("updated_at = datetime('now')")
+        params.append(task_id)
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            cursor = await db.execute(
+                f"UPDATE tasks SET {', '.join(updates)} WHERE task_id = ?",
+                params,
+            )
+            await db.commit()
+            if cursor.rowcount == 0:
+                return {"status": "error", "message": f"任务 {task_id} 不存在"}
+
+    if tags is not None:
+        from services.tag_service import set_task_tags
+        await set_task_tags(task_id, tags)
+
+    if start_time and end_time:
+        warnings = await _check_conflicts(start_time, end_time, exclude_task_id=task_id)
+    else:
+        warnings = []
+
+    try:
+        from services.notification_service import cancel_task_reminders, schedule_task_reminders
+        cancel_task_reminders(task_id)
+        if due_time or start_time:
+            async with aiosqlite.connect(str(DB_PATH)) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute(
+                    "SELECT task_name, due_time, start_time FROM tasks WHERE task_id = ?",
+                    (task_id,),
+                )
+                row = await cursor.fetchone()
+            if row:
+                schedule_task_reminders(
+                    task_id,
+                    start_time=row["start_time"],
+                    due_time=row["due_time"],
+                    task_name=row["task_name"],
+                )
+    except Exception:
+        pass
+
+    return {"status": "success", "message": "任务已更新", "warnings": warnings}
+
+
+async def batch_update_tasks(
+    task_ids: list[str],
+    priority: int = None,
+    due_time: str = None,
+    tags_add: list[str] = None,
+    tags_remove: list[str] = None,
+) -> dict:
+    """批量更新任务"""
+    if not task_ids:
+        return {"status": "error", "message": "task_ids 不能为空"}
+
+    results = []
+    success_count = 0
+    error_count = 0
+
+    for task_id in task_ids:
+        if not await get_task_by_id(task_id):
+            error_count += 1
+            results.append({
+                "task_id": task_id,
+                "status": "error",
+                "message": f"任务 {task_id} 不存在",
+                "warnings": [],
+            })
+            continue
+
+        result = {"status": "success", "message": "标签已更新", "warnings": []}
+        if due_time is not None or priority is not None:
+            result = await update_task(
+                task_id=task_id,
+                due_time=due_time,
+                priority=priority,
+            )
+
+        if result.get("status") == "success":
+            if tags_add:
+                from services.tag_service import add_task_tags
+                await add_task_tags(task_id, tags_add)
+            if tags_remove:
+                from services.tag_service import remove_task_tags
+                await remove_task_tags(task_id, tags_remove)
+            success_count += 1
+        else:
+            error_count += 1
+
+        results.append({
+            "task_id": task_id,
+            "status": result.get("status", "error"),
+            "message": result.get("message"),
+            "warnings": result.get("warnings", []),
+        })
+
+    return {
+        "status": "success",
+        "message": f"批量更新完成，成功 {success_count} 项，失败 {error_count} 项",
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results,
+    }
 
 
 async def batch_complete_tasks(task_ids: list[str]) -> dict:
@@ -472,11 +639,26 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
             task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
             task_start_time = t.get("start_time")
             task_end_time = t.get("end_time")
+            task_description = t.get("description")
+            task_estimated_minutes = t.get("estimated_minutes")
+            task_priority = t.get("priority", 2)
 
             try:
                 await db.execute(
-                    "INSERT INTO tasks (task_id, task_name, due_time, recurrence, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)",
-                    (task_id, task_name, due_time, recurrence, task_start_time, task_end_time),
+                    """INSERT INTO tasks (
+                        task_id, task_name, due_time, recurrence, start_time, end_time, description, estimated_minutes, priority
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        task_id,
+                        task_name,
+                        due_time,
+                        recurrence,
+                        task_start_time,
+                        task_end_time,
+                        task_description,
+                        task_estimated_minutes,
+                        task_priority,
+                    ),
                 )
                 # 冲突检测
                 task_warnings = []
@@ -491,6 +673,9 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
                     "recurrence": recurrence,
                     "start_time": task_start_time,
                     "end_time": task_end_time,
+                    "description": task_description,
+                    "estimated_minutes": task_estimated_minutes,
+                    "priority": task_priority,
                     "status": "success",
                     "message": f"✅ {task_name} → {_human_readable_time(due_time)}",
                     "warnings": task_warnings,
@@ -601,19 +786,18 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     existing_tasks = []
     if by_date:
         date_list = list(by_date.keys())
+        placeholders = ",".join("?" for _ in date_list)
         async with aiosqlite.connect(str(DB_PATH)) as db:
             db.row_factory = aiosqlite.Row
-            for date_str in date_list:
-                cursor = await db.execute(
-                    """SELECT task_id, task_name, due_time, start_time, end_time, priority, status
-                       FROM tasks
-                       WHERE status = 'pending'
-                       AND (substr(start_time, 1, 10) = ? OR substr(due_time, 1, 10) = ?)""",
-                    (date_str, date_str),
-                )
-                rows = await cursor.fetchall()
-                for row in rows:
-                    existing_tasks.append(dict(row))
+            cursor = await db.execute(
+                f"""SELECT task_id, task_name, due_time, start_time, end_time, priority, status
+                   FROM tasks
+                   WHERE status = 'pending'
+                   AND (date(start_time) IN ({placeholders}) OR date(due_time) IN ({placeholders}))""",
+                date_list * 2,
+            )
+            rows = await cursor.fetchall()
+            existing_tasks = [dict(row) for row in rows]
 
     return {
         "status": "success",
@@ -1071,6 +1255,57 @@ async def get_logs(
     }
 
 
+async def get_task_detail(task_id: str) -> dict:
+    """获取任务详情聚合信息"""
+    task = await get_task_by_id(task_id)
+    if not task:
+        return {"status": "error", "message": f"任务 {task_id} 不存在"}
+
+    from services.note_service import get_all_notes
+    from services.subtask_service import get_subtasks
+    from services.pomodoro_service import get_active_pomodoro
+    from services.tag_service import get_task_tags_batch
+
+    notes_result = await get_all_notes(page_size=100)
+    notes = [note for note in notes_result.get("notes", []) if note.get("task_id") == task_id]
+    subtasks = await get_subtasks(task_id)
+    active_pomodoro = await get_active_pomodoro()
+
+    due_date = task["due_time"][:10]
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT task_id, task_name, due_time, recurrence, status, priority,
+                      description, estimated_minutes, created_at, updated_at,
+                      start_time, end_time, completed_at
+               FROM tasks
+               WHERE status != 'deleted'
+                 AND task_id != ?
+                 AND (date(due_time) = ? OR date(start_time) = ?)
+               ORDER BY priority ASC, due_time ASC
+               LIMIT 8""",
+            (task_id, due_date, due_date),
+        )
+        rows = await cursor.fetchall()
+
+    neighbor_ids = [row["task_id"] for row in rows]
+    tags_map = await get_task_tags_batch(neighbor_ids)
+    weekly_neighbors = []
+    for row in rows:
+        item = dict(row)
+        item["tags"] = tags_map.get(row["task_id"], [])
+        weekly_neighbors.append(item)
+
+    return {
+        "status": "success",
+        "task": task,
+        "notes": notes,
+        "subtasks": subtasks,
+        "active_pomodoro": active_pomodoro,
+        "weekly_neighbors": weekly_neighbors,
+    }
+
+
 # ============================================================
 # 仪表盘统计
 # ============================================================
@@ -1144,8 +1379,3 @@ def _calc_disk_stats():
 
 
 # human_size 已移至 services.utils
-
-
-
-
-

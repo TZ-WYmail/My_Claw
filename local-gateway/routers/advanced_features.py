@@ -184,8 +184,17 @@ async def get_calendar_view(
 @router.post("/tasks/batch-update")
 async def batch_update_tasks(request: schemas.BatchTaskUpdateRequest):
     """批量更新任务"""
-    results = []
-    for task_id in request.task_ids:
-        # 这里可以实现批量更新逻辑
-        results.append({"task_id": task_id, "status": "updated"})
-    return {"status": "success", "results": results}
+    return await task_service.batch_update_tasks(
+        task_ids=request.task_ids,
+        priority=request.priority.value if request.priority is not None else None,
+        due_time=request.due_time,
+        tags_add=request.tags_add or [],
+        tags_remove=request.tags_remove or [],
+    )
+
+
+@router.get("/tasks/{task_id}/detail", response_model=schemas.TaskDetailResponse)
+async def get_task_detail(task_id: str):
+    """获取任务聚合详情"""
+    result = await task_service.get_task_detail(task_id)
+    return schemas.TaskDetailResponse(**result)

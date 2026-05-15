@@ -137,6 +137,18 @@ class TaskManagerResponse(BaseModel):
     overdue_count: Optional[int] = None
 
 
+class TaskUpdateRequest(BaseModel):
+    task_name: Optional[str] = None
+    due_time: Optional[str] = None
+    recurrence: Optional[Recurrence] = None
+    priority: Optional[Priority] = None
+    description: Optional[str] = None
+    estimated_minutes: Optional[int] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
 # ============================================================
 # 批量任务编排
 # ============================================================
@@ -567,6 +579,15 @@ class BatchTaskUpdateRequest(BaseModel):
     due_time: Optional[str] = None
 
 
+class TaskDetailResponse(BaseModel):
+    status: str
+    task: Optional[TaskInfo] = None
+    notes: Optional[list["NoteInfo"]] = None
+    subtasks: Optional[list["SubtaskInfo"]] = None
+    active_pomodoro: Optional["PomodoroSession"] = None
+    weekly_neighbors: Optional[list[TaskInfo]] = None
+
+
 # ============================================================
 # 笔记管理
 # ============================================================
@@ -632,3 +653,6 @@ class HabitStatsResponse(BaseModel):
     total_days: int
     week_count: int
     month_count: int
+
+
+TaskDetailResponse.model_rebuild()

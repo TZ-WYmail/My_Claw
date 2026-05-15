@@ -2,17 +2,15 @@ import { useApp } from '../contexts';
 import styles from './Sidebar.module.css';
 
 const NAV_ITEMS = [
-  { view: 'dashboard', icon: '📊', label: '仪表盘' },
+  { view: 'today', icon: '✨', label: '今天' },
   { view: 'tasks', icon: '📋', label: '任务' },
-  { view: 'notes', icon: '📝', label: '笔记' },
-  { view: 'habits', icon: '🎯', label: '习惯' },
   { view: 'calendar', icon: '📅', label: '日历' },
-  { sep: true },
+  { view: 'notes', icon: '📝', label: '笔记' },
   { view: 'ai-chat', icon: '🤖', label: 'AI 对话' },
-  { view: 'workflows', icon: '⚡', label: '工作流' },
-  { view: 'sync', icon: '🔄', label: '同步' },
-  { view: 'download', icon: '📥', label: '下载' },
-  { view: 'sandbox', icon: '🔧', label: '沙盒' },
+  { sep: true },
+  { view: 'settings', icon: '⚙️', label: '设置' },
+  { sep: true },
+  { view: 'workflows', icon: '⚡', label: '实验功能' },
 ];
 
 export default function Sidebar({ current, onNavigate, collapsed }) {
@@ -37,11 +35,6 @@ export default function Sidebar({ current, onNavigate, collapsed }) {
         )}
       </nav>
       <div className={styles.footer}>
-        <button className={`${styles.navItem} ${current === 'settings' ? styles.active : ''}`}
-          onClick={() => onNavigate('settings')}>
-          <span className={styles.navIcon}>⚙️</span>
-          <span className={styles.navLabel}>设置</span>
-        </button>
         <div className={styles.statusRow}>
           <span className={`${styles.statusDot} ${connected ? styles.connected : ''}`} />
           <span style={{ fontSize: '0.75rem' }}>{connected ? '已连接' : '未连接'}</span>

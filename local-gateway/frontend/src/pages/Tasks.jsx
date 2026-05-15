@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
+import { useApp } from '../contexts/AppContext';
 import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
 
 const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
@@ -10,12 +11,25 @@ const TABS = [
   { key: 'all', label: '全部任务' },
 ];
 
-export default function Tasks() {
+export default function Tasks({ quickAction, clearQuickAction, onCreateNoteFromTask }) {
   const [tab, setTab] = useState('week');
+  const [focusedTask, setFocusedTask] = useState(null);
+
+  useEffect(() => {
+    if (quickAction?.type === 'create_task') {
+      setTab('all');
+    }
+    if (quickAction?.type === 'focus_task' && quickAction?.task) {
+      setTab('all');
+      setFocusedTask(quickAction.task);
+      clearQuickAction?.();
+    }
+  }, [quickAction, clearQuickAction]);
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-        {TABS.map(t => (
+      {TABS.map(t => (
           <button
             key={t.key}
             className={`btn ${tab === t.key ? 'btn-primary' : 'btn-ghost'}`}
@@ -25,7 +39,20 @@ export default function Tasks() {
           </button>
         ))}
       </div>
-      {tab === 'week' ? <WeekView /> : <AllTasksView />}
+      {tab === 'week' ? (
+        <WeekView onCreateNoteFromTask={onCreateNoteFromTask} />
+      ) : (
+        <AllTasksView
+          autoOpenCreate={quickAction?.type === 'create_task'}
+          prefill={quickAction?.type === 'create_task' ? quickAction?.prefill : null}
+          focusedTask={focusedTask}
+          clearFocusedTask={() => setFocusedTask(null)}
+          consumeCreateAction={() => {
+            if (quickAction?.type === 'create_task') clearQuickAction?.();
+          }}
+          onCreateNoteFromTask={onCreateNoteFromTask}
+        />
+      )}
     </div>
   );
 }
@@ -44,7 +71,7 @@ function getWeekRange(offset) {
   return { monday: fmt(monday), sunday: fmt(sunday), mondayDate: monday, sundayDate: sunday };
 }
 
-function WeekView() {
+function WeekView({ onCreateNoteFromTask }) {
   const { loading, request } = useApi();
   const toast = useToast();
   const [offset, setOffset] = useState(0);
@@ -344,6 +371,7 @@ function WeekView() {
                                   </span>
                                 </div>
                                 <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                                  <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(t)}>笔记</button>
                                   {t.status === 'pending' && (
                                     <button className="btn btn-sm btn-success" onClick={() => handleComplete(t.task_id)}>完成</button>
                                   )}
@@ -442,6 +470,7 @@ function WeekView() {
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                          <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(t)}>笔记</button>
                           {t.status === 'pending' && (
                             <button className="btn btn-sm btn-success" onClick={() => handleComplete(t.task_id)}>完成</button>
                           )}
@@ -471,9 +500,10 @@ function getOverdueDays(dueTime) {
 
 /* ── All Tasks View ───────────────────────────────────── */
 
-function AllTasksView() {
+function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = null, clearFocusedTask, consumeCreateAction, onCreateNoteFromTask }) {
   const { loading, request } = useApi();
   const toast = useToast();
+  const { refreshToken, notifyDataChange } = useApp();
   const [tasks, setTasks] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -483,6 +513,20 @@ function AllTasksView() {
   const [showForm, setShowForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [justCompleted, setJustCompleted] = useState(null);
+  const [detailTask, setDetailTask] = useState(null);
+  const [relatedNotes, setRelatedNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [subtasks, setSubtasks] = useState([]);
+  const [subtasksLoading, setSubtasksLoading] = useState(false);
+  const [activePomodoro, setActivePomodoro] = useState(null);
+  const [weekContext, setWeekContext] = useState([]);
+
+  useEffect(() => {
+    if (autoOpenCreate) {
+      setShowForm(true);
+      consumeCreateAction?.();
+    }
+  }, [autoOpenCreate, consumeCreateAction]);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -498,7 +542,103 @@ function AllTasksView() {
     }
   }, [request, toast, page, keyword, statusFilter]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => { fetchTasks(); }, [fetchTasks, refreshToken]);
+
+  const resolvedDetailTask = useMemo(() => {
+    if (!detailTask) return null;
+    return tasks.find(item => item.task_id === detailTask.task_id) || detailTask;
+  }, [detailTask, tasks]);
+
+  const fetchRelatedNotes = useCallback(async (task) => {
+    if (!task?.task_id) {
+      setRelatedNotes([]);
+      return [];
+    }
+    const res = await apiGet('/api/notes?page_size=100');
+    if (res.status === 'success') {
+      const matched = (res.notes || []).filter(note => note.task_id === task.task_id);
+      setRelatedNotes(matched);
+      return matched;
+    }
+    setRelatedNotes([]);
+    return [];
+  }, []);
+
+  const fetchSubtasks = useCallback(async (task) => {
+    if (!task?.task_id) {
+      setSubtasks([]);
+      return [];
+    }
+    const res = await apiGet(`/api/advanced/tasks/${task.task_id}/subtasks`);
+    if (res.status === 'success') {
+      setSubtasks(res.subtasks || []);
+      return res.subtasks || [];
+    }
+    setSubtasks([]);
+    return [];
+  }, []);
+
+  const fetchPomodoroStatus = useCallback(async () => {
+    try {
+      const res = await apiGet('/api/advanced/pomodoro/status');
+      if (res.status === 'success') setActivePomodoro(res.active_session || null);
+    } catch {
+      setActivePomodoro(null);
+    }
+  }, []);
+
+  const fetchWeekContext = useCallback(async () => {
+    try {
+      const now = new Date();
+      const day = now.getDay();
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const fmt = (d, suffix) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${suffix}`;
+      const res = await apiPost('/api/task', {
+        action: 'get_weekly_plan',
+        due_time: fmt(monday, '00:00:00'),
+        task_name: fmt(sunday, '23:59:59'),
+      });
+      if (res.status === 'success') {
+        setWeekContext(res.tasks || []);
+        return res.tasks || [];
+      }
+    } catch {
+      setWeekContext([]);
+    }
+    return [];
+  }, []);
+
+  const loadDetailBundle = useCallback(async (task) => {
+    if (!task?.task_id) return;
+    setNotesLoading(true);
+    setSubtasksLoading(true);
+    try {
+      await Promise.all([
+        fetchRelatedNotes(task),
+        fetchSubtasks(task),
+        fetchPomodoroStatus(),
+        fetchWeekContext(),
+      ]);
+    } finally {
+      setNotesLoading(false);
+      setSubtasksLoading(false);
+    }
+  }, [fetchPomodoroStatus, fetchRelatedNotes, fetchSubtasks, fetchWeekContext]);
+
+  const openDetail = useCallback((task) => {
+    setDetailTask(task);
+    loadDetailBundle(task);
+  }, [loadDetailBundle]);
+
+  useEffect(() => {
+    if (!focusedTask?.task_id) return;
+    openDetail(focusedTask);
+    clearFocusedTask?.();
+  }, [focusedTask, openDetail, clearFocusedTask]);
 
   const handleComplete = async (taskId) => {
     try {
@@ -531,6 +671,7 @@ function AllTasksView() {
       setTimeout(() => {
         setJustCompleted(null);
         fetchTasks();
+        notifyDataChange();
       }, 800);
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -542,6 +683,7 @@ function AllTasksView() {
       if (res.status === 'error') throw new Error(res.message);
       toast('任务已删除', 'success');
       fetchTasks();
+      notifyDataChange();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -572,6 +714,7 @@ function AllTasksView() {
       if (res.status === 'error') throw new Error(res.message);
       toast(res.message || `已完成 ${ids.length} 项任务`, 'success');
       fetchTasks();
+      notifyDataChange();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -584,6 +727,7 @@ function AllTasksView() {
       if (res.status === 'error') throw new Error(res.message);
       toast(res.message || `已删除 ${ids.length} 项任务`, 'success');
       fetchTasks();
+      notifyDataChange();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -618,7 +762,11 @@ function AllTasksView() {
 
       {/* New Task Form */}
       {showForm && (
-        <TaskForm onCreated={() => { setShowForm(false); fetchTasks(); }} toast={toast} />
+        <TaskForm
+          onCreated={() => { setShowForm(false); fetchTasks(); }}
+          toast={toast}
+          prefill={prefill}
+        />
       )}
 
       {/* Table */}
@@ -649,7 +797,7 @@ function AllTasksView() {
                 <th>优先级</th>
                 <th>重复</th>
                 <th>状态</th>
-                <th style={{ width: 120 }}>操作</th>
+                <th style={{ width: 180 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -706,6 +854,8 @@ function AllTasksView() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                      <button className="btn btn-sm btn-ghost" onClick={() => openDetail(t)}>详情</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(t)}>记笔记</button>
                       {t.status === 'pending' && (
                         <button className="btn btn-sm btn-success" onClick={() => handleComplete(t.task_id)}>完成</button>
                       )}
@@ -754,19 +904,398 @@ function AllTasksView() {
           <button className="btn btn-sm btn-ghost" onClick={clearSelection}>取消选择</button>
         </div>
       )}
+
+      {resolvedDetailTask && (
+        <TaskDetailDrawer
+          task={resolvedDetailTask}
+          relatedNotes={relatedNotes}
+          notesLoading={notesLoading}
+          onClose={() => setDetailTask(null)}
+          onComplete={resolvedDetailTask.status === 'pending' ? async () => {
+            await handleComplete(resolvedDetailTask.task_id);
+            setDetailTask(null);
+          } : null}
+          onCreateNote={() => onCreateNoteFromTask?.(resolvedDetailTask)}
+          onUpdated={async () => {
+            await fetchTasks();
+            await loadDetailBundle(resolvedDetailTask);
+          }}
+          subtasks={subtasks}
+          subtasksLoading={subtasksLoading}
+          onSubtasksUpdated={() => loadDetailBundle(resolvedDetailTask)}
+          activePomodoro={activePomodoro}
+          onPomodoroUpdated={fetchPomodoroStatus}
+          weekContext={weekContext}
+        />
+      )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 'var(--space-sm)', fontSize: '0.84rem' }}>
+      <div style={{ color: 'var(--text-tertiary)' }}>{label}</div>
+      <div style={{ color: 'var(--text-primary)', minWidth: 0 }}>{value || '-'}</div>
+    </div>
+  );
+}
+
+function TaskDetailDrawer({
+  task,
+  relatedNotes,
+  notesLoading,
+  onClose,
+  onComplete,
+  onCreateNote,
+  onUpdated,
+  subtasks,
+  subtasksLoading,
+  onSubtasksUpdated,
+  activePomodoro,
+  onPomodoroUpdated,
+  weekContext,
+}) {
+  const { loading, request } = useApi();
+  const toast = useToast();
+  const { notifyDataChange } = useApp();
+  const [editMode, setEditMode] = useState(false);
+  const [newSubtask, setNewSubtask] = useState('');
+  const [form, setForm] = useState({
+    task_name: task.task_name || '',
+    due_time: task.due_time ? task.due_time.slice(0, 16) : '',
+    start_time: task.start_time ? task.start_time.slice(0, 16) : '',
+    end_time: task.end_time ? task.end_time.slice(0, 16) : '',
+    description: task.description || '',
+    estimated_minutes: task.estimated_minutes || '',
+    tags: (task.tags || []).join(', '),
+  });
+
+  useEffect(() => {
+    setForm({
+      task_name: task.task_name || '',
+      due_time: task.due_time ? task.due_time.slice(0, 16) : '',
+      start_time: task.start_time ? task.start_time.slice(0, 16) : '',
+      end_time: task.end_time ? task.end_time.slice(0, 16) : '',
+      description: task.description || '',
+      estimated_minutes: task.estimated_minutes || '',
+      tags: (task.tags || []).join(', '),
+    });
+    setEditMode(false);
+  }, [task]);
+
+  const saveTask = async () => {
+    try {
+      const payload = {
+        task_name: form.task_name.trim(),
+        due_time: form.due_time ? new Date(form.due_time).toISOString() : undefined,
+        start_time: form.start_time ? new Date(form.start_time).toISOString() : undefined,
+        end_time: form.end_time ? new Date(form.end_time).toISOString() : undefined,
+        description: form.description,
+        estimated_minutes: form.estimated_minutes ? Number(form.estimated_minutes) : undefined,
+        tags: form.tags ? form.tags.split(',').map(item => item.trim()).filter(Boolean) : [],
+      };
+      const res = await request(async () => fetch(`/api/task/${task.task_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message);
+      toast('任务已更新', 'success');
+      setEditMode(false);
+      await onUpdated?.();
+      await onPomodoroUpdated?.();
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const createSubtask = async () => {
+    if (!newSubtask.trim()) return;
+    try {
+      const res = await request(async () => fetch('/api/advanced/subtasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: task.task_id, name: newSubtask.trim() }),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '创建子任务失败');
+      setNewSubtask('');
+      await onSubtasksUpdated?.();
+      await onUpdated?.();
+      toast('子任务已添加', 'success');
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const toggleSubtask = async (subtask) => {
+    try {
+      const nextStatus = subtask.status === 'completed' ? 'pending' : 'completed';
+      const res = await request(async () => fetch(`/api/advanced/subtasks/${subtask.subtask_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtask_id: subtask.subtask_id, status: nextStatus }),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '更新子任务失败');
+      await onSubtasksUpdated?.();
+      await onUpdated?.();
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const startPomodoro = async (durationMinutes = 25) => {
+    try {
+      const res = await request(async () => fetch('/api/advanced/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: task.task_id, duration_minutes: durationMinutes }),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '启动番茄钟失败');
+      await onPomodoroUpdated?.();
+      toast('番茄钟已开始', 'success');
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const completePomodoro = async () => {
+    try {
+      const res = await request(async () => fetch('/api/advanced/pomodoro/complete', {
+        method: 'POST',
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '完成番茄钟失败');
+      await onPomodoroUpdated?.();
+      toast('番茄钟已完成', 'success');
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const interruptPomodoro = async () => {
+    try {
+      const res = await request(async () => fetch('/api/advanced/pomodoro/interrupt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: activePomodoro?.session_id || '', reason: 'manual_stop' }),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '中断番茄钟失败');
+      await onPomodoroUpdated?.();
+      toast('番茄钟已中断', 'success');
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const weeklyNeighbors = (weekContext || []).filter(item => item.task_id !== task.task_id).slice(0, 5);
+  const pomodoroBoundToCurrent = activePomodoro?.task_id === task.task_id;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal"
+        style={{ width: 520, maxWidth: '92vw', maxHeight: '84vh', overflow: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 4 }}>任务详情</div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{task.task_name}</h2>
+          </div>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
+          <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>
+          <span className={`badge badge-${PRIORITY_COLORS[task.priority] || 'pending'}`}>{PRIORITY_MAP[task.priority] || '中'}</span>
+          <span className="badge badge-pending">{RECURRENCE_MAP[task.recurrence] || task.recurrence}</span>
+        </div>
+
+        <div className="card" style={{ marginBottom: 'var(--space-md)', background: 'var(--bg-secondary)' }}>
+          {editMode ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <input value={form.task_name} onChange={e => setForm(f => ({ ...f, task_name: e.target.value }))} />
+              <input type="datetime-local" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+              <input type="datetime-local" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+              <input type="datetime-local" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} />
+              <input
+                type="number"
+                min="1"
+                value={form.estimated_minutes}
+                onChange={e => setForm(f => ({ ...f, estimated_minutes: e.target.value }))}
+                placeholder="预估分钟"
+              />
+              <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="标签，逗号分隔" />
+              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <InfoRow label="开始" value={task.start_time ? formatTimeShort(task.start_time) : '未安排'} />
+              <InfoRow label="截止" value={task.due_time ? formatTimeShort(task.due_time) : '未设置'} />
+              <InfoRow label="结束" value={task.end_time ? formatTimeShort(task.end_time) : '未设置'} />
+              <InfoRow label="预估" value={task.estimated_minutes ? `${task.estimated_minutes} 分钟` : '未设置'} />
+              <InfoRow label="标签" value={task.tags?.length ? task.tags.join(' / ') : '无'} />
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{ marginBottom: 'var(--space-md)' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>任务说明</div>
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+            {task.description || '暂无描述'}
+          </div>
+        </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>关联笔记</div>
+            <button className="btn btn-sm btn-ghost" onClick={onCreateNote}>+ 新建记录</button>
+          </div>
+          {notesLoading ? (
+            <div className="skeleton skeleton-text" style={{ height: 48 }} />
+          ) : relatedNotes.length === 0 ? (
+            <div style={{ fontSize: '0.84rem', color: 'var(--text-tertiary)' }}>暂无关联笔记</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              {relatedNotes.map(note => (
+                <div key={note.note_id} style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{note.title}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {note.content ? `${note.content.slice(0, 120)}${note.content.length > 120 ? '...' : ''}` : '(空)'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{ marginTop: 'var(--space-md)' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>子任务</div>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+            <input
+              value={newSubtask}
+              onChange={e => setNewSubtask(e.target.value)}
+              placeholder="添加一个可执行步骤"
+            />
+            <button className="btn btn-sm btn-primary" onClick={createSubtask} disabled={loading}>添加</button>
+          </div>
+          {subtasksLoading ? (
+            <div className="skeleton skeleton-text" style={{ height: 48 }} />
+          ) : subtasks.length === 0 ? (
+            <div style={{ fontSize: '0.84rem', color: 'var(--text-tertiary)' }}>暂无子任务</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+              {subtasks.map(subtask => (
+                <label key={subtask.subtask_id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', padding: 'var(--space-xs) 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={subtask.status === 'completed'}
+                    onChange={() => toggleSubtask(subtask)}
+                  />
+                  <span style={{
+                    fontSize: '0.84rem',
+                    textDecoration: subtask.status === 'completed' ? 'line-through' : 'none',
+                    color: subtask.status === 'completed' ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                  }}>
+                    {subtask.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{ marginTop: 'var(--space-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>番茄钟</div>
+            {activePomodoro ? (
+              <span className={`badge badge-${pomodoroBoundToCurrent ? 'completed' : 'pending'}`}>
+                {pomodoroBoundToCurrent ? '当前任务进行中' : '其他任务进行中'}
+              </span>
+            ) : (
+              <span className="badge badge-pending">空闲</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+            {!activePomodoro && (
+              <>
+                <button className="btn btn-sm btn-primary" onClick={() => startPomodoro(25)}>25 分钟</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => startPomodoro(50)}>50 分钟</button>
+              </>
+            )}
+            {activePomodoro && pomodoroBoundToCurrent && (
+              <>
+                <button className="btn btn-sm btn-primary" onClick={completePomodoro}>完成专注</button>
+                <button className="btn btn-sm btn-ghost" onClick={interruptPomodoro}>中断</button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="card" style={{ marginTop: 'var(--space-md)' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }}>本周上下文</div>
+          {weeklyNeighbors.length === 0 ? (
+            <div style={{ fontSize: '0.84rem', color: 'var(--text-tertiary)' }}>本周没有其他任务</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              {weeklyNeighbors.map(item => (
+                <div key={item.task_id} style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.task_name}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
+                        {item.start_time ? formatTimeShort(item.start_time) : formatTimeShort(item.due_time)}
+                      </div>
+                    </div>
+                    <span className={`badge badge-${badgeClass(item.status)}`}>{statusLabel(item.status)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
+          <button className="btn btn-ghost" onClick={() => setEditMode(v => !v)}>{editMode ? '取消编辑' : '编辑'}</button>
+          <button className="btn btn-ghost" onClick={onCreateNote}>记笔记</button>
+          {editMode ? (
+            <button className="btn btn-primary" disabled={loading} onClick={saveTask}>{loading ? '保存中...' : '保存'}</button>
+          ) : (
+            onComplete && <button className="btn btn-primary" onClick={onComplete}>完成任务</button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ── Task Form ────────────────────────────────────────── */
 
-function TaskForm({ onCreated, toast }) {
+function TaskForm({ onCreated, toast, prefill = null }) {
   const { loading, request } = useApi();
+  const { notifyDataChange } = useApp();
   const [form, setForm] = useState({
     task_name: '', due_time: '', start_time: '', end_time: '',
     recurrence: 'once', priority: 2, description: '',
     estimated_minutes: '', tags: '',
   });
+
+  useEffect(() => {
+    if (!prefill?.date) return;
+    const due = `${prefill.date}T18:00`;
+    const start = `${prefill.date}T09:00`;
+    setForm(f => ({
+      ...f,
+      due_time: f.due_time || due,
+      start_time: f.start_time || start,
+    }));
+  }, [prefill]);
 
   const update = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
@@ -791,6 +1320,7 @@ function TaskForm({ onCreated, toast }) {
       }));
       if (res.status === 'error') throw new Error(res.message);
       toast('任务创建成功', 'success');
+      notifyDataChange();
       onCreated();
     } catch (e) { toast(e.message, 'error'); }
   };

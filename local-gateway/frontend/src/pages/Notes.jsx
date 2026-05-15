@@ -3,14 +3,25 @@ import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
 
-export default function Notes() {
+export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   const { loading, request } = useApi();
   const toast = useToast();
   const [notes, setNotes] = useState([]);
   const [keyword, setKeyword] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null); // note object being edited
-  const [form, setForm] = useState({ title: '', content: '', tags: '' });
+  const [form, setForm] = useState({ title: '', content: '', tags: '', task_id: '' });
+
+  useEffect(() => {
+    if (quickAction?.type === 'create_note') {
+      openCreate();
+      clearQuickAction?.();
+    }
+    if (quickAction?.type === 'create_note_from_task' && quickAction?.task) {
+      openCreateFromTask(quickAction.task);
+      clearQuickAction?.();
+    }
+  }, [quickAction, clearQuickAction]);
 
   const fetchNotes = useCallback(async () => {
     try {
@@ -26,7 +37,7 @@ export default function Notes() {
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
   const resetForm = () => {
-    setForm({ title: '', content: '', tags: '' });
+    setForm({ title: '', content: '', tags: '', task_id: '' });
     setEditing(null);
     setShowForm(false);
   };
@@ -36,11 +47,38 @@ export default function Notes() {
     setShowForm(true);
   };
 
+  const openCreateFromTask = (task) => {
+    resetForm();
+    const taskName = task.task_name || '任务记录';
+    const title = `${taskName} 记录`;
+    const content = [
+      `# ${taskName}`,
+      '',
+      task.description ? `## 任务说明\n${task.description}\n` : '',
+      task.start_time || task.due_time ? `## 时间\n- 开始：${task.start_time || '未设置'}\n- 截止：${task.due_time || '未设置'}\n` : '',
+      '## 执行记录',
+      '- 背景：',
+      '- 进展：',
+      '- 问题：',
+      '- 下一步：',
+      '',
+    ].filter(Boolean).join('\n');
+    setForm({
+      title,
+      content,
+      tags: task.tags?.join(', ') || '',
+      task_id: task.task_id || '',
+    });
+    setEditing(null);
+    setShowForm(true);
+  };
+
   const openEdit = (note) => {
     setForm({
       title: note.title || '',
       content: note.content || '',
       tags: (note.tags || []).join(', '),
+      task_id: note.task_id || '',
     });
     setEditing(note);
     setShowForm(true);
@@ -76,6 +114,7 @@ export default function Notes() {
             title: form.title.trim(),
             content: form.content,
             tags,
+            task_id: form.task_id || undefined,
           })
         );
         if (res.status === 'error') throw new Error(res.message);
@@ -123,6 +162,12 @@ export default function Notes() {
                 <label>标题 *</label>
                 <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="笔记标题" />
               </div>
+              {!!form.task_id && (
+                <div className="form-group">
+                  <label>关联任务</label>
+                  <input value={form.task_id} disabled />
+                </div>
+              )}
               <div className="form-group">
                 <label>内容</label>
                 <textarea
@@ -185,6 +230,17 @@ export default function Notes() {
               }}>
                 {note.content || '(空)'}
               </div>
+              {!!note.task_id && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>关联任务：{note.task_id}</span>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => onOpenTask?.({ task_id: note.task_id, task_name: note.title.replace(/ 记录$/, '') })}
+                  >
+                    看任务
+                  </button>
+                </div>
+              )}
               {(note.tags && note.tags.length > 0) && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
                   {note.tags.map((tag, i) => (

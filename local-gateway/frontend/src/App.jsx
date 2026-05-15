@@ -17,20 +17,44 @@ import Sandbox from './pages/Sandbox';
 import Settings from './pages/Settings';
 import styles from './App.module.css';
 
+function normalizeView(view) {
+  if (!view || view === 'dashboard') return 'today';
+  return view;
+}
+
 function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState(() => {
-    return window.location.hash.slice(1) || 'dashboard';
+    return normalizeView(window.location.hash.slice(1));
   });
+  const [quickAction, setQuickAction] = useState(null);
 
-  const navigate = useCallback((view) => {
-    setCurrentView(view);
-    window.location.hash = view;
+  const navigate = useCallback((view, action = null) => {
+    const nextView = normalizeView(view);
+    setCurrentView(nextView);
+    setQuickAction(action ? { ...action, id: Date.now() } : null);
+    window.location.hash = nextView;
   }, []);
+
+  const openCreateTask = useCallback((prefill = null) => {
+    navigate('tasks', { type: 'create_task', prefill });
+  }, [navigate]);
+
+  const openCreateNote = useCallback(() => {
+    navigate('notes', { type: 'create_note' });
+  }, [navigate]);
+
+  const openCreateNoteFromTask = useCallback((task) => {
+    navigate('notes', { type: 'create_note_from_task', task });
+  }, [navigate]);
+
+  const openTaskDetail = useCallback((task) => {
+    navigate('tasks', { type: 'focus_task', task });
+  }, [navigate]);
 
   useEffect(() => {
     const onHashChange = () => {
-      setCurrentView(window.location.hash.slice(1) || 'dashboard');
+      setCurrentView(normalizeView(window.location.hash.slice(1)));
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -44,9 +68,9 @@ function AppShell() {
       if (meta && key === 'b') { e.preventDefault(); setSidebarCollapsed(c => !c); return; }
       if (meta && key === 'k') { e.preventDefault(); document.getElementById('global-search')?.focus(); return; }
       if (meta && key === 'j') { e.preventDefault(); navigate('ai-chat'); return; }
-      if (meta && !shift && key === 'n') { e.preventDefault(); navigate('tasks'); return; }
-      if (meta && shift && key === 'n') { e.preventDefault(); navigate('notes'); return; }
-      const vm = { '1': 'dashboard', '2': 'tasks', '3': 'notes', '4': 'habits', '5': 'calendar' };
+      if (meta && !shift && key === 'n') { e.preventDefault(); navigate('tasks', { type: 'create_task' }); return; }
+      if (meta && shift && key === 'n') { e.preventDefault(); navigate('notes', { type: 'create_note' }); return; }
+      const vm = { '1': 'today', '2': 'tasks', '3': 'calendar', '4': 'notes', '5': 'ai-chat' };
       if (meta && vm[key]) { e.preventDefault(); navigate(vm[key]); }
     };
     document.addEventListener('keydown', handler);
@@ -55,17 +79,59 @@ function AppShell() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'tasks': return <Tasks />;
-      case 'notes': return <Notes />;
+      case 'today': return (
+        <Dashboard
+          onCreateTask={() => openCreateTask()}
+          onCreateNote={openCreateNote}
+          onOpenAi={() => navigate('ai-chat')}
+          onOpenTasks={() => navigate('tasks')}
+          onOpenCalendar={() => navigate('calendar')}
+          onOpenNotes={() => navigate('notes')}
+          onCreateTaskNote={openCreateNoteFromTask}
+          onOpenTaskDetail={openTaskDetail}
+        />
+      );
+      case 'tasks': return (
+        <Tasks
+          quickAction={quickAction}
+          clearQuickAction={() => setQuickAction(null)}
+          onCreateNoteFromTask={openCreateNoteFromTask}
+        />
+      );
+      case 'notes': return (
+        <Notes
+          quickAction={quickAction}
+          clearQuickAction={() => setQuickAction(null)}
+          onOpenTask={openTaskDetail}
+        />
+      );
       case 'habits': return <Habits />;
-      case 'calendar': return <Calendar />;
+      case 'calendar': return (
+        <Calendar
+          onCreateTaskForDate={(date) => openCreateTask({ date })}
+          onCreateNoteFromTask={openCreateNoteFromTask}
+          onOpenTasks={() => navigate('tasks')}
+          onOpenTask={openTaskDetail}
+        />
+      );
       case 'ai-chat': return <AiChat />;
       case 'workflows': return <Workflows />;
       case 'sync': return <Sync />;
       case 'download': return <Download />;
       case 'sandbox': return <Sandbox />;
       case 'settings': return <Settings />;
-      default: return <Dashboard />;
+      default: return (
+        <Dashboard
+          onCreateTask={() => openCreateTask()}
+          onCreateNote={openCreateNote}
+          onOpenAi={() => navigate('ai-chat')}
+          onOpenTasks={() => navigate('tasks')}
+          onOpenCalendar={() => navigate('calendar')}
+          onOpenNotes={() => navigate('notes')}
+          onCreateTaskNote={openCreateNoteFromTask}
+          onOpenTaskDetail={openTaskDetail}
+        />
+      );
     }
   };
 
@@ -74,7 +140,13 @@ function AppShell() {
       <Sidebar current={currentView} onNavigate={navigate}
         collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(c => !c)} />
       <main className={styles.mainArea}>
-        <TopBar currentView={currentView} onToggleSidebar={() => setSidebarCollapsed(c => !c)} />
+        <TopBar
+          currentView={currentView}
+          onToggleSidebar={() => setSidebarCollapsed(c => !c)}
+          onCreateTask={() => openCreateTask()}
+          onCreateNote={openCreateNote}
+          onOpenAi={() => navigate('ai-chat')}
+        />
         <div className={styles.viewContainer}>
           {renderView()}
         </div>

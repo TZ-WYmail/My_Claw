@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
+import { useApp } from '../contexts/AppContext';
 import { formatTimeShort } from '../utils/format';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
-export default function Calendar() {
+export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, onOpenTasks }) {
   const { loading, request } = useApi();
   const toast = useToast();
+  const { refreshToken, notifyDataChange } = useApp();
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -15,6 +17,7 @@ export default function Calendar() {
   const [days, setDays] = useState([]);
   const [modalDay, setModalDay] = useState(null); // { date, events, tasks }
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [activePomodoro, setActivePomodoro] = useState(null);
   const [eventForm, setEventForm] = useState({
     title: '', description: '', start_time: '', end_time: '', event_type: 'personal', color: '#0a84ff',
   });
@@ -38,7 +41,19 @@ export default function Calendar() {
     }
   }, []);
 
-  useEffect(() => { fetchCalendar(); }, [fetchCalendar]);
+  const fetchPomodoroStatus = useCallback(async () => {
+    try {
+      const res = await apiGet('/api/advanced/pomodoro/status');
+      if (res.status === 'success') setActivePomodoro(res.active_session || null);
+    } catch {
+      setActivePomodoro(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCalendar();
+    fetchPomodoroStatus();
+  }, [fetchCalendar, fetchPomodoroStatus, refreshToken]);
 
   const prevMonth = () => {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -90,6 +105,7 @@ export default function Calendar() {
         const events = await fetchEventsForDay(modalDay.date);
         setModalDay(d => ({ ...d, events }));
       }
+      notifyDataChange();
     } catch (err) { toast(err.message, 'error'); }
   };
 
@@ -104,7 +120,24 @@ export default function Calendar() {
         const events = await fetchEventsForDay(modalDay.date);
         setModalDay(d => ({ ...d, events }));
       }
+      notifyDataChange();
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const startPomodoroForTask = async (task, durationMinutes = 25) => {
+    try {
+      const res = await request(async () => fetch('/api/advanced/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: task.task_id, duration_minutes: durationMinutes }),
+      }).then(r => r.json()));
+      if (res.status === 'error') throw new Error(res.message || '启动番茄钟失败');
+      toast('已开始专注', 'success');
+      fetchPomodoroStatus();
+      notifyDataChange();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   };
 
   // Build grid: pad first week so Monday=0 alignment
@@ -124,6 +157,13 @@ export default function Calendar() {
         <span style={{ fontSize: '1.1rem', fontWeight: 600, marginLeft: 'var(--space-sm)' }}>
           {year}年{month}月
         </span>
+        <div style={{ flex: 1 }} />
+        {activePomodoro && (
+          <span className="badge badge-completed">
+            🍅 {activePomodoro.duration_minutes} 分钟进行中
+          </span>
+        )}
+        <button className="btn btn-sm btn-ghost" onClick={() => onOpenTasks?.()}>看全部任务</button>
       </div>
 
       {/* Calendar Grid */}
@@ -209,7 +249,15 @@ export default function Calendar() {
           <div className="modal" style={{ minWidth: 400, maxWidth: 520, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)' }}>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{modalDay.date}</h2>
-              <button className="btn btn-sm btn-ghost" onClick={closeModal}>✕</button>
+              <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => onCreateTaskForDate?.(modalDay.date)}
+                >
+                  + 任务
+                </button>
+                <button className="btn btn-sm btn-ghost" onClick={closeModal}>✕</button>
+              </div>
             </div>
 
             {/* Tasks in this day */}
@@ -219,13 +267,26 @@ export default function Calendar() {
                 {modalDay.tasks.map(t => (
                   <div key={t.task_id} style={{
                     padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-tertiary)', marginBottom: 4,
-                    fontSize: '0.85rem',
+                    background: 'var(--bg-tertiary)', marginBottom: 6,
+                    fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)',
+                    alignItems: 'flex-start',
                   }}>
-                    {t.task_name}
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginLeft: 8 }}>
-                      {formatTimeShort(t.due_time)}
-                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>{t.task_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: 4 }}>
+                        开始：{t.start_time ? formatTimeShort(t.start_time) : '未安排'} · 截止：{t.due_time ? formatTimeShort(t.due_time) : '未设置'}
+                      </div>
+                      {t.description && (
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                          {t.description.length > 90 ? `${t.description.slice(0, 90)}...` : t.description}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--space-xs)', flexShrink: 0 }}>
+                      <button className="btn btn-sm btn-ghost" onClick={() => startPomodoroForTask(t)}>专注</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(t)}>笔记</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => onCreateTaskForDate?.(modalDay.date)}>同日新建</button>
+                    </div>
                   </div>
                 ))}
               </div>
