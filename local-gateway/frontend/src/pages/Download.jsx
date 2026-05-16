@@ -2,14 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { downloadStatusLabel, formatTimeShort } from '../utils/format';
+import { DOWNLOAD_CATEGORIES } from '../utils/constants';
 import { normalizeList } from '../utils/normalize';
-
-const CATEGORIES = [
-  { value: 'misc', label: '通用' },
-  { value: 'paper', label: '文档' },
-  { value: 'video', label: '媒体' },
-  { value: 'code', label: '代码' },
-];
 
 export default function Download() {
   const toast = useToast();
@@ -191,7 +185,7 @@ export default function Download() {
               <div className="form-group">
                 <label>分类</label>
                 <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
-                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {DOWNLOAD_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </div>
             </div>

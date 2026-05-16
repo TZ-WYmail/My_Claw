@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { formatTimeShort, escapeHtml } from '../utils/format';
+import { formatTimeShort, escapeHtml, workflowTriggerLabel } from '../utils/format';
+import { WORKFLOW_TRIGGER_TYPES } from '../utils/constants';
 import { normalizeList } from '../utils/normalize';
-
-const TRIGGER_TYPES = ['schedule', 'task_completed', 'task_created', 'habit_checkin', 'download_completed', 'webhook', 'startup'];
 const ACTION_SAMPLE = JSON.stringify([
   { type: 'create_note', config: { title: '回顾今日输出', content: '记录工作流执行结果' } },
 ], null, 2);
@@ -15,19 +14,6 @@ const emptyForm = {
   trigger_type: 'schedule',
   trigger_config: '',
   actions: ACTION_SAMPLE,
-};
-
-const prettyTriggerLabel = (trigger) => {
-  const map = {
-    schedule: '定时',
-    task_completed: '任务完成',
-    task_created: '任务创建',
-    habit_checkin: '习惯打卡',
-    download_completed: '下载完成',
-    webhook: 'Webhook',
-    startup: '启动时',
-  };
-  return map[trigger] || trigger || '未配置';
 };
 
 export default function Workflows() {
@@ -223,7 +209,7 @@ export default function Workflows() {
               <div className="form-group">
                 <label>触发类型</label>
                 <select value={form.trigger_type} onChange={e => updateField('trigger_type', e.target.value)}>
-                  {TRIGGER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {WORKFLOW_TRIGGER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -290,7 +276,7 @@ export default function Workflows() {
                 <div className="dossier-meta-grid">
                   <div className="dossier-meta-box">
                     <div className="dossier-meta-label">触发</div>
-                    <div>{prettyTriggerLabel(wf.trigger?.type)}</div>
+                    <div>{workflowTriggerLabel(wf.trigger?.type)}</div>
                   </div>
                   <div className="dossier-meta-box">
                     <div className="dossier-meta-label">配置</div>

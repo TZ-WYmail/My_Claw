@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { frequencyLabel } from '../utils/format';
+import { HABIT_COLORS } from '../utils/constants';
 import { normalizeList } from '../utils/normalize';
-const HABIT_COLORS = ['#27ae60', '#0a84ff', '#ff9f0a', '#ff453a', '#af52de', '#5ac8fa', '#ff6b6b', '#30d158'];
 
 export default function Habits() {
   const { loading, request } = useApi();

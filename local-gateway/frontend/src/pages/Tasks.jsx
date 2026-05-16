@@ -2,11 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
-import { formatTimeShort, recurrenceLabel, badgeClass, statusLabel } from '../utils/format';
+import { formatTimeShort, recurrenceLabel, badgeClass, statusLabel, priorityMeta } from '../utils/format';
+import { PRIORITY_OPTIONS } from '../utils/constants';
 import { ensureArray, normalizeList } from '../utils/normalize';
-
-const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
-const PRIORITY_COLORS = { 0: 'error', 1: 'warning', 2: 'pending', 3: 'completed' };
 const TABS = [
   { key: 'week', label: '周视图' },
   { key: 'all', label: '全部任务' },
@@ -156,8 +154,6 @@ function WeekView({ onCreateNoteFromTask }) {
     if (!t) return '';
     return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
   };
-
-  const PRIORITY_BG = { 0: '#ff3b30', 1: '#ff9500', 2: '#0a84ff', 3: '#8e8e93' };
 
   // Separate scheduled and unscheduled tasks
   const scheduled = tasks.filter(t => t.start_time);
@@ -355,7 +351,7 @@ function WeekView({ onCreateNoteFromTask }) {
 
                         const topPx = startOffset * ROW_HEIGHT;
                         const heightPx = duration * ROW_HEIGHT;
-                        const bgColor = PRIORITY_BG[t.priority] ?? PRIORITY_BG[2];
+                        const bgColor = priorityMeta(t.priority).color;
                         const timeRange = endTime ? `${fmtHM(t.start_time)}-${fmtHM(t.end_time)}` : fmtHM(t.start_time);
                         const isPopupOpen = popupTaskId === t.task_id;
 
@@ -408,8 +404,8 @@ function WeekView({ onCreateNoteFromTask }) {
                                   {timeRange}
                                 </div>
                                 <div style={{ marginBottom: 8 }}>
-                                  <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
-                                    {PRIORITY_MAP[t.priority] || '中'}
+                                  <span className={`badge badge-${priorityMeta(t.priority).tone}`}>
+                                    {priorityMeta(t.priority).label}
                                   </span>
                                 </div>
                                 <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
@@ -483,8 +479,8 @@ function WeekView({ onCreateNoteFromTask }) {
                     }}
                     onClick={(e) => { e.stopPropagation(); setPopupTaskId(popupTaskId === t.task_id ? null : t.task_id); }}
                   >
-                    <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
-                      {PRIORITY_MAP[t.priority] || '中'}
+                    <span className={`badge badge-${priorityMeta(t.priority).tone}`}>
+                      {priorityMeta(t.priority).label}
                     </span>
                     <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{t.task_name}</span>
                     {t.due_time && (
@@ -513,8 +509,8 @@ function WeekView({ onCreateNoteFromTask }) {
                       >
                         <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>{t.task_name}</div>
                         <div style={{ marginBottom: 8 }}>
-                          <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
-                            {PRIORITY_MAP[t.priority] || '中'}
+                          <span className={`badge badge-${priorityMeta(t.priority).tone}`}>
+                            {priorityMeta(t.priority).label}
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
@@ -668,8 +664,7 @@ function TaskBattleCard({
   onDelete,
 }) {
   const overdueDays = task.status === 'pending' ? getOverdueDays(task.due_time) : 0;
-  const priorityLabel = PRIORITY_MAP[task.priority] || '中';
-  const priorityTone = PRIORITY_COLORS[task.priority] || 'pending';
+  const priority = priorityMeta(task.priority);
 
   return (
     <div
@@ -703,7 +698,7 @@ function TaskBattleCard({
 
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 8 }}>
-          <span className={`badge badge-${priorityTone}`}>{priorityLabel}</span>
+          <span className={`badge badge-${priority.tone}`}>{priority.label}</span>
           <span className="badge badge-pending">{recurrenceLabel(task.recurrence)}</span>
           {overdueDays >= 1 && (
             <span className="badge badge-error">{overdueDays >= 7 ? '严重逾期' : `逾期 ${overdueDays} 天`}</span>
@@ -1236,8 +1231,8 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{formatTimeShort(t.due_time)}</td>
                   <td>
-                    <span className={`badge badge-${PRIORITY_COLORS[t.priority] || 'pending'}`}>
-                      {PRIORITY_MAP[t.priority] || '中'}
+                    <span className={`badge badge-${priorityMeta(t.priority).tone}`}>
+                      {priorityMeta(t.priority).label}
                     </span>
                   </td>
                   <td>{recurrenceLabel(t.recurrence)}</td>
@@ -1502,7 +1497,7 @@ function TaskDetailDrawer({
 
         <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
           <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>
-          <span className={`badge badge-${PRIORITY_COLORS[task.priority] || 'pending'}`}>{PRIORITY_MAP[task.priority] || '中'}</span>
+          <span className={`badge badge-${priorityMeta(task.priority).tone}`}>{priorityMeta(task.priority).label}</span>
           <span className="badge badge-pending">{recurrenceLabel(task.recurrence)}</span>
         </div>
 
@@ -1744,7 +1739,7 @@ function TaskForm({ onCreated, toast, prefill = null }) {
           <div className="form-group">
             <label>优先级</label>
             <select value={form.priority} onChange={e => update('priority', e.target.value)}>
-              {Object.entries(PRIORITY_MAP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {PRIORITY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>

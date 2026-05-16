@@ -1,3 +1,5 @@
+import { PRIORITY_OPTIONS } from './constants';
+
 function toValidDate(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -48,12 +50,26 @@ const FREQUENCY_LABELS = {
   monthly: '每月',
 };
 
+const WORKFLOW_TRIGGER_LABELS = {
+  schedule: '定时',
+  task_completed: '任务完成',
+  task_created: '任务创建',
+  habit_checkin: '习惯打卡',
+  download_completed: '下载完成',
+  webhook: 'Webhook',
+  startup: '启动时',
+};
+
 export function frequencyLabel(value) {
   return FREQUENCY_LABELS[value] || value || '未设置';
 }
 
 export function downloadStatusLabel(value) {
   return DOWNLOAD_STATUS_LABELS[value] || value || '未知状态';
+}
+
+export function workflowTriggerLabel(value) {
+  return WORKFLOW_TRIGGER_LABELS[value] || value || '未配置';
 }
 
 const STATUS_LABELS = {
@@ -69,6 +85,11 @@ export function badgeClass(status) {
   if (status === 'completed' || status === '已完成') return 'completed';
   if (status === 'deleted' || status === '已删除') return 'error';
   return 'pending';
+}
+
+export function priorityMeta(priority) {
+  const found = PRIORITY_OPTIONS.find((item) => String(item.value) === String(priority));
+  return found || PRIORITY_OPTIONS[2];
 }
 
 export function operationIcon(op) {
