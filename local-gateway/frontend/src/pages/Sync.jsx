@@ -3,6 +3,18 @@ import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
 
+function normalizeList(payload, preferredKeys = []) {
+  for (const key of preferredKeys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const firstArray = Object.values(payload).find(Array.isArray);
+    if (Array.isArray(firstArray)) return firstArray;
+  }
+  return [];
+}
+
 export default function Sync() {
   const toast = useToast();
   const { request } = useApi();
@@ -22,14 +34,14 @@ export default function Sync() {
   const fetchDevices = useCallback(async () => {
     try {
       const data = await apiGet('/api/sync/devices');
-      setDevices(data.devices || data || []);
+      setDevices(normalizeList(data, ['devices', 'items']));
     } catch {}
   }, []);
 
   const fetchOfflineQueue = useCallback(async () => {
     try {
       const data = await apiGet('/api/sync/offline/queue');
-      setOfflineQueue(data.queue || data.items || data || []);
+      setOfflineQueue(normalizeList(data, ['operations', 'queue', 'items']));
     } catch {}
   }, []);
 
@@ -167,10 +179,10 @@ export default function Sync() {
         ) : (
           <div className="signal-list">
             {devices.map((d, i) => (
-              <div className="signal-row" key={d.id || i}>
+              <div className="signal-row" key={d.id || d.device_id || i}>
                 <div>
                   <div className="signal-row-title">{d.name || d.device_name || `设备 ${i + 1}`}</div>
-                  <div className="signal-row-copy">{d.platform || d.os || '-'}</div>
+                  <div className="signal-row-copy">{d.platform || d.os || d.device_type || '-'}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ marginBottom: 6 }}>
@@ -209,11 +221,11 @@ export default function Sync() {
               <div className="signal-row" key={item.id || i}>
                 <div>
                   <div className="signal-row-title">
-                    <span className="badge badge-pending">{item.action || item.type || 'pending'}</span>
+                    <span className="badge badge-pending">{item.action || item.type || item.operation || 'pending'}</span>
                   </div>
-                  <div className="signal-row-copy">{item.target || item.key || '-'}</div>
+                  <div className="signal-row-copy">{item.target || item.key || item.table_name || item.record_id || '-'}</div>
                 </div>
-                <div className="signal-row-meta">{formatTimeShort(item.created_at || item.timestamp)}</div>
+                <div className="signal-row-meta">{formatTimeShort(item.created_at || item.timestamp || item.queued_at)}</div>
               </div>
             ))}
           </div>
