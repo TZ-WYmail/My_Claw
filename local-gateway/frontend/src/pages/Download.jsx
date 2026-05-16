@@ -10,6 +10,18 @@ const CATEGORIES = [
   { value: 'code', label: '代码' },
 ];
 
+function normalizeList(payload, preferredKeys = []) {
+  for (const key of preferredKeys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const firstArray = Object.values(payload).find(Array.isArray);
+    if (Array.isArray(firstArray)) return firstArray;
+  }
+  return [];
+}
+
 export default function Download() {
   const toast = useToast();
   const { loading, request } = useApi();
@@ -24,7 +36,7 @@ export default function Download() {
   const fetchQueue = useCallback(async () => {
     try {
       const data = await apiGet('/api/download/queue');
-      setQueue(data.queue || data.items || data || []);
+      setQueue(normalizeList(data, ['items', 'queue']));
     } catch {}
   }, []);
 

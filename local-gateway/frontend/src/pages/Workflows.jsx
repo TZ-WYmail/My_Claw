@@ -16,6 +16,18 @@ const emptyForm = {
   actions: ACTION_SAMPLE,
 };
 
+function normalizeList(payload, preferredKeys = []) {
+  for (const key of preferredKeys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const firstArray = Object.values(payload).find(Array.isArray);
+    if (Array.isArray(firstArray)) return firstArray;
+  }
+  return [];
+}
+
 const prettyTriggerLabel = (trigger) => {
   const map = {
     schedule: '定时',
@@ -43,7 +55,7 @@ export default function Workflows() {
   const fetchWorkflows = useCallback(async () => {
     try {
       const data = await request(() => apiGet('/api/workflows/'));
-      setWorkflows(data.workflows || data || []);
+      setWorkflows(normalizeList(data, ['workflows', 'items']));
     } catch {
       toast('获取工作流失败', 'error');
     }
@@ -134,7 +146,7 @@ export default function Workflows() {
     setHistoryLoading(prev => ({ ...prev, [id]: true }));
     try {
       const data = await apiGet(`/api/workflows/${id}/executions`);
-      setHistoryMap(prev => ({ ...prev, [id]: data.executions || [] }));
+      setHistoryMap(prev => ({ ...prev, [id]: normalizeList(data, ['executions', 'items']) }));
     } catch (e) {
       toast(e.message || '获取历史记录失败', 'error');
     } finally {
