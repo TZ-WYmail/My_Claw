@@ -52,7 +52,7 @@ export default function AiChat({ quickAction, clearQuickAction }) {
 
   // Config state
   const [config, setConfig] = useState(null);
-  const [configForm, setConfigForm] = useState({ api_base: '', api_key: '', model: '' });
+  const [configForm, setConfigForm] = useState({ api_base: '', api_key: '', model: '', gateway_base_url: '' });
   const [showConfig, setShowConfig] = useState(false);
   const [testing, setTesting] = useState(false);
   const [planningText, setPlanningText] = useState(PLANNING_TEMPLATE);
@@ -245,6 +245,7 @@ export default function AiChat({ quickAction, clearQuickAction }) {
           api_base: res.config.api_base || '',
           api_key: res.config.api_key_masked || res.config.api_key || '',
           model: res.config.model || '',
+          gateway_base_url: res.config.gateway_base_url || '',
         });
       }
     } catch { /* silent */ }
@@ -297,6 +298,10 @@ export default function AiChat({ quickAction, clearQuickAction }) {
     if (quickAction.intent === 'summarize_notes') {
       const taskName = quickAction.task?.task_name || '今天的任务和笔记';
       setInput(`请帮我整理与「${taskName}」相关的工作记录，输出：已完成、阻塞点、下一步。`);
+    }
+
+    if (quickAction.intent === 'mail_consult') {
+      setInput(quickAction.draftInput || '请帮我分析这封邮件，并给出回复与安排建议。');
     }
 
     clearQuickAction?.();
@@ -619,6 +624,7 @@ export default function AiChat({ quickAction, clearQuickAction }) {
         api_base: configForm.api_base.trim(),
         api_key: configForm.api_key.trim(),
         model: configForm.model.trim(),
+        gateway_base_url: (configForm.gateway_base_url || '').trim(),
       });
       if (res.status === 'error') throw new Error(res.message);
       toast('配置已保存', 'success');

@@ -84,6 +84,8 @@ async def save_ai_config(request: AIConfigRequest):
         ai_config.api_key = request.api_key
     if request.model:
         ai_config.model = request.model
+    if request.gateway_base_url:
+        ai_config.gateway_base_url = request.gateway_base_url.rstrip("/")
 
     # 持久化到本地文件
     saved = ai_config.save()

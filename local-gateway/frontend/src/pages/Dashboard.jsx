@@ -142,7 +142,7 @@ function FrontlineMap({
                 <div className="frontline-metrics">
                   <div className="frontline-metric">
                     <div className="dossier-meta-label">时间窗</div>
-                    <div>{taskWindow(task)}</div>
+                    <div>{taskWindowLabel(task)}</div>
                   </div>
                   <div className="frontline-metric">
                     <div className="dossier-meta-label">子任务</div>

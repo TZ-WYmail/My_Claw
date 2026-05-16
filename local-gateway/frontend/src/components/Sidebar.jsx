@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { sep: true },
   { view: 'workflows', icon: '07', label: '自动化区' },
   { view: 'sync', icon: '08', label: '回传台账' },
-  { view: 'download', icon: '09', label: '转运页' },
+  { view: 'download', icon: '09', label: '书信台' },
   { view: 'sandbox', icon: '10', label: '试验托盘' },
   { view: 'habits', icon: '11', label: '训练轨迹' },
   { sep: true },

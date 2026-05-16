@@ -126,9 +126,16 @@ function AppShell() {
       );
       case 'workflows': return <Workflows />;
       case 'sync': return <Sync />;
-      case 'download': return <Download />;
+      case 'download': return (
+        <Download
+          quickAction={quickAction}
+          clearQuickAction={() => setQuickAction(null)}
+          onOpenNotifyNetwork={() => navigate('settings', { type: 'open_notify_network' })}
+          onOpenAi={openAiIntent}
+        />
+      );
       case 'sandbox': return <Sandbox />;
-      case 'settings': return <Settings />;
+      case 'settings': return <Settings quickAction={quickAction} clearQuickAction={() => setQuickAction(null)} />;
       default: return (
         <Dashboard
           onCreateTask={() => openCreateTask()}

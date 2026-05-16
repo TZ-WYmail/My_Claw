@@ -1,6 +1,7 @@
 """通知配置 API"""
 from fastapi import APIRouter
 from services.notification_service import notification_config, send_email, send_test_email
+from services.mail_service import ensure_mail_account_from_notification_config
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ async def save_notification_config(request: dict):
     reschedule_reports()
     from services.notification_service import restore_all_reminders
     await restore_all_reminders()
+    await ensure_mail_account_from_notification_config()
     return {
         "status": "success" if saved else "error",
         "config": notification_config.to_dict(),

@@ -413,6 +413,7 @@ class AIConfigRequest(BaseModel):
     api_base: str = Field("", description="AI API 地址")
     api_key: str = Field("", description="AI API Key")
     model: str = Field("", description="模型名称")
+    gateway_base_url: str = Field("", description="网关公开访问地址，用于邮件中的处理页链接")
 
 
 class AIConfigResponse(BaseModel):

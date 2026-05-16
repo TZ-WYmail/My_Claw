@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useApi, apiGet, apiPost } from '../hooks/useApi';
+import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useTheme } from '../contexts/ThemeContext';
 import { useApp } from '../contexts/AppContext';
@@ -13,7 +13,19 @@ const KEYBOARD_SHORTCUTS = [
   { keys: 'Cmd/Ctrl + 1-5', desc: '快速导航' },
 ];
 
-export default function Settings() {
+const AUTO_MAIL_POLICY_OPTIONS = [
+  { value: 'draft_only', label: '只起草', desc: '只生成草稿，不替你继续发送。' },
+  { value: 'draft_and_notify', label: '起草待确认', desc: '先起草，再等你决定是否寄出。' },
+  { value: 'auto_send', label: '自动寄出', desc: '低摩擦，但风险最高，只适合明确授权场景。' },
+];
+
+function getAutoMailPolicyCopy(policy) {
+  if (policy === 'draft_only') return '代理只会把回信铺成草稿，不会推动到确认或发出。';
+  if (policy === 'auto_send') return '代理会在命中自动处理链路时直接寄出回信，只适合你明确授权的账户。';
+  return '代理会先起草，再把决定权留给你，这是当前最稳妥的默认策略。';
+}
+
+export default function Settings({ quickAction = null, clearQuickAction = null }) {
   const toast = useToast();
   const { loading, request } = useApi();
   const { theme, toggleTheme } = useTheme();
@@ -25,6 +37,7 @@ export default function Settings() {
     max_tokens: 2048,
     api_base: '',
     api_key: '',
+    gateway_base_url: '',
   });
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
@@ -43,6 +56,8 @@ export default function Settings() {
   const [notifTesting, setNotifTesting] = useState(false);
   const [notifTestResult, setNotifTestResult] = useState(null);
   const [notifExpanded, setNotifExpanded] = useState(false);
+  const [mailAccount, setMailAccount] = useState(null);
+  const [mailPolicySaving, setMailPolicySaving] = useState(false);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -54,6 +69,7 @@ export default function Settings() {
         max_tokens: cfg.max_tokens ?? 2048,
         api_base: cfg.api_base || '',
         api_key: cfg.api_key_masked || cfg.api_key || '',
+        gateway_base_url: cfg.gateway_base_url || '',
       });
       setConfigLoaded(true);
     } catch {
@@ -84,6 +100,27 @@ export default function Settings() {
 
   useEffect(() => { fetchNotifConfig(); }, [fetchNotifConfig]);
 
+  const fetchNotifyMailAccount = useCallback(async () => {
+    try {
+      const data = await apiGet('/api/mail/accounts');
+      const accounts = data.accounts || [];
+      const notifyAccount = accounts.find(item => item.account_id === 'mail_acc_notify_network') || null;
+      setMailAccount(notifyAccount);
+    } catch {
+      setMailAccount(null);
+    }
+  }, []);
+
+  useEffect(() => { fetchNotifyMailAccount(); }, [fetchNotifyMailAccount]);
+
+  useEffect(() => {
+    if (!quickAction) return;
+    if (quickAction.type === 'open_notify_network') {
+      setNotifExpanded(true);
+      clearQuickAction?.();
+    }
+  }, [quickAction, clearQuickAction]);
+
   const handleNotifSave = async () => {
     try {
       await request(() => apiPost('/api/notification/config', {
@@ -97,6 +134,7 @@ export default function Settings() {
       }));
       toast('通知配置已保存', 'success');
       fetchNotifConfig();
+      fetchNotifyMailAccount();
     } catch {
       toast('保存通知配置失败', 'error');
     }
@@ -119,6 +157,24 @@ export default function Settings() {
 
   const updateNotifField = (field, value) => setNotifConfig(prev => ({ ...prev, [field]: value }));
 
+  const handleMailPolicySave = async (nextPolicy) => {
+    if (!mailAccount?.account_id || nextPolicy === mailAccount.auto_mail_policy) {
+      return;
+    }
+    setMailPolicySaving(true);
+    try {
+      const result = await request(() => apiPut(`/api/mail/accounts/${mailAccount.account_id}`, {
+        auto_mail_policy: nextPolicy,
+      }));
+      setMailAccount(result.account || null);
+      toast('书信代理策略已更新', 'success');
+    } catch {
+      toast('更新书信代理策略失败', 'error');
+    } finally {
+      setMailPolicySaving(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       await request(() => apiPost('/api/chat/config', {
@@ -126,6 +182,7 @@ export default function Settings() {
         temperature: parseFloat(config.temperature),
         max_tokens: parseInt(config.max_tokens, 10),
         api_base: config.api_base,
+        gateway_base_url: config.gateway_base_url,
         ...(config.api_key ? { api_key: config.api_key } : {}),
       }));
       toast('配置已保存', 'success');
@@ -233,6 +290,23 @@ export default function Settings() {
                   <label>API Key</label>
                   <input type="password" value={config.api_key} onChange={e => updateField('api_key', e.target.value)} placeholder="sk-..." />
                 </div>
+                <div className="form-group">
+                  <label>邮件处理页外部地址</label>
+                  <input
+                    value={config.gateway_base_url}
+                    onChange={e => updateField('gateway_base_url', e.target.value)}
+                    placeholder="http://localhost:8900"
+                  />
+                  <div className="signal-row-copy" style={{ marginTop: 8 }}>
+                    这个地址会写进书信台邮件中的处理页链接，不影响网页主界面本身。
+                    本机查看时填 `http://localhost:8900`；
+                    同一局域网设备访问时填 `http://你的局域网IP:8900`；
+                    以后若接 Cloudflare Tunnel 或正式域名，再替换成公网地址。
+                  </div>
+                  <div className="signal-row-copy" style={{ marginTop: 6 }}>
+                    这是“邮件里发出去的门牌号”，不是后端监听地址。后端仍然可以继续监听 `0.0.0.0:8900`。
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
                   <div className="form-group">
                     <label>Temperature ({config.temperature})</label>
@@ -319,6 +393,39 @@ export default function Settings() {
                       <div className="form-group">
                         <label>截止前提醒（分钟）</label>
                         <input type="number" min={1} value={notifConfig.reminder_due_minutes} onChange={e => updateNotifField('reminder_due_minutes', e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="signal-row" style={{ marginTop: 'var(--space-md)', alignItems: 'flex-start' }}>
+                      <div>
+                        <div className="signal-row-title">书信代理策略</div>
+                        <div className="signal-row-copy">
+                          这里控制 `NOTIFY NETWORK` 映射出来的书信账户，决定来信抵达后，AI 是只起草、起草待确认，还是直接寄出。
+                        </div>
+                        <div className="signal-row-copy" style={{ marginTop: 8 }}>
+                          {mailAccount
+                            ? `当前账户：${mailAccount.display_name} · ${mailAccount.email_address}`
+                            : '保存通知配置后，这里会自动映射出对应的书信账户。'}
+                        </div>
+                        {mailAccount && (
+                          <div className="signal-row-copy" style={{ marginTop: 6 }}>
+                            {getAutoMailPolicyCopy(mailAccount.auto_mail_policy)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ minWidth: 220 }}>
+                        <select
+                          value={mailAccount?.auto_mail_policy || 'draft_and_notify'}
+                          onChange={e => handleMailPolicySave(e.target.value)}
+                          disabled={!mailAccount || mailPolicySaving || loading}
+                        >
+                          {AUTO_MAIL_POLICY_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                        <div className="signal-row-copy" style={{ marginTop: 8 }}>
+                          {(AUTO_MAIL_POLICY_OPTIONS.find(option => option.value === (mailAccount?.auto_mail_policy || 'draft_and_notify')) || AUTO_MAIL_POLICY_OPTIONS[1]).desc}
+                        </div>
                       </div>
                     </div>
                   </div>

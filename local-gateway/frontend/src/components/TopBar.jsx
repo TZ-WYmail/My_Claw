@@ -10,7 +10,7 @@ const VIEW_NAMES = {
   'ai-chat': '参谋手稿台',
   workflows: '装配步骤册',
   sync: '回传收发台',
-  download: '港口调度页',
+  download: '书信收发台',
   sandbox: '试验托盘',
   settings: '接线检定页',
 };
@@ -24,7 +24,7 @@ const VIEW_NOTES = {
   'ai-chat': '保留现有工作台，仅做母体适配',
   workflows: '触发器、动作与执行记录',
   sync: '设备状态、同步动作与离线回传',
-  download: '下载队列、分类与带宽控制',
+  download: '来信、回信、草稿与账户接线',
   sandbox: '代码试验、运行与输出观察',
   settings: 'AI 参数、通知与连通测试',
 };
