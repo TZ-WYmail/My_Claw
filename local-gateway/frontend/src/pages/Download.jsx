@@ -10,6 +10,18 @@ const CATEGORIES = [
   { value: 'code', label: '代码' },
 ];
 
+function normalizeList(payload, preferredKeys = []) {
+  for (const key of preferredKeys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const firstArray = Object.values(payload).find(Array.isArray);
+    if (Array.isArray(firstArray)) return firstArray;
+  }
+  return [];
+}
+
 export default function Download() {
   const toast = useToast();
   const { loading, request } = useApi();
@@ -24,7 +36,7 @@ export default function Download() {
   const fetchQueue = useCallback(async () => {
     try {
       const data = await apiGet('/api/download/queue');
-      setQueue(data.queue || data.items || data || []);
+      setQueue(normalizeList(data, ['items', 'queue']));
     } catch {}
   }, []);
 
@@ -108,8 +120,22 @@ export default function Download() {
   const completedCount = queue.filter(d => d.status === 'completed').length;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 07 / Harbor Dispatch</div>
+          <h1 className="atlas-chapter-title">下载页应该像港口调度图，先看线路、货箱和限速，再决定新增、暂停或取消。</h1>
+          <div className="atlas-chapter-copy">
+            链接不是一条普通表单输入，而是一张新的航运单。下载中的任务也不是一行列表，而是一只正在运输的货箱，应该先让状态和路径显形。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">调度顺序</div>
+          <div className="atlas-chapter-note-copy">先看线路总量与限速策略，再开新航运单，最后逐个处理运输货箱。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">SUPPLY ROUTE</span>
@@ -132,7 +158,7 @@ export default function Download() {
         </div>
       </section>
 
-      <div className="board-toolbar">
+      <div className="atlas-toolbar">
         <button className="btn btn-ghost" onClick={handleBandwidthToggle}>
           {bwEnabled ? '限速中' : '不限速'}
         </button>
@@ -160,7 +186,7 @@ export default function Download() {
       </div>
 
       {showForm && (
-        <section className="board-lane">
+        <section className="board-lane atlas-ledger-lane">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">NEW ROUTE</div>
@@ -211,7 +237,7 @@ export default function Download() {
           </div>
         </section>
       ) : (
-        <section className="board-lane">
+        <section className="board-lane atlas-paper-stack">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">CARGO</div>

@@ -957,13 +957,29 @@ export default function AiChat({ quickAction, clearQuickAction }) {
   };
 
   return (
-    <div className="ai-command-shell">
+    <div className="page-shell atlas-page-shell ai-command-shell">
       <div className="ai-command-main">
+        <section className="atlas-chapter-head">
+          <div>
+            <div className="section-kicker">ADVISER MANUSCRIPT</div>
+            <h1 className="atlas-chapter-title">参谋手稿台</h1>
+            <div className="atlas-chapter-copy">
+              保留对话、规划、预览与重排的原工作流，只把它纳入行动地图册的章节体系。左页看回合脉络，右页看计划落点，中缝持续维持今天的执行上下文。
+            </div>
+          </div>
+          <aside className="atlas-chapter-note ai-command-note">
+            <div className="atlas-chapter-note-title">Chapter Role</div>
+            <div className="atlas-chapter-note-copy">
+              这是整本地图册里的参谋插页。它负责把目标、风险、任务顺序和临时打断收拢成一份可执行手稿，而不是另一条冗长聊天流。
+            </div>
+          </aside>
+        </section>
+
         <div className="card war-room-hero ai-command-hero">
           <div className="mission-masthead-grid">
             <div>
               <div className="section-kicker">Adviser Room</div>
-              <h1 className="mission-title">AI 参谋室</h1>
+              <h2 className="mission-title">AI 参谋室</h2>
               <div className="mission-copy">
                 对话不再只是消息竖排。每一次提问都变成一个回合，左侧看指令脉络，右侧看结果战报，中间持续推进今天的作战计划。
               </div>

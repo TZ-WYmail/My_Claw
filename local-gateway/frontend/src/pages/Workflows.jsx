@@ -16,6 +16,18 @@ const emptyForm = {
   actions: ACTION_SAMPLE,
 };
 
+function normalizeList(payload, preferredKeys = []) {
+  for (const key of preferredKeys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const firstArray = Object.values(payload).find(Array.isArray);
+    if (Array.isArray(firstArray)) return firstArray;
+  }
+  return [];
+}
+
 const prettyTriggerLabel = (trigger) => {
   const map = {
     schedule: '定时',
@@ -43,7 +55,7 @@ export default function Workflows() {
   const fetchWorkflows = useCallback(async () => {
     try {
       const data = await request(() => apiGet('/api/workflows/'));
-      setWorkflows(data.workflows || data || []);
+      setWorkflows(normalizeList(data, ['workflows', 'items']));
     } catch {
       toast('获取工作流失败', 'error');
     }
@@ -134,7 +146,7 @@ export default function Workflows() {
     setHistoryLoading(prev => ({ ...prev, [id]: true }));
     try {
       const data = await apiGet(`/api/workflows/${id}/executions`);
-      setHistoryMap(prev => ({ ...prev, [id]: data.executions || [] }));
+      setHistoryMap(prev => ({ ...prev, [id]: normalizeList(data, ['executions', 'items']) }));
     } catch (e) {
       toast(e.message || '获取历史记录失败', 'error');
     } finally {
@@ -155,8 +167,22 @@ export default function Workflows() {
   const enabledCount = workflows.filter(wf => wf.enabled).length;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 05 / Assembly Manual</div>
+          <h1 className="atlas-chapter-title">工作流页应该像装配步骤册，先看触发和动作链，再决定是否启用或试运行。</h1>
+          <div className="atlas-chapter-copy">
+            每条工作流本质上都是一张自动化装配卡。你需要一眼看到它由什么触发、会执行什么动作、最近运行得怎样，而不是先钻进配置细节。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">装配顺序</div>
+          <div className="atlas-chapter-note-copy">先设触发，再配动作，再试运行，最后看历史记录是否稳定。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">AUTOMATION BOARD</span>
@@ -178,8 +204,8 @@ export default function Workflows() {
         </div>
       </section>
 
-      <div className="board-toolbar">
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>已启用 {enabledCount} / {workflows.length}</span>
+      <div className="atlas-toolbar">
+        <span className="atlas-toolbar-label">已启用 {enabledCount} / {workflows.length}</span>
         <div className="board-toolbar-spacer" />
         <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? '取消' : '+ 新建工作流'}
@@ -187,7 +213,7 @@ export default function Workflows() {
       </div>
 
       {showForm && (
-        <section className="board-lane">
+        <section className="board-lane atlas-ledger-lane">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">ASSEMBLE</div>
@@ -246,7 +272,7 @@ export default function Workflows() {
           </div>
         </section>
       ) : (
-        <section className="board-lane">
+        <section className="board-lane atlas-paper-stack">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">TACTICS</div>

@@ -128,8 +128,22 @@ export default function Sandbox() {
   };
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 08 / Test Tray</div>
+          <h1 className="atlas-chapter-title">沙盒页应该像试验托盘，先装配环境，再压上代码，再观察输出回报。</h1>
+          <div className="atlas-chapter-copy">
+            语言、超时、代码和输出应该组成一套试验装置，而不是单纯的编辑框和结果框。目标是让你迅速看清当前装配、输入内容和反馈结果。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">试验顺序</div>
+          <div className="atlas-chapter-note-copy">先选语言，再检查超时，再运行示例，最后替换成自己的片段。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">TEST RANGE</span>
@@ -154,7 +168,7 @@ export default function Sandbox() {
 
       <div className="war-room-grid">
         <div className="war-room-stack">
-          <section className="board-lane">
+          <section className="board-lane atlas-ledger-lane">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">LOADOUT</div>
@@ -189,7 +203,7 @@ export default function Sandbox() {
             </div>
           </section>
 
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">EDITOR</div>
@@ -221,7 +235,7 @@ export default function Sandbox() {
         </div>
 
         <div className="war-room-stack">
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">RESULT PANEL</div>

@@ -75,8 +75,22 @@ export default function Habits() {
   const reminderCount = habits.filter(habit => habit.reminder_time).length;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 09 / Training Track</div>
+          <h1 className="atlas-chapter-title">习惯页应该像训练轨迹板，先看单位、连击和提醒，再决定今天要推进哪条。</h1>
+          <div className="atlas-chapter-copy">
+            习惯不是一组静态说明卡，而是一组长期培养单元。你应该先看到哪些单位有连击、哪些带提醒、哪些还没有形成节奏，然后立即打卡或调整。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">养成顺序</div>
+          <div className="atlas-chapter-note-copy">先定频率和目标，再确认提醒，最后用连续打卡维持节奏。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">TRAINING DECK</span>
@@ -99,8 +113,8 @@ export default function Habits() {
         </div>
       </section>
 
-      <div className="board-toolbar">
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>共 {habits.length} 个习惯</span>
+      <div className="atlas-toolbar">
+        <span className="atlas-toolbar-label">共 {habits.length} 个习惯</span>
         <div className="board-toolbar-spacer" />
         <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
           {showForm ? '取消' : '+ 新习惯'}
@@ -108,7 +122,7 @@ export default function Habits() {
       </div>
 
       {showForm && (
-        <section className="board-lane">
+        <section className="board-lane atlas-ledger-lane">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">RECRUIT</div>
@@ -204,7 +218,7 @@ export default function Habits() {
           </div>
         </section>
       ) : (
-        <section className="board-lane">
+        <section className="board-lane atlas-paper-stack">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">UNITS</div>

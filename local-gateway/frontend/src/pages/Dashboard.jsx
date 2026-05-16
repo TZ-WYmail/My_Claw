@@ -51,7 +51,7 @@ function BattleHero({
   const risk = heroTask?.overdue ? `逾期 ${overdueDays(heroTask.due_time)} 天` : heroTask?.start_time ? '已在今日战线' : '尚未排时段';
 
   return (
-    <section className="mission-masthead war-room-hero">
+    <section className="mission-masthead war-room-hero atlas-leaf">
       <div className="mission-masthead-grid">
         <div>
           <span className="section-kicker">TODAY WAR ROOM</span>
@@ -599,7 +599,21 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
   const focusTask = todayTasks[0] || null;
 
   return (
-    <div className="page-shell">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 01 / Today Spread</div>
+          <h1 className="atlas-chapter-title">今天不是列表，而是一张正在展开的行动页。</h1>
+          <div className="atlas-chapter-copy">
+            左页负责推进主线和今日战线，右页负责风险、参谋建议和节奏判断。低频信息退到页脚补给区，不再抢主舞台。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">本页导读</div>
+          <div className="atlas-chapter-note-copy">先锁定主线，再排时段，再处理风险，最后补记录。</div>
+        </div>
+      </section>
+
       <BattleHero
         focusTask={focusTask}
         nextSuggestedTask={nextSuggestedTask}
@@ -633,8 +647,8 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
         </div>
       </div>
 
-      <div className="war-room-grid">
-        <div className="war-room-stack">
+      <div className="war-room-grid atlas-spread-grid">
+        <div className="war-room-stack atlas-page-column">
           <FrontlineMap
             tasks={todayTasks}
             activePomodoro={activePomodoro}
@@ -646,6 +660,12 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
             onComplete={handleCompleteTask}
             onCreateTask={onCreateTask}
           />
+          <section className="atlas-inline-note">
+            <div className="atlas-inline-note-kicker">Left Page Margin</div>
+            <div className="atlas-inline-note-copy">
+              今日战线只保留真正要在今天推进的任务。能挪到明天的，不应该继续占据这张页。
+            </div>
+          </section>
           <BattleTimeline recentLogs={recentLogs} />
           <SupplyBay
             recentNotes={recentNotes}
@@ -657,7 +677,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
           />
         </div>
 
-        <div className="war-room-stack">
+        <div className="war-room-stack atlas-page-column">
           <RiskRadar
             overdueTasks={overdueTasks}
             pendingTasks={pendingTasks}
@@ -675,7 +695,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
             onStartFocus={startPomodoroForTask}
             onOpenTaskDetail={onOpenTaskDetail}
           />
-          <section className="board-lane board-lane-enter">
+          <section className="board-lane board-lane-enter atlas-ledger-lane">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">SCHEDULE PULSE</div>
