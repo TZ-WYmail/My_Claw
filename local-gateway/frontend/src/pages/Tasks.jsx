@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
-import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
+import { formatTimeShort, recurrenceLabel, badgeClass, statusLabel } from '../utils/format';
 import { ensureArray, normalizeList } from '../utils/normalize';
 
 const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
@@ -704,7 +704,7 @@ function TaskBattleCard({
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 8 }}>
           <span className={`badge badge-${priorityTone}`}>{priorityLabel}</span>
-          <span className="badge badge-pending">{RECURRENCE_MAP[task.recurrence] || task.recurrence}</span>
+          <span className="badge badge-pending">{recurrenceLabel(task.recurrence)}</span>
           {overdueDays >= 1 && (
             <span className="badge badge-error">{overdueDays >= 7 ? '严重逾期' : `逾期 ${overdueDays} 天`}</span>
           )}
@@ -1240,7 +1240,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
                       {PRIORITY_MAP[t.priority] || '中'}
                     </span>
                   </td>
-                  <td>{RECURRENCE_MAP[t.recurrence] || t.recurrence}</td>
+                  <td>{recurrenceLabel(t.recurrence)}</td>
                   <td>
                     <span className={`badge badge-${badgeClass(t.status)}`}>{statusLabel(t.status)}</span>
                   </td>
@@ -1503,7 +1503,7 @@ function TaskDetailDrawer({
         <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
           <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>
           <span className={`badge badge-${PRIORITY_COLORS[task.priority] || 'pending'}`}>{PRIORITY_MAP[task.priority] || '中'}</span>
-          <span className="badge badge-pending">{RECURRENCE_MAP[task.recurrence] || task.recurrence}</span>
+          <span className="badge badge-pending">{recurrenceLabel(task.recurrence)}</span>
         </div>
 
         <div className="card" style={{ marginBottom: 'var(--space-md)', background: 'var(--bg-secondary)' }}>
