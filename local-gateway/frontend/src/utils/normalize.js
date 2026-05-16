@@ -9,3 +9,9 @@ export function normalizeList(payload, preferredKeys = []) {
   }
   return [];
 }
+
+export function ensureArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  return [value];
+}

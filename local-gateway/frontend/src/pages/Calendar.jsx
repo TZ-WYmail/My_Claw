@@ -3,9 +3,17 @@ import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort } from '../utils/format';
-import { normalizeList } from '../utils/normalize';
+import { ensureArray, normalizeList } from '../utils/normalize';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+
+function normalizeCalendarDay(day) {
+  return {
+    ...day,
+    tasks: ensureArray(day?.tasks),
+    events: ensureArray(day?.events),
+  };
+}
 
 export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, onOpenTasks }) {
   const { loading, request } = useApi();
@@ -27,7 +35,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
     try {
       const res = await request(async () => apiGet(`/api/advanced/calendar/view?year=${year}&month=${month}`));
       if (res.status === 'error') throw new Error(res.message);
-      setDays(normalizeList(res, ['days', 'items']));
+      setDays(normalizeList(res, ['days', 'items']).map(normalizeCalendarDay));
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -73,10 +81,11 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
   };
 
   const openDay = async (day) => {
-    const events = day.events && day.events.length > 0
-      ? day.events
+    const normalizedDay = normalizeCalendarDay(day);
+    const events = normalizedDay.events.length > 0
+      ? normalizedDay.events
       : await fetchEventsForDay(day.date);
-    setModalDay({ ...day, events });
+    setModalDay({ ...normalizedDay, events: ensureArray(events) });
     setShowAddEvent(false);
   };
 
@@ -104,7 +113,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
       fetchCalendar();
       if (modalDay) {
         const events = await fetchEventsForDay(modalDay.date);
-        setModalDay(d => ({ ...d, events }));
+        setModalDay(d => (d ? { ...d, tasks: ensureArray(d.tasks), events: ensureArray(events) } : d));
       }
       notifyDataChange();
     } catch (err) { toast(err.message, 'error'); }
@@ -119,7 +128,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
       fetchCalendar();
       if (modalDay) {
         const events = await fetchEventsForDay(modalDay.date);
-        setModalDay(d => ({ ...d, events }));
+        setModalDay(d => (d ? { ...d, tasks: ensureArray(d.tasks), events: ensureArray(events) } : d));
       }
       notifyDataChange();
     } catch (e) { toast(e.message, 'error'); }

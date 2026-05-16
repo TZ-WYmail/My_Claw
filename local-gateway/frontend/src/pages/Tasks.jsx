@@ -3,7 +3,7 @@ import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
-import { normalizeList } from '../utils/normalize';
+import { ensureArray, normalizeList } from '../utils/normalize';
 
 const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
 const PRIORITY_COLORS = { 0: 'error', 1: 'warning', 2: 'pending', 3: 'completed' };
@@ -1360,7 +1360,7 @@ function TaskDetailDrawer({
     end_time: task.end_time ? task.end_time.slice(0, 16) : '',
     description: task.description || '',
     estimated_minutes: task.estimated_minutes || '',
-    tags: (task.tags || []).join(', '),
+    tags: ensureArray(task.tags).join(', '),
   });
 
   useEffect(() => {
@@ -1371,7 +1371,7 @@ function TaskDetailDrawer({
       end_time: task.end_time ? task.end_time.slice(0, 16) : '',
       description: task.description || '',
       estimated_minutes: task.estimated_minutes || '',
-      tags: (task.tags || []).join(', '),
+      tags: ensureArray(task.tags).join(', '),
     });
     setEditMode(false);
   }, [task]);
@@ -1483,6 +1483,7 @@ function TaskDetailDrawer({
 
   const weeklyNeighbors = (weekContext || []).filter(item => item.task_id !== task.task_id).slice(0, 5);
   const pomodoroBoundToCurrent = activePomodoro?.task_id === task.task_id;
+  const taskTags = ensureArray(task.tags);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1528,7 +1529,7 @@ function TaskDetailDrawer({
               <InfoRow label="截止" value={task.due_time ? formatTimeShort(task.due_time) : '未设置'} />
               <InfoRow label="结束" value={task.end_time ? formatTimeShort(task.end_time) : '未设置'} />
               <InfoRow label="预估" value={task.estimated_minutes ? `${task.estimated_minutes} 分钟` : '未设置'} />
-              <InfoRow label="标签" value={task.tags?.length ? task.tags.join(' / ') : '无'} />
+              <InfoRow label="标签" value={taskTags.length ? taskTags.join(' / ') : '无'} />
             </div>
           )}
         </div>

@@ -1,3 +1,5 @@
+import { ensureArray } from '../../utils/normalize';
+
 function CompactList({ items, className = '' }) {
   if (!items.length) return null;
   return (
@@ -11,7 +13,7 @@ function CompactList({ items, className = '' }) {
 
 function ReflectionBlock({ activeRoundAssistantMessage }) {
   const thinking = activeRoundAssistantMessage?.thinking?.trim() || '';
-  const toolCalls = activeRoundAssistantMessage?.tool_calls || [];
+  const toolCalls = ensureArray(activeRoundAssistantMessage?.tool_calls);
   if (!thinking && toolCalls.length === 0) return null;
 
   const actionLines = toolCalls

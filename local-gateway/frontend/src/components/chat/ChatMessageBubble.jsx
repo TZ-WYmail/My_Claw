@@ -1,6 +1,8 @@
 import AssistantMarkdown from './AssistantMarkdown';
+import { ensureArray } from '../../utils/normalize';
 
 export default function ChatMessageBubble({ msg, isThinking, maxWidth = '75%' }) {
+  const toolCalls = ensureArray(msg.tool_calls);
   return (
     <div style={{
       maxWidth, padding: '10px 16px', borderRadius: 'var(--radius-lg)',
@@ -39,9 +41,9 @@ export default function ChatMessageBubble({ msg, isThinking, maxWidth = '75%' })
         </details>
       )}
 
-      {msg.tool_calls && msg.tool_calls.length > 0 && (
+      {toolCalls.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          {msg.tool_calls.map((tc, i) => (
+          {toolCalls.map((tc, i) => (
             <div key={i} style={{
               fontSize: '0.78rem', padding: '4px 8px', marginBottom: 4,
               borderRadius: 'var(--radius-sm)', background: 'rgba(10,132,255,0.08)',

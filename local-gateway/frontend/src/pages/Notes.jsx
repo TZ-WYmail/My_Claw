@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
-import { normalizeList } from '../utils/normalize';
+import { ensureArray, normalizeList } from '../utils/normalize';
 
 export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   const { loading, request } = useApi();
@@ -67,7 +67,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
     setForm({
       title,
       content,
-      tags: task.tags?.join(', ') || '',
+      tags: ensureArray(task.tags).join(', '),
       task_id: task.task_id || '',
     });
     setEditing(null);
@@ -78,7 +78,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
     setForm({
       title: note.title || '',
       content: note.content || '',
-      tags: (note.tags || []).join(', '),
+      tags: ensureArray(note.tags).join(', '),
       task_id: note.task_id || '',
     });
     setEditing(note);
@@ -136,7 +136,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   };
 
   const linkedCount = notes.filter(note => note.task_id).length;
-  const taggedCount = notes.filter(note => note.tags && note.tags.length > 0).length;
+  const taggedCount = notes.filter(note => ensureArray(note.tags).length > 0).length;
 
   return (
     <div className="page-shell atlas-page-shell">
@@ -312,9 +312,9 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
                   </div>
                 </div>
 
-                {(note.tags && note.tags.length > 0) && (
+                {ensureArray(note.tags).length > 0 && (
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {note.tags.map((tag, i) => (
+                    {ensureArray(note.tags).map((tag, i) => (
                       <span key={i} className="badge badge-pending">{tag}</span>
                     ))}
                   </div>
