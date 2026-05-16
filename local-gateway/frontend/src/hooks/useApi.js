@@ -2,7 +2,11 @@ import { useState, useCallback } from 'react';
 
 export async function apiGet(endpoint) {
   const resp = await fetch(endpoint);
-  return resp.json();
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(data?.message || `请求失败: ${resp.status}`);
+  }
+  return data;
 }
 
 export async function apiPost(endpoint, body) {
@@ -11,7 +15,24 @@ export async function apiPost(endpoint, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return resp.json();
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(data?.message || `请求失败: ${resp.status}`);
+  }
+  return data;
+}
+
+export async function apiPut(endpoint, body) {
+  const resp = await fetch(endpoint, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(data?.message || `请求失败: ${resp.status}`);
+  }
+  return data;
 }
 
 export function useApi() {

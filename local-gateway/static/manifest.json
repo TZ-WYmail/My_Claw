@@ -1,0 +1,20 @@
+{
+  "name": "LocalCommandCenter",
+  "short_name": "LCC",
+  "description": "本地指挥中心 - 智能任务管理与调度",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#3498db",
+  "orientation": "portrait-primary",
+  "lang": "zh-CN",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/static/icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

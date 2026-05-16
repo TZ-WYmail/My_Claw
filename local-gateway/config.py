@@ -71,7 +71,7 @@ DOWNLOAD_CHUNK_SIZE = 8192
 
 # ==================== CORS 配置 ====================
 # 安全默认值：仅允许本地开发地址；生产环境必须通过环境变量显式配置
-_cors_raw = os.getenv("CORS_ORIGINS", "http://localhost:8900")
+_cors_raw = os.getenv("CORS_ORIGINS", "http://localhost:8900,http://localhost:5173")
 CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 
 # 当 origins 包含 * 时，禁止 allow_credentials（防止 CSRF/凭证窃取）

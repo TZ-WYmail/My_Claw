@@ -75,7 +75,7 @@ async def handle_task(request: TaskManagerRequest):
         result = await task_service.get_weekly_plan(monday, sunday)
 
     elif request.action.value == "get_pending_tasks":
-        result = await task_service.get_pending_tasks()
+        result = await task_service.get_pending_tasks(today_only=bool(request.today_only))
 
     else:
         result = {"status": "error", "message": f"未知操作: {request.action}"}

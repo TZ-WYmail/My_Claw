@@ -9,7 +9,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   const [notes, setNotes] = useState([]);
   const [keyword, setKeyword] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null); // note object being edited
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ title: '', content: '', tags: '', task_id: '' });
 
   useEffect(() => {
@@ -98,7 +98,6 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
             tags,
           })
         );
-        // Try actual PUT if backend requires it
         if (res.status === 'error') {
           const putRes = await fetch(`/api/notes/${editing.note_id}`, {
             method: 'PUT',
@@ -135,28 +134,58 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  const linkedCount = notes.filter(note => note.task_id).length;
+  const taggedCount = notes.filter(note => note.tags && note.tags.length > 0).length;
+
   return (
-    <div>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+    <div className="page-shell">
+      <section className="mission-masthead">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">INTEL WALL</span>
+            <h1 className="mission-title">把笔记做成情报墙，不做无差别便签堆。</h1>
+            <div className="mission-copy">
+              这里保留真实记录内容、关联任务和标签，但展示上改成档案墙：每条记录像一张贴在作战板上的纸页，先看到主题和线索，再决定进入哪条任务。
+            </div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">{notes.length} 条记录</span>
+              <span className="badge badge-completed">{linkedCount} 条已关联任务</span>
+              <span className="badge badge-warning">{taggedCount} 条带标签</span>
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">记录准则</div>
+            <div className="mission-sidecard-copy">
+              标题写结论，正文写推演，标签写检索线索。这样笔记页才像情报站，不像散乱输入框。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="board-toolbar">
         <input
           type="text"
           placeholder="搜索笔记..."
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
-          style={{ maxWidth: 280 }}
+          style={{ maxWidth: 320 }}
         />
-        <div style={{ flex: 1 }} />
+        <div className="board-toolbar-spacer" />
         <button className="btn btn-primary" onClick={openCreate}>+ 新笔记</button>
       </div>
 
-      {/* Form */}
       {showForm && (
-        <div className="card" style={{ marginBottom: 'var(--space-md)' }}>
-          <h3 style={{ marginBottom: 'var(--space-md)', fontSize: '0.95rem' }}>
-            {editing ? '编辑笔记' : '新建笔记'}
-          </h3>
-          <form onSubmit={handleSubmit}>
+        <section className="board-lane">
+          <div className="board-lane-header">
+            <div>
+              <div className="section-kicker">WRITE</div>
+              <h3 className="board-lane-title">{editing ? '编辑笔记' : '新建笔记'}</h3>
+              <div className="board-lane-copy">
+                直接编辑内容本体，保留 Markdown 和关联任务，不额外制造空洞的字段解释。
+              </div>
+            </div>
+          </div>
+          <form onSubmit={handleSubmit} className="command-form">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
               <div className="form-group">
                 <label>标题 *</label>
@@ -174,7 +203,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                   placeholder="支持 Markdown 格式"
-                  rows={6}
+                  rows={8}
                 />
               </div>
               <div className="form-group">
@@ -182,78 +211,115 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
                 <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="如 学习, 灵感" />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)' }}>
               <button type="button" className="btn btn-ghost" onClick={resetForm}>取消</button>
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? '保存中...' : editing ? '更新' : '创建'}
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      {/* Notes Grid */}
+      <div className="board-summary-grid">
+        <div className="board-summary-card">
+          <div className="board-summary-label">档案总数</div>
+          <div className="board-summary-value">{notes.length}</div>
+        </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">任务联动</div>
+          <div className="board-summary-value">{linkedCount}</div>
+        </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">标签密度</div>
+          <div className="board-summary-value">{taggedCount}</div>
+        </div>
+      </div>
+
       {loading && notes.length === 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
+        <div className="board-card-grid">
           {[1, 2, 3, 4].map(i => (
-            <div className="card" key={i}>
+            <div className="dossier-card" key={i}>
               <div className="skeleton skeleton-text" style={{ width: '60%' }} />
               <div className="skeleton skeleton-text" style={{ width: '100%', height: 80 }} />
             </div>
           ))}
         </div>
       ) : notes.length === 0 ? (
-        <div className="card">
+        <section className="board-lane">
           <div className="empty-state">
             <div className="empty-state-icon">📝</div>
             <div className="empty-state-text">暂无笔记</div>
             <div className="empty-state-hint">点击「+ 新笔记」创建你的第一条笔记</div>
           </div>
-        </div>
+        </section>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
-          {notes.map(note => (
-            <div className="card" key={note.note_id} style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, lineHeight: 1.3, flex: 1, marginRight: 'var(--space-sm)' }}>
-                  {note.title}
-                </h3>
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                  <button className="btn btn-sm btn-ghost" onClick={() => openEdit(note)} title="编辑">✏️</button>
-                  <button className="btn btn-sm btn-ghost" onClick={() => handleDelete(note.note_id)} title="删除">🗑️</button>
-                </div>
-              </div>
-              <div style={{
-                flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6,
-                overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical',
-                marginBottom: 'var(--space-sm)',
-              }}>
-                {note.content || '(空)'}
-              </div>
-              {!!note.task_id && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-                  <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>关联任务：{note.task_id}</span>
-                  <button
-                    className="btn btn-sm btn-ghost"
-                    onClick={() => onOpenTask?.({ task_id: note.task_id, task_name: note.title.replace(/ 记录$/, '') })}
-                  >
-                    看任务
-                  </button>
-                </div>
-              )}
-              {(note.tags && note.tags.length > 0) && (
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
-                  {note.tags.map((tag, i) => (
-                    <span key={i} className="badge badge-pending">{tag}</span>
-                  ))}
-                </div>
-              )}
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: 'auto' }}>
-                {formatTimeShort(note.updated_at || note.created_at)}
-              </div>
+        <section className="board-lane">
+          <div className="board-lane-header">
+            <div>
+              <div className="section-kicker">DOSSIERS</div>
+              <h3 className="board-lane-title">记录档案墙</h3>
+              <div className="board-lane-copy">每一条笔记都是一张可追溯的记录纸，先读摘要，再进入编辑或任务。</div>
             </div>
-          ))}
-        </div>
+          </div>
+
+          <div className="board-card-grid">
+            {notes.map(note => (
+              <div className="dossier-card" key={note.note_id} style={{ transform: `rotate(${note.task_id ? '-0.8deg' : '0.9deg'})` }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="section-kicker">NOTE #{String(note.note_id).slice(0, 6)}</div>
+                    <h3 className="dossier-title">{note.title}</h3>
+                  </div>
+                  <div className="dossier-actions" style={{ marginTop: 0 }}>
+                    <button className="btn btn-sm btn-ghost" onClick={() => openEdit(note)}>编辑</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(note.note_id)}>删除</button>
+                  </div>
+                </div>
+
+                <div className="dossier-copy" style={{
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 6,
+                  WebkitBoxOrient: 'vertical',
+                }}>
+                  {note.content || '(空)'}
+                </div>
+
+                <div className="dossier-meta-grid">
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">更新时间</div>
+                    <div>{formatTimeShort(note.updated_at || note.created_at)}</div>
+                  </div>
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">关联任务</div>
+                    <div>{note.task_id || '未关联'}</div>
+                  </div>
+                </div>
+
+                {(note.tags && note.tags.length > 0) && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {note.tags.map((tag, i) => (
+                      <span key={i} className="badge badge-pending">{tag}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="dossier-actions">
+                  {!!note.task_id && (
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => onOpenTask?.({ task_id: note.task_id, task_name: note.title.replace(/ 记录$/, '') })}
+                    >
+                      看任务
+                    </button>
+                  )}
+                  <button className="btn btn-sm btn-primary" onClick={() => openEdit(note)}>打开编辑</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

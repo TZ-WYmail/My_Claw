@@ -71,24 +71,53 @@ export default function Habits() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  const streakTotal = habits.reduce((sum, habit) => sum + (habit.streak || 0), 0);
+  const reminderCount = habits.filter(habit => habit.reminder_time).length;
+
   return (
-    <div>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          共 {habits.length} 个习惯
-        </span>
-        <div style={{ flex: 1 }} />
+    <div className="page-shell">
+      <section className="mission-masthead">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">TRAINING DECK</span>
+            <h1 className="mission-title">把习惯区做成养成甲板，而不是几张静态说明卡。</h1>
+            <div className="mission-copy">
+              每个习惯都应该像一个可培养单位：有频率、有连续天数、有提醒窗口，也有马上执行的打卡动作。这里的重点是推进节奏，不是摆数据。
+            </div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">{habits.length} 个习惯</span>
+              <span className="badge badge-completed">{reminderCount} 个带提醒</span>
+              <span className="badge badge-warning">{streakTotal} 天累计连击</span>
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">养成规则</div>
+            <div className="mission-sidecard-copy">
+              不追求面面俱到。优先让每个习惯有清晰目标、可见连续性和一键打卡的反馈回路。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="board-toolbar">
+        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>共 {habits.length} 个习惯</span>
+        <div className="board-toolbar-spacer" />
         <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
           {showForm ? '取消' : '+ 新习惯'}
         </button>
       </div>
 
-      {/* Form */}
       {showForm && (
-        <div className="card" style={{ marginBottom: 'var(--space-md)' }}>
-          <h3 style={{ marginBottom: 'var(--space-md)', fontSize: '0.95rem' }}>新建习惯</h3>
-          <form onSubmit={handleSubmit}>
+        <section className="board-lane">
+          <div className="board-lane-header">
+            <div>
+              <div className="section-kicker">RECRUIT</div>
+              <h3 className="board-lane-title">新建习惯</h3>
+              <div className="board-lane-copy">把频率、目标次数、提醒和颜色一次配好，后面只需要持续推进。</div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="command-form">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
               <div className="form-group">
                 <label>习惯名称 *</label>
@@ -110,97 +139,149 @@ export default function Habits() {
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>描述</label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="习惯描述（可选）" rows={2} />
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="习惯描述（可选）" rows={3} />
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>颜色</label>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
                   {HABIT_COLORS.map(c => (
                     <button
-                      key={c} type="button"
+                      key={c}
+                      type="button"
                       onClick={() => setForm(f => ({ ...f, color: c }))}
                       style={{
-                        width: 32, height: 32, borderRadius: '50%', border: form.color === c ? '3px solid var(--text-primary)' : '2px solid var(--border)',
-                        background: c, cursor: 'pointer', transition: 'all 0.15s',
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        border: form.color === c ? '3px solid var(--text-primary)' : '2px solid var(--border)',
+                        background: c,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
                       }}
                     />
                   ))}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)' }}>
               <button type="button" className="btn btn-ghost" onClick={resetForm}>取消</button>
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '创建中...' : '创建习惯'}</button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      {/* Habit Cards */}
+      <div className="board-summary-grid">
+        <div className="board-summary-card">
+          <div className="board-summary-label">训练单元</div>
+          <div className="board-summary-value">{habits.length}</div>
+        </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">提醒就绪</div>
+          <div className="board-summary-value">{reminderCount}</div>
+        </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">累计连击</div>
+          <div className="board-summary-value">{streakTotal}</div>
+        </div>
+      </div>
+
       {loading && habits.length === 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--space-md)' }}>
+        <div className="board-card-grid">
           {[1, 2, 3].map(i => (
-            <div className="card" key={i}>
+            <div className="dossier-card" key={i}>
               <div className="skeleton skeleton-text" style={{ width: '50%' }} />
               <div className="skeleton skeleton-text" style={{ width: '80%', height: 60 }} />
             </div>
           ))}
         </div>
       ) : habits.length === 0 ? (
-        <div className="card">
+        <section className="board-lane">
           <div className="empty-state">
             <div className="empty-state-icon">🎯</div>
             <div className="empty-state-text">暂无习惯</div>
             <div className="empty-state-hint">点击「+ 新习惯」开始养成好习惯</div>
           </div>
-        </div>
+        </section>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--space-md)' }}>
-          {habits.map(habit => (
-            <div className="card" key={habit.habit_id} style={{ borderLeft: `4px solid ${habit.color || '#27ae60'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{habit.name}</h3>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                    {FREQUENCY_MAP[habit.frequency] || habit.frequency}
-                    {habit.target_count > 1 ? ` ${habit.target_count}次` : ''}
-                  </span>
-                </div>
-                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(habit.habit_id)} title="删除">🗑️</button>
-              </div>
-
-              {habit.description && (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>
-                  {habit.description}
-                </div>
-              )}
-
-              {/* Streak */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 'var(--space-sm)',
-                padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-tertiary)', marginBottom: 'var(--space-sm)',
-              }}>
-                <span style={{ fontSize: '1.3rem' }}>🔥</span>
-                <div>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--warning)' }}>
-                    {habit.streak ?? 0}
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginLeft: 4 }}>天连续</span>
-                </div>
-              </div>
-
-              {/* Check-in */}
-              <button
-                className="btn btn-success"
-                style={{ width: '100%' }}
-                onClick={() => handleCheckin(habit.habit_id)}
-              >
-                ✅ 打卡
-              </button>
+        <section className="board-lane">
+          <div className="board-lane-header">
+            <div>
+              <div className="section-kicker">UNITS</div>
+              <h3 className="board-lane-title">养成甲板</h3>
+              <div className="board-lane-copy">每个习惯是一张训练单位卡：说明目标、提醒、连击和立即打卡入口。</div>
             </div>
-          ))}
-        </div>
+          </div>
+
+          <div className="board-card-grid">
+            {habits.map(habit => (
+              <div
+                className="dossier-card"
+                key={habit.habit_id}
+                style={{
+                  borderTop: `5px solid ${habit.color || '#27ae60'}`,
+                  transform: `rotate(${habit.streak > 0 ? '-0.8deg' : '0.8deg'})`,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                  <div>
+                    <div className="section-kicker">HABIT UNIT</div>
+                    <h3 className="dossier-title">{habit.name}</h3>
+                  </div>
+                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(habit.habit_id)}>删除</button>
+                </div>
+
+                {habit.description && (
+                  <div className="dossier-copy">{habit.description}</div>
+                )}
+
+                <div className="dossier-meta-grid">
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">频率</div>
+                    <div>{FREQUENCY_MAP[habit.frequency] || habit.frequency}</div>
+                  </div>
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">目标</div>
+                    <div>{habit.target_count > 1 ? `${habit.target_count} 次` : '1 次'}</div>
+                  </div>
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">提醒</div>
+                    <div>{habit.reminder_time || '未设置'}</div>
+                  </div>
+                  <div className="dossier-meta-box">
+                    <div className="dossier-meta-label">连击</div>
+                    <div>{habit.streak ?? 0} 天</div>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-sm)',
+                  padding: 'var(--space-sm)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(255,255,255,0.34)',
+                }}>
+                  <span style={{ fontSize: '1.3rem' }}>🔥</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '1.08rem', color: 'var(--warning)' }}>{habit.streak ?? 0}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>连续推进天数</div>
+                  </div>
+                </div>
+
+                <div className="dossier-actions">
+                  <button
+                    className="btn btn-success"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => handleCheckin(habit.habit_id)}
+                  >
+                    打卡
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

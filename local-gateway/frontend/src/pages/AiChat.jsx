@@ -1,12 +1,33 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import ChatMessageBubble from '../components/chat/ChatMessageBubble';
+import AiChatArchiveTabs from '../components/chat/AiChatArchiveTabs';
+import AiChatConfigPanel from '../components/chat/AiChatConfigPanel';
+import AiChatManuscriptPage from '../components/chat/AiChatManuscriptPage';
+import AiChatMissionBoard from '../components/chat/AiChatMissionBoard';
+import AiChatNotesPanel from '../components/chat/AiChatNotesPanel';
+import AiChatPlanningPreview from '../components/chat/AiChatPlanningPreview';
+import AiChatViewerModal from '../components/chat/AiChatViewerModal';
+import {
+  PLANNING_TEMPLATE,
+  REASON_LABELS,
+  parsePlanningDraft,
+  createPlanningTask,
+  serializePlanningDraft,
+  formatPlanningDate,
+  buildScheduleLookup,
+  sumPlannedHours,
+  getRiskTone,
+  summarizeText,
+  formatMessageStamp,
+  buildConversationRounds,
+} from '../components/chat/aiChatShared';
 
-export default function AiChat() {
+export default function AiChat({ quickAction, clearQuickAction }) {
   const toast = useToast();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const roundsScrollerRef = useRef(null);
   const mermaidRenderTimerRef = useRef(null);
   const streamingBufferRef = useRef({ assistantId: null, content: '', thinking: '' });
   const streamingFlushTimerRef = useRef(null);
@@ -19,13 +40,27 @@ export default function AiChat() {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState('default');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [archiveExpanded, setArchiveExpanded] = useState(false);
+  const [currentRoundPage, setCurrentRoundPage] = useState(0);
+  const [systemClock, setSystemClock] = useState({
+    now: new Date().toISOString(),
+    today: '',
+    timezone: 'Asia/Shanghai',
+    timestamp_ms: Date.now(),
+  });
 
   // Config state
   const [config, setConfig] = useState(null);
   const [configForm, setConfigForm] = useState({ api_base: '', api_key: '', model: '' });
   const [showConfig, setShowConfig] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [planningText, setPlanningText] = useState('');
+  const [planningText, setPlanningText] = useState(PLANNING_TEMPLATE);
+  const [planningTasks, setPlanningTasks] = useState(() => parsePlanningDraft(PLANNING_TEMPLATE).map((task, index) => createPlanningTask(task, index)));
+  const [planningConstraints, setPlanningConstraints] = useState({
+    default_daily_hours: 6,
+    weekend_daily_hours: 4,
+    buffer_ratio: 0.2,
+  });
   const [planningPreview, setPlanningPreview] = useState(null);
   const [planningLoading, setPlanningLoading] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState('balanced');
@@ -35,6 +70,9 @@ export default function AiChat() {
   const [acceptedSuggestions, setAcceptedSuggestions] = useState([]);
   const [reasonFilter, setReasonFilter] = useState('all');
   const [viewerModal, setViewerModal] = useState({ open: false, type: 'text', title: '', content: '' });
+  const [showRawPlanningEditor, setShowRawPlanningEditor] = useState(false);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const deferredPlanningTasks = useDeferredValue(planningTasks);
 
   const filteredSuggestions = (replanResult?.reordered_tasks || [])
     .filter(item => reasonFilter === 'all' || item.reason_type === reasonFilter)
@@ -58,7 +96,140 @@ export default function AiChat() {
       conflicts: variantPlan.conflicts || [],
       overload_days: variantPlan.overload_days || [],
       infeasible_tasks: variantPlan.infeasible_tasks || [],
+      summary: variantPlan.summary || {},
     };
+  }, []);
+
+  const draftedTasks = useMemo(() => (
+    deferredPlanningTasks.filter(task => task.task_name?.trim())
+  ), [deferredPlanningTasks]);
+
+  const syncPlanningText = useCallback((tasks) => {
+    setPlanningText(serializePlanningDraft(tasks));
+  }, []);
+
+  const replacePlanningTasks = useCallback((nextTasks) => {
+    const normalized = nextTasks.map((task, index) => createPlanningTask(task, index));
+    setPlanningTasks(normalized);
+    syncPlanningText(normalized);
+  }, [syncPlanningText]);
+
+  const updateConstraint = useCallback((field, value) => {
+    setPlanningConstraints(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const updatePlanningTaskField = useCallback((taskId, field, value) => {
+    setPlanningTasks(prev => {
+      const next = prev.map((task) => {
+        if (task.id !== taskId) return task;
+        if (field === 'depends_on') {
+          return {
+            ...task,
+            depends_on: value.split(',').map(item => item.trim()).filter(Boolean),
+          };
+        }
+        return { ...task, [field]: value };
+      });
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const addPlanningTask = useCallback(() => {
+    setPlanningTasks(prev => {
+      const next = [...prev, createPlanningTask({}, prev.length)];
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const removePlanningTask = useCallback((taskId) => {
+    setPlanningTasks(prev => {
+      const next = prev.filter(task => task.id !== taskId);
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const duplicatePlanningTask = useCallback((taskId) => {
+    setPlanningTasks(prev => {
+      const index = prev.findIndex(task => task.id === taskId);
+      if (index < 0) return prev;
+      const source = prev[index];
+      const duplicated = createPlanningTask({
+        ...source,
+        key: undefined,
+        id: undefined,
+        task_name: source.task_name ? `${source.task_name} 副本` : '',
+      }, prev.length);
+      const next = [...prev.slice(0, index + 1), duplicated, ...prev.slice(index + 1)];
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const movePlanningTask = useCallback((taskId, direction) => {
+    setPlanningTasks(prev => {
+      const index = prev.findIndex(task => task.id === taskId);
+      const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const reorderPlanningTask = useCallback((fromTaskId, toTaskId) => {
+    if (!fromTaskId || !toTaskId || fromTaskId === toTaskId) return;
+    setPlanningTasks(prev => {
+      const fromIndex = prev.findIndex(task => task.id === fromTaskId);
+      const toIndex = prev.findIndex(task => task.id === toTaskId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      syncPlanningText(next);
+      return next;
+    });
+  }, [syncPlanningText]);
+
+  const applyPlanningTextToCards = useCallback(() => {
+    const parsed = parsePlanningDraft(planningText);
+    replacePlanningTasks(parsed);
+    toast(`已从文本更新 ${parsed.length} 张任务卡`, 'success');
+  }, [planningText, replacePlanningTasks, toast]);
+
+  const loadPendingTasksIntoPlanning = useCallback(async () => {
+    try {
+      const res = await apiPost('/api/task', { action: 'get_pending_tasks', today_only: true });
+      if (res.status === 'error') throw new Error(res.message || '载入今日待办失败');
+      replacePlanningTasks((res.tasks || []).map((task) => ({
+        task_name: task.task_name,
+        due_time: task.due_time ? task.due_time.slice(0, 10) : '',
+        earliest_start: task.start_time ? task.start_time.slice(0, 10) : '',
+        depends_on: [],
+      })));
+      toast(`已载入 ${(res.tasks || []).length} 项今日相关待办`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }, [replacePlanningTasks, toast]);
+
+  const fetchSystemTime = useCallback(async () => {
+    try {
+      const res = await apiGet('/api/system/time');
+      if (res.status === 'success') {
+        setSystemClock({
+          now: res.now || new Date().toISOString(),
+          today: res.today || '',
+          timezone: res.timezone || 'Asia/Shanghai',
+          timestamp_ms: res.timestamp_ms || Date.now(),
+        });
+      }
+    } catch {
+      // fall back to local ticking state
+    }
   }, []);
 
   // Fetch config
@@ -104,7 +275,27 @@ export default function AiChat() {
     } catch { /* silent */ }
   }, [activeConvId]);
 
-  useEffect(() => { fetchConfig(); fetchConversations(); loadHistory(); }, [fetchConfig, fetchConversations, loadHistory]);
+  useEffect(() => { fetchConfig(); fetchConversations(); loadHistory(); fetchSystemTime(); }, [fetchConfig, fetchConversations, loadHistory, fetchSystemTime]);
+
+  useEffect(() => {
+    if (quickAction?.type !== 'ai_intent') return;
+
+    if (quickAction.intent === 'plan_today') {
+      loadPendingTasksIntoPlanning();
+    }
+
+    if (quickAction.intent === 'decompose_task') {
+      const taskName = quickAction.task?.task_name || '当前任务';
+      setInput(`请把「${taskName}」拆解成 3-6 个可以今天推进的子任务，并给出每项预计时长。`);
+    }
+
+    if (quickAction.intent === 'summarize_notes') {
+      const taskName = quickAction.task?.task_name || '今天的任务和笔记';
+      setInput(`请帮我整理与「${taskName}」相关的工作记录，输出：已完成、阻塞点、下一步。`);
+    }
+
+    clearQuickAction?.();
+  }, [quickAction, clearQuickAction, loadPendingTasksIntoPlanning]);
 
   // New conversation
   const createConversation = async () => {
@@ -158,8 +349,29 @@ export default function AiChat() {
 
   // Auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const scroller = roundsScrollerRef.current;
+    const anchor = messagesEndRef.current;
+    if (!scroller || !anchor) return;
+    const nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
+    if (!nearBottom) return;
+    anchor.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth', block: 'end' });
+  }, [messages, streaming]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSystemClock((prev) => {
+        const nextMs = (prev.timestamp_ms || Date.now()) + 1000;
+        const nextIso = new Date(nextMs).toISOString();
+        return {
+          ...prev,
+          now: nextIso,
+          timestamp_ms: nextMs,
+          today: nextIso.slice(0, 10),
+        };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const flushStreamingBuffer = useCallback(() => {
     const { assistantId, content, thinking } = streamingBufferRef.current;
@@ -186,7 +398,7 @@ export default function AiChat() {
     streamingFlushTimerRef.current = setTimeout(() => {
       flushStreamingBuffer();
       streamingFlushTimerRef.current = null;
-    }, 80);
+    }, 140);
   }, [flushStreamingBuffer]);
 
   useEffect(() => {
@@ -439,35 +651,34 @@ export default function AiChat() {
   };
 
   const previewPlanning = async () => {
-    if (!planningText.trim()) {
+    if (draftedTasks.length === 0) {
       toast('请输入任务列表', 'error');
       return;
     }
     setPlanningLoading(true);
     try {
-      const tasks = planningText
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map(line => {
-          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
-          return {
-            task_name: name,
-            due_time: due || '',
-            earliest_start: earliestStart || '',
-            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
-          };
-        });
+      const tasks = draftedTasks.map(({ task_name, due_time, earliest_start, depends_on }) => ({
+        task_name,
+        due_time,
+        earliest_start,
+        depends_on,
+      }));
       const res = await apiPost('/api/ai/plan/preview', {
         tasks,
-        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+        constraints: {
+          default_daily_hours: Number(planningConstraints.default_daily_hours),
+          weekend_daily_hours: Number(planningConstraints.weekend_daily_hours),
+          buffer_ratio: Number(planningConstraints.buffer_ratio),
+        },
       });
       if (res.status === 'error') throw new Error(res.message || '预览失败');
-      setPlanningPreview(res);
-      setSelectedVariant(res.variants?.[0]?.id || 'balanced');
-      setInterruptTaskName('');
-      setInterruptTaskDueTime('');
-      setReplanResult(null);
+      startTransition(() => {
+        setPlanningPreview(res);
+        setSelectedVariant(res.variants?.[0]?.id || 'balanced');
+        setInterruptTaskName('');
+        setInterruptTaskDueTime('');
+        setReplanResult(null);
+      });
     } catch (e) {
       toast(e.message, 'error');
     } finally {
@@ -499,7 +710,7 @@ export default function AiChat() {
   };
 
   const replanWithInterrupt = async () => {
-    if (!planningText.trim()) {
+    if (draftedTasks.length === 0) {
       toast('请先输入基础任务列表', 'error');
       return;
     }
@@ -509,22 +720,19 @@ export default function AiChat() {
     }
     setPlanningLoading(true);
     try {
-      const tasks = planningText
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map(line => {
-          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
-          return {
-            task_name: name,
-            due_time: due || '',
-            earliest_start: earliestStart || '',
-            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
-          };
-        });
+      const tasks = draftedTasks.map(({ task_name, due_time, earliest_start, depends_on }) => ({
+        task_name,
+        due_time,
+        earliest_start,
+        depends_on,
+      }));
       const res = await apiPost('/api/ai/plan/replan', {
         tasks,
-        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+        constraints: {
+          default_daily_hours: Number(planningConstraints.default_daily_hours),
+          weekend_daily_hours: Number(planningConstraints.weekend_daily_hours),
+          buffer_ratio: Number(planningConstraints.buffer_ratio),
+        },
         interrupt_task: {
           task_name: interruptTaskName.trim(),
           due_time: interruptTaskDueTime.trim(),
@@ -532,10 +740,12 @@ export default function AiChat() {
       });
       if (res.status === 'error') throw new Error(res.message || '重排失败');
       const suggested = res.suggested_plan || res.new_plan;
-      setPlanningPreview(suggested);
-      setSelectedVariant(suggested?.selected_variant || suggested?.variants?.[0]?.id || 'balanced');
-      setReplanResult(res);
-      setAcceptedSuggestions((res.reordered_tasks || []).map(item => item.task_name));
+      startTransition(() => {
+        setPlanningPreview(suggested);
+        setSelectedVariant(suggested?.selected_variant || suggested?.variants?.[0]?.id || 'balanced');
+        setReplanResult(res);
+        setAcceptedSuggestions((res.reordered_tasks || []).map(item => item.task_name));
+      });
       toast(`已重排，建议后移 ${res.postpone_candidates?.length || 0} 项任务`, 'success');
     } catch (e) {
       toast(e.message, 'error');
@@ -545,25 +755,22 @@ export default function AiChat() {
   };
 
   const rerunWithAcceptedSuggestions = async () => {
-    if (!planningText.trim() || !replanResult) return;
+    if (draftedTasks.length === 0 || !replanResult) return;
     setPlanningLoading(true);
     try {
-      const tasks = planningText
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map(line => {
-          const [name, due, earliestStart, dependencies] = line.split('|').map(item => (item || '').trim());
-          return {
-            task_name: name,
-            due_time: due || '',
-            earliest_start: earliestStart || '',
-            depends_on: dependencies ? dependencies.split(',').map(item => item.trim()).filter(Boolean) : [],
-          };
-        });
+      const tasks = draftedTasks.map(({ task_name, due_time, earliest_start, depends_on }) => ({
+        task_name,
+        due_time,
+        earliest_start,
+        depends_on,
+      }));
       const res = await apiPost('/api/ai/plan/replan/accept', {
         tasks,
-        constraints: { default_daily_hours: 6, weekend_daily_hours: 4, buffer_ratio: 0.2 },
+        constraints: {
+          default_daily_hours: Number(planningConstraints.default_daily_hours),
+          weekend_daily_hours: Number(planningConstraints.weekend_daily_hours),
+          buffer_ratio: Number(planningConstraints.buffer_ratio),
+        },
         interrupt_task: interruptTaskName.trim() ? {
           task_name: interruptTaskName.trim(),
           due_time: interruptTaskDueTime.trim(),
@@ -571,9 +778,11 @@ export default function AiChat() {
         accepted_task_names: acceptedSuggestions,
       });
       if (res.status === 'error') throw new Error(res.message || '二次重排失败');
-      setReplanResult(res);
-      setPlanningPreview(res.suggested_plan || res.new_plan);
-      setSelectedVariant(res.suggested_plan?.selected_variant || res.new_plan?.selected_variant || 'balanced');
+      startTransition(() => {
+        setReplanResult(res);
+        setPlanningPreview(res.suggested_plan || res.new_plan);
+        setSelectedVariant(res.suggested_plan?.selected_variant || res.new_plan?.selected_variant || 'balanced');
+      });
       toast('已按选择建议生成新方案', 'success');
     } catch (e) {
       toast(e.message, 'error');
@@ -583,6 +792,161 @@ export default function AiChat() {
   };
 
   const activePlanningView = getActivePlanningView(planningPreview, selectedVariant);
+  const scheduleLookup = useMemo(() => buildScheduleLookup(activePlanningView), [activePlanningView]);
+  const visibleTasks = useMemo(() => (
+    (planningPreview?.normalized_tasks?.length ? planningPreview.normalized_tasks : draftedTasks).map((task) => ({
+      ...task,
+      planned_slots: scheduleLookup[task.task_name] || [],
+    }))
+  ), [draftedTasks, planningPreview?.normalized_tasks, scheduleLookup]);
+  const activeVariant = useMemo(() => (
+    (planningPreview?.variants || []).find(variant => variant.id === selectedVariant) || planningPreview?.variants?.[0] || null
+  ), [planningPreview?.variants, selectedVariant]);
+  const activeSummary = activePlanningView?.summary || activeVariant?.summary || {};
+  const planHourTotal = useMemo(() => sumPlannedHours(activePlanningView), [activePlanningView]);
+  const reasonOptions = useMemo(() => Object.entries(REASON_LABELS), []);
+  const conversationRounds = useMemo(() => buildConversationRounds(messages), [messages]);
+  const latestAssistantMessage = useMemo(() => (
+    [...messages].reverse().find(message => message.role === 'assistant') || null
+  ), [messages]);
+  const latestUserMessage = useMemo(() => (
+    [...messages].reverse().find(message => message.role === 'user') || null
+  ), [messages]);
+  const activeRound = conversationRounds[currentRoundPage] || conversationRounds[conversationRounds.length - 1] || null;
+  const activeRoundAssistantMessage = activeRound?.assistant || latestAssistantMessage || null;
+  const activeRoundUserMessage = activeRound?.user || latestUserMessage || null;
+  const latestSignals = useMemo(() => {
+    const items = [];
+    if (activeRoundAssistantMessage?.tool_calls?.length) {
+      items.push({
+        type: '执行动作',
+        value: `${activeRoundAssistantMessage.tool_calls.length} 个工具调用`,
+        tone: 'neutral',
+      });
+    }
+    if (activeRoundAssistantMessage?.thinking?.trim()) {
+      items.push({
+        type: '推演过程',
+        value: `${Math.min(999, activeRoundAssistantMessage.thinking.trim().length)} 字符`,
+        tone: 'warn',
+      });
+    }
+    if (planningPreview) {
+      items.push({
+        type: '计划预览',
+        value: `${visibleTasks.length} 项任务 / ${Object.keys(activePlanningView?.daily_plan || {}).length} 天`,
+        tone: 'good',
+      });
+    }
+    if (replanResult?.reordered_tasks?.length) {
+      items.push({
+        type: '重排建议',
+        value: `${replanResult.reordered_tasks.length} 条`,
+        tone: 'warn',
+      });
+    }
+    if (currentModel) {
+      items.push({
+        type: '当前模型',
+        value: currentModel,
+        tone: 'neutral',
+      });
+    }
+    return items.slice(0, 5);
+  }, [activeRoundAssistantMessage, planningPreview, visibleTasks.length, activePlanningView, replanResult, currentModel]);
+
+  const messageBoardCards = useMemo(() => {
+    const cards = [];
+
+    if (activeRoundAssistantMessage?.content?.trim()) {
+      cards.push({
+        key: 'conclusion',
+        title: '当前结论',
+        badge: 'Conclusion',
+        tone: 'neutral',
+        content: summarizeText(activeRoundAssistantMessage.content, 180),
+      });
+    }
+
+    if (activeRoundAssistantMessage?.thinking?.trim()) {
+      cards.push({
+        key: 'thinking',
+        title: '推演线索',
+        badge: 'Thinking',
+        tone: 'warn',
+        content: summarizeText(activeRoundAssistantMessage.thinking, 180),
+      });
+    }
+
+    if (planningPreview) {
+      cards.push({
+        key: 'plan',
+        title: '预览战报',
+        badge: getRiskTone(activeSummary.risk_level).label,
+        tone: activeSummary.risk_level === 'high' ? 'danger' : activeSummary.risk_level === 'medium' ? 'warn' : 'good',
+        content: activePlanningView?.explanation?.summary || planningPreview.explanation?.summary || `已生成 ${visibleTasks.length} 项任务的排程预览`,
+      });
+    }
+
+    if ((activePlanningView?.conflicts || []).length || (activePlanningView?.overload_days || []).length || (activePlanningView?.infeasible_tasks || []).length) {
+      const riskCount = (activePlanningView?.conflicts || []).length + (activePlanningView?.overload_days || []).length + (activePlanningView?.infeasible_tasks || []).length;
+      cards.push({
+        key: 'risk',
+        title: '风险雷达',
+        badge: `${riskCount} 项`,
+        tone: 'danger',
+        content: (activePlanningView?.conflicts?.[0]?.message)
+          || (activePlanningView?.infeasible_tasks?.[0] ? `${activePlanningView.infeasible_tasks[0].task_name}：${activePlanningView.infeasible_tasks[0].reason}` : '')
+          || (activePlanningView?.overload_days?.[0] ? `${activePlanningView.overload_days[0].date} 过载 ${activePlanningView.overload_days[0].total_hours}h` : ''),
+      });
+    }
+
+    if (replanResult?.reordered_tasks?.length) {
+      cards.push({
+        key: 'replan',
+        title: '重排动作',
+        badge: `${acceptedSuggestions.length} 已选`,
+        tone: 'warn',
+        content: replanResult.impact_summary?.[0]
+          || replanResult.risk_changes?.[0]
+          || replanResult.reordered_tasks?.[0]?.reason
+          || '已有可应用的重排建议',
+      });
+    }
+
+    if (activeRoundUserMessage?.content?.trim()) {
+      cards.push({
+        key: 'intent',
+        title: '最近指令',
+        badge: 'Intent',
+        tone: 'neutral',
+        content: summarizeText(activeRoundUserMessage.content, 120),
+      });
+    }
+
+    return cards.slice(0, 6);
+  }, [
+    activeRoundAssistantMessage,
+    planningPreview,
+    activeSummary.risk_level,
+    activePlanningView,
+    visibleTasks.length,
+    replanResult,
+    acceptedSuggestions.length,
+    activeRoundUserMessage,
+  ]);
+  const activeConversationMeta = useMemo(() => (
+    conversations.find(conv => conv.id === activeConvId) || null
+  ), [conversations, activeConvId]);
+  const currentDisplayTime = useMemo(() => formatMessageStamp(systemClock.now), [systemClock.now]);
+
+  useEffect(() => {
+    if (!conversationRounds.length) {
+      setCurrentRoundPage(0);
+      return;
+    }
+    setCurrentRoundPage(conversationRounds.length - 1);
+  }, [activeConvId, conversationRounds.length]);
 
   // Handle Enter
   const handleKeyDown = (e) => {
@@ -593,461 +957,201 @@ export default function AiChat() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      {/* Left Sidebar - Conversation List */}
-      {sidebarOpen && (
-        <div style={{
-          width: 240, borderRight: '1px solid var(--border)',
-          background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column',
-          flexShrink: 0, overflow: 'hidden',
-        }}>
-          {/* New conversation button */}
-          <div style={{ padding: 'var(--space-sm) var(--space-md)', borderBottom: '1px solid var(--border)' }}>
-            <button className="btn btn-primary" style={{ width: '100%' }} onClick={createConversation}>
-              + 新对话
-            </button>
-          </div>
-          {/* Conversation list */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-xs)' }}>
-            {conversations.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => switchConversation(conv.id)}
-                style={{
-                  padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer', marginBottom: 2, position: 'relative',
-                  background: conv.id === activeConvId ? 'rgba(10,132,255,0.1)' : 'transparent',
-                  borderLeft: conv.id === activeConvId ? '3px solid var(--accent)' : '3px solid transparent',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  fontSize: '0.85rem',
-                }}
-                onMouseEnter={e => { if (conv.id !== activeConvId) e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                onMouseLeave={e => { if (conv.id !== activeConvId) e.currentTarget.style.background = 'transparent'; }}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                  {conv.title || '新对话'}
-                </span>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={(e) => deleteConversation(conv.id, e)}
-                  style={{ padding: '0 4px', fontSize: '0.7rem', opacity: 0.5, minWidth: 20 }}
-                >
-                  ✕
-                </button>
+    <div className="ai-command-shell">
+      <div className="ai-command-main">
+        <div className="card war-room-hero ai-command-hero">
+          <div className="mission-masthead-grid">
+            <div>
+              <div className="section-kicker">Adviser Room</div>
+              <h1 className="mission-title">AI 参谋室</h1>
+              <div className="mission-copy">
+                对话不再只是消息竖排。每一次提问都变成一个回合，左侧看指令脉络，右侧看结果战报，中间持续推进今天的作战计划。
               </div>
-            ))}
+              <div className="mission-chip-row">
+                <span className="war-room-stamp">{activeConversationMeta?.title || '当前对话'}</span>
+                <span className="war-room-stamp">{conversationRounds.length} 个回合</span>
+                {currentModel && <span className="war-room-stamp">{currentModel}</span>}
+                {planningPreview && <span className="war-room-stamp">已有预览方案</span>}
+                {isThinking && <span className="war-room-stamp danger">AI 推演中</span>}
+              </div>
+            </div>
+            <div className="mission-sidecard ai-hero-sidecard">
+              <div className="mission-sidecard-title">CURRENT SIGNAL</div>
+              <div className="mission-sidecard-copy">
+                {messageBoardCards[0]?.content || '先给 AI 一个明确目标，它会把回复、计划、风险和重排结果聚成一块，而不是散在长聊天流里。'}
+              </div>
+              <div className="ai-signal-strip">
+                {latestSignals.map((item) => (
+                  <div key={`${item.type}-${item.value}`} className={`ai-signal-chip ${item.tone}`}>
+                    <span>{item.type}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Main Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header with model info */}
-        <div style={{
-          padding: '8px var(--space-md)', borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center',
-          gap: 'var(--space-sm)', fontSize: '0.82rem',
-        }}>
-          <button className="btn btn-sm btn-ghost" onClick={() => setSidebarOpen(s => !s)} title="对话列表">
-            ☰
-          </button>
-          <span style={{ fontWeight: 600 }}>AI 对话</span>
-          {currentModel && (
-            <span className="badge badge-pending" style={{ fontSize: '0.72rem' }}>
-              {currentModel}
-            </span>
-          )}
-          {isThinking && (
-            <span style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)', animation: 'float 1s ease-in-out infinite' }} />
-              思考中...
-            </span>
-          )}
-          <div style={{ flex: 1 }} />
-          <button className="btn btn-sm btn-ghost" onClick={() => setShowConfig(s => !s)} title="AI 配置">
-            ⚙️
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div style={{
-          flex: 1, overflowY: 'auto', padding: 'var(--space-md)',
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)',
-        }}>
-          <div className="card" style={{ marginBottom: 'var(--space-sm)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>AI 安排任务</h3>
-              <span className="badge badge-pending">preview → confirm</span>
-            </div>
-            <textarea
-              value={planningText}
-              onChange={e => setPlanningText(e.target.value)}
-              placeholder={`每行一个任务，格式：\n任务名 | 截止时间 | 最早开始时间(可选) | 依赖任务(可选,逗号分隔)\n例如：\n收集数据 | 2026-05-18 | 2026-05-16 |\n写周报 | 2026-05-19 | 2026-05-18 | 收集数据\n准备汇报 | 2026-05-20 | | 写周报`}
-              rows={5}
-              style={{ marginBottom: 'var(--space-sm)' }}
+        <div className="ai-book-spread-shell">
+          {sidebarOpen && (
+            <AiChatArchiveTabs
+              conversations={conversations}
+              activeConvId={activeConvId}
+              createConversation={createConversation}
+              switchConversation={switchConversation}
+              deleteConversation={deleteConversation}
+              expanded={archiveExpanded}
+              setExpanded={setArchiveExpanded}
             />
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={previewPlanning} disabled={planningLoading}>
-                  {planningLoading ? '预览中...' : '预览安排'}
-                </button>
-                <button className="btn btn-ghost" onClick={() => setPlanningPreview(null)} disabled={!planningPreview}>
-                清空预览
-              </button>
-            </div>
-          </div>
-
-          {planningPreview && (
-            <div className="card" style={{ marginBottom: 'var(--space-sm)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-                <div>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 4 }}>预览结果</h3>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                    {activePlanningView?.explanation?.summary || planningPreview.explanation?.summary || '已生成结构化预览'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(planningPreview.variants || []).map(variant => (
-                    <button
-                      key={variant.id}
-                      className={`btn btn-sm ${selectedVariant === variant.id ? 'btn-primary' : 'btn-ghost'}`}
-                      onClick={() => setSelectedVariant(variant.id)}
-                      title={`风险:${variant.summary?.risk_level || '-'} / 过载日:${variant.summary?.overload_day_count || 0}`}
-                    >
-                      {variant.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-sm)', fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                <span>当前方案：{selectedVariant}</span>
-                <span>风险：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.risk_level || '-'}</span>
-                <span>过载日：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.overload_day_count || 0}</span>
-                <span>冲突：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.conflict_count || 0}</span>
-                <span>深度工作日：{planningPreview.variants?.find(v => v.id === selectedVariant)?.summary?.deep_work_days || 0}</span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 'var(--space-sm)' }}>
-                {(activePlanningView?.conflicts || []).map((item, index) => (
-                  <div key={index} style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>⚠️ {item.message}</div>
-                ))}
-                {(activePlanningView?.overload_days || []).map((item, index) => (
-                  <div key={`ol-${index}`} style={{ fontSize: '0.8rem', color: 'var(--error)' }}>
-                    过载：{item.date} / {item.total_hours}h / 可用 {item.available_hours}h
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gap: 8, marginBottom: 'var(--space-sm)' }}>
-                {(activePlanningView?.daily_timeline || []).slice(0, 5).map((line, index) => (
-                  <div key={index} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{line}</div>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gap: 8, marginBottom: 'var(--space-sm)' }}>
-                {Object.entries(activePlanningView?.daily_plan || {}).slice(0, 4).map(([date, info]) => (
-                  <div key={date} style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                      <strong style={{ fontSize: '0.82rem' }}>{date}</strong>
-                      <span style={{ fontSize: '0.76rem', color: info.overload ? 'var(--error)' : 'var(--text-tertiary)' }}>
-                        {info.total_hours}h / {info.available_hours ?? '-'}h
-                      </span>
-                    </div>
-                    {(info.calendar_events || []).length > 0 && (
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)', marginBottom: 4 }}>
-                        日历占用: {(info.calendar_events || []).map(ev => ev.title).join(' / ')}
-                      </div>
-                    )}
-                    <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                      {(info.tasks || []).map(task => `${task.task_name} (${task.hours}h${task.time_slot ? ` / ${task.time_slot}` : ''}${task.energy_type ? ` / ${task.energy_type}` : ''}${task.depends_on?.length ? ` / 依赖:${task.depends_on.join(',')}` : ''})`).join('；')}
-                    </div>
-                    {(info.time_blocks || []).length > 0 && (
-                      <div style={{ marginTop: 6, fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
-                        时间块：{(info.time_blocks || []).map(block => `${block.time_slot} ${block.task_name}${block.energy_type ? `(${block.energy_type})` : ''}`).join('；')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ padding: '10px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', marginBottom: 'var(--space-sm)' }}>
-                <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8 }}>插入突发任务重排</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto', gap: 8 }}>
-                  <input
-                    value={interruptTaskName}
-                    onChange={e => setInterruptTaskName(e.target.value)}
-                    placeholder="突发任务名称"
-                  />
-                  <input
-                    value={interruptTaskDueTime}
-                    onChange={e => setInterruptTaskDueTime(e.target.value)}
-                    placeholder="截止时间，如 2026-05-18"
-                  />
-                  <button className="btn btn-ghost" onClick={replanWithInterrupt} disabled={planningLoading}>
-                    重排
-                  </button>
-                </div>
-              </div>
-
-              {replanResult && (
-                <div style={{ padding: '10px', borderRadius: 'var(--radius-sm)', background: 'rgba(10,132,255,0.06)', marginBottom: 'var(--space-sm)' }}>
-                  <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8 }}>重排影响说明</div>
-                  {(replanResult.impact_summary || []).map((item, index) => (
-                    <div key={`impact-${index}`} style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{item}</div>
-                  ))}
-                  {(replanResult.risk_changes || []).map((item, index) => (
-                    <div key={`risk-${index}`} style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: 4 }}>⚠️ {item}</div>
-                  ))}
-                  {(replanResult.conflict_chain || []).length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>冲突链</div>
-                      {(replanResult.conflict_chain || []).slice(0, 5).map((item, index) => (
-                        <div key={`chain-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          {item.task_name}：{(item.dates || []).join('、') || '无日期'} / {(item.reasons || []).slice(0, 2).join('；')}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {(replanResult.reordered_tasks || []).length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>重排建议</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                        {[
-                          ['all', '全部原因'],
-                          ['capacity_conflict', '容量冲突'],
-                          ['dependency_conflict', '依赖冲突'],
-                          ['calendar_conflict', '日历冲突'],
-                          ['time_window_conflict', '时间窗口'],
-                          ['optimization', '优化建议'],
-                        ].map(([value, label]) => (
-                          <button
-                            key={value}
-                            className={`btn btn-sm ${reasonFilter === value ? 'btn-primary' : 'btn-ghost'}`}
-                            onClick={() => setReasonFilter(value)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      {mustChangeSuggestions.length > 0 && (
-                        <div style={{ marginBottom: 8 }}>
-                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--error)', marginBottom: 4 }}>必须调整</div>
-                          {mustChangeSuggestions.slice(0, 6).map((item, index) => (
-                            <label key={`must-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                              <input
-                                type="checkbox"
-                                checked={acceptedSuggestions.includes(item.task_name)}
-                                onChange={(e) => {
-                                  setAcceptedSuggestions(prev =>
-                                    e.target.checked
-                                      ? [...new Set([...prev, item.task_name])]
-                                      : prev.filter(name => name !== item.task_name)
-                                  );
-                                }}
-                                style={{ marginRight: 6 }}
-                              />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                      {optionalSuggestions.length > 0 && (
-                        <div style={{ marginBottom: 8 }}>
-                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>可选优化</div>
-                          {optionalSuggestions.slice(0, 6).map((item, index) => (
-                            <label key={`opt-${index}`} style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                              <input
-                                type="checkbox"
-                                checked={acceptedSuggestions.includes(item.task_name)}
-                                onChange={(e) => {
-                                  setAcceptedSuggestions(prev =>
-                                    e.target.checked
-                                      ? [...new Set([...prev, item.task_name])]
-                                      : prev.filter(name => name !== item.task_name)
-                                  );
-                                }}
-                                style={{ marginRight: 6 }}
-                              />
-                              {item.task_name} → {item.suggestion} {item.target_day ? `/ ${item.target_day}` : ''} / {item.reason_type} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round((item.confidence || 0) * 100)}% / {item.reason}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                      <button className="btn btn-sm btn-ghost" onClick={rerunWithAcceptedSuggestions} disabled={planningLoading}>
-                        按已选建议二次重排
-                      </button>
-                    </div>
-                  )}
-                  {(replanResult.applied_actions || []).length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>已应用动作</div>
-                      {(replanResult.applied_actions || []).slice(0, 6).map((item, index) => (
-                        <div key={`applied-${index}`} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          {item.task_name} → {item.action} / {item.target_day || '-'} / {item.reason_type || '-'} / {item.severity || '-'} / 影响 {item.impact_scope?.days || 0}天 {item.impact_scope?.tasks || 0}任务 / 置信度 {Math.round(((item.confidence || 0) * 100))}% / {item.reason || '无'}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button className="btn btn-primary" onClick={confirmPlanning} disabled={planningLoading}>
-                {planningLoading ? '创建中...' : '确认创建'}
-              </button>
-            </div>
           )}
 
-          {messages.length === 0 && (
-            <div className="empty-state" style={{ flex: 1 }}>
-              <div className="empty-state-icon">🤖</div>
-              <div className="empty-state-text">开始和 AI 对话</div>
-              <div className="empty-state-hint">输入问题，AI 会调用本地工具帮你完成任务</div>
-            </div>
-          )}
-
-          {messages.map(msg => (
-            <div key={msg.id} style={{
-              display: 'flex',
-              justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-            }}>
-              <ChatMessageBubble
-                msg={msg}
-                isThinking={isThinking && msg.id === messages[messages.length - 1]?.id}
+          <div className="ai-book-spread">
+            <section className="ai-book-page left">
+              <AiChatManuscriptPage
+                conversationRounds={conversationRounds}
+                activeRound={activeRound}
+                currentRoundPage={currentRoundPage}
+                setCurrentRoundPage={setCurrentRoundPage}
+                latestAssistantMessage={latestAssistantMessage}
+                latestUserMessage={latestUserMessage}
+                formatMessageStamp={formatMessageStamp}
+                inputRef={inputRef}
+                input={input}
+                setInput={setInput}
+                handleKeyDown={handleKeyDown}
+                streaming={streaming}
+                sendMessage={sendMessage}
+                loadPendingTasksIntoPlanning={loadPendingTasksIntoPlanning}
+                messagesEndRef={messagesEndRef}
+                roundsScrollerRef={roundsScrollerRef}
+                sidebarOpen={sidebarOpen}
+                setSidebarOpen={setSidebarOpen}
+                showConfig={showConfig}
+                setShowConfig={setShowConfig}
+                currentDisplayTime={currentDisplayTime}
               />
-            </div>
-          ))}
+            </section>
 
-          {/* Typing indicator when no content yet */}
-          {streaming && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' &&
-           !messages[messages.length - 1]?.content && !messages[messages.length - 1]?.thinking && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{
-                padding: '10px 16px', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4,
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                display: 'flex', gap: 4, alignItems: 'center',
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out infinite' }} />
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.2s infinite' }} />
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'float 1.4s ease-in-out 0.4s infinite' }} />
+            <section className="ai-book-page right">
+              <div className="card ai-results-panel ai-book-chapter ai-report-chapter">
+                <div className="board-lane-header ai-book-page-header ai-report-header">
+                  <div>
+                    <div className="section-kicker">Result Bay</div>
+                    <div className="board-lane-title">当前战报舱</div>
+                    <div className="board-lane-copy">
+                      把回复、计划、风险和执行动作拆成可扫读的情报卡。
+                    </div>
+                  </div>
+                  {activeRound && (
+                    <span className="war-room-stamp">锁定 Round {String(activeRound.index).padStart(2, '0')}</span>
+                  )}
+                </div>
+
+                <div className="ai-message-board ai-report-ledger">
+                  {messageBoardCards.length === 0 && (
+                    <div className="ai-board-empty">结果战报会在首次对话或生成计划后出现。</div>
+                  )}
+                  {messageBoardCards.map((card) => (
+                    <div key={card.key} className={`ai-message-card ${card.tone}`}>
+                      <div className="ai-message-card-head">
+                        <span>{card.title}</span>
+                        <strong>{card.badge}</strong>
+                      </div>
+                      <div className="ai-message-card-copy">{card.content}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
 
-          <div ref={messagesEndRef} />
-        </div>
+              <AiChatNotesPanel
+                activeRoundAssistantMessage={activeRoundAssistantMessage}
+                activeRound={activeRound}
+                planningPreview={planningPreview}
+                activePlanningView={activePlanningView}
+                visibleTasks={visibleTasks}
+                activeSummary={activeSummary}
+                planHourTotal={planHourTotal}
+                formatPlanningDate={formatPlanningDate}
+              />
 
-        {/* Input Area */}
-        <div style={{
-          padding: 'var(--space-md)', borderTop: '1px solid var(--border)',
-          background: 'var(--bg-card)',
-        }}>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-              rows={1}
-              style={{
-                flex: 1, resize: 'none', minHeight: 40, maxHeight: 120,
-                padding: '10px 12px',
-              }}
-              disabled={streaming}
+              <AiChatMissionBoard
+                planningTasks={planningTasks}
+                visibleTasks={visibleTasks}
+                draggingTaskId={draggingTaskId}
+                setDraggingTaskId={setDraggingTaskId}
+                reorderPlanningTask={reorderPlanningTask}
+                movePlanningTask={movePlanningTask}
+                duplicatePlanningTask={duplicatePlanningTask}
+                removePlanningTask={removePlanningTask}
+                updatePlanningTaskField={updatePlanningTaskField}
+                formatPlanningDate={formatPlanningDate}
+                addPlanningTask={addPlanningTask}
+                showRawPlanningEditor={showRawPlanningEditor}
+                setShowRawPlanningEditor={setShowRawPlanningEditor}
+                draftedTasksCount={draftedTasks.length}
+                planningText={planningText}
+                setPlanningText={setPlanningText}
+                planningTemplate={PLANNING_TEMPLATE}
+                applyPlanningTextToCards={applyPlanningTextToCards}
+                planningConstraints={planningConstraints}
+                updateConstraint={updateConstraint}
+                previewPlanning={previewPlanning}
+                planningLoading={planningLoading}
+                loadPendingTasksIntoPlanning={loadPendingTasksIntoPlanning}
+                fillPlanningTemplate={() => replacePlanningTasks(parsePlanningDraft(PLANNING_TEMPLATE))}
+                clearPlanningPreview={() => setPlanningPreview(null)}
+                hasPlanningPreview={Boolean(planningPreview)}
+              />
+
+              <AiChatPlanningPreview
+                planningPreview={planningPreview}
+                activePlanningView={activePlanningView}
+                selectedVariant={selectedVariant}
+                setSelectedVariant={setSelectedVariant}
+                getRiskTone={getRiskTone}
+                activeSummary={activeSummary}
+                planHourTotal={planHourTotal}
+                visibleTasks={visibleTasks}
+                formatPlanningDate={formatPlanningDate}
+                interruptTaskName={interruptTaskName}
+                setInterruptTaskName={setInterruptTaskName}
+                interruptTaskDueTime={interruptTaskDueTime}
+                setInterruptTaskDueTime={setInterruptTaskDueTime}
+                replanWithInterrupt={replanWithInterrupt}
+                planningLoading={planningLoading}
+                replanResult={replanResult}
+                reasonOptions={reasonOptions}
+                reasonFilter={reasonFilter}
+                setReasonFilter={setReasonFilter}
+                mustChangeSuggestions={mustChangeSuggestions}
+                optionalSuggestions={optionalSuggestions}
+                acceptedSuggestions={acceptedSuggestions}
+                setAcceptedSuggestions={setAcceptedSuggestions}
+                rerunWithAcceptedSuggestions={rerunWithAcceptedSuggestions}
+                confirmPlanning={confirmPlanning}
+              />
+
+            <AiChatConfigPanel
+              showConfig={showConfig}
+              setShowConfig={setShowConfig}
+              configForm={configForm}
+              setConfigForm={setConfigForm}
+              saveConfig={saveConfig}
+              testConnection={testConnection}
+              testing={testing}
+              clearChat={clearChat}
+              config={config}
             />
-            <button
-              className="btn btn-primary"
-              onClick={sendMessage}
-              disabled={streaming || !input.trim()}
-              style={{ height: 40, flexShrink: 0 }}
-            >
-              {streaming ? '...' : '发送'}
-            </button>
+          </section>
           </div>
         </div>
+
       </div>
 
-      {/* Right Panel: Config */}
-      {showConfig && (
-        <div style={{
-          width: 300, borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)',
-          padding: 'var(--space-lg)', overflowY: 'auto', flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>AI 配置</h3>
-            <button className="btn btn-sm btn-ghost" onClick={() => setShowConfig(false)}>✕</button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            <div className="form-group">
-              <label>API 地址</label>
-              <input
-                value={configForm.api_base}
-                onChange={e => setConfigForm(f => ({ ...f, api_base: e.target.value }))}
-                placeholder="https://api.deepseek.com"
-              />
-            </div>
-            <div className="form-group">
-              <label>API Key</label>
-              <input
-                type="password"
-                value={configForm.api_key}
-                onChange={e => setConfigForm(f => ({ ...f, api_key: e.target.value }))}
-                placeholder="sk-..."
-              />
-            </div>
-            <div className="form-group">
-              <label>模型</label>
-              <input
-                value={configForm.model}
-                onChange={e => setConfigForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="deepseek-v4-pro"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveConfig}>保存</button>
-              <button className="btn" style={{ flex: 1 }} onClick={testConnection} disabled={testing}>
-                {testing ? '测试中...' : '测试连接'}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 'var(--space-xl)', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-md)' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 'var(--space-md)' }}>对话操作</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-              <button className="btn btn-danger" onClick={clearChat}>清除对话</button>
-            </div>
-          </div>
-
-          {config && (
-            <div style={{ marginTop: 'var(--space-xl)', fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-              <div>当前模型: {config.model || '-'}</div>
-              <div>API: {config.api_base || '-'}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {viewerModal.open && (
-        <div className="modal-overlay" onClick={() => setViewerModal({ open: false, type: 'text', title: '', content: '' })}>
-          <div className="modal" style={{ width: 'min(92vw, 960px)', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-header" style={{ marginBottom: 'var(--space-sm)' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{viewerModal.title}</h3>
-              <button className="btn btn-sm btn-ghost" onClick={() => setViewerModal({ open: false, type: 'text', title: '', content: '' })}>
-                关闭
-              </button>
-            </div>
-            {viewerModal.type === 'table' ? (
-              <div className="markdown-body" dangerouslySetInnerHTML={{ __html: viewerModal.content }} />
-            ) : (
-              <pre style={{ margin: 0, padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
-                <code>{viewerModal.content}</code>
-              </pre>
-            )}
-          </div>
-        </div>
-      )}
+      <AiChatViewerModal
+        viewerModal={viewerModal}
+        setViewerModal={setViewerModal}
+      />
     </div>
   );
 }

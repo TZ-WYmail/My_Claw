@@ -1357,7 +1357,7 @@ async def estimate_task_time(task_name: str, description: str = None, category: 
 """
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
                 f"{ai_config.api_base}/chat/completions",
                 headers={
@@ -1407,6 +1407,13 @@ async def estimate_task_time(task_name: str, description: str = None, category: 
                 "estimated_minutes": int(avg_time),
                 "source": "historical_fallback",
                 "confidence": "medium",
+            }
+        if isinstance(e, httpx.HTTPError):
+            return {
+                "status": "success",
+                "estimated_minutes": 60,
+                "source": "network_fallback",
+                "confidence": "low",
             }
         return {
             "status": "error",

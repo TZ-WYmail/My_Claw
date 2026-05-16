@@ -47,6 +47,7 @@ from routers import (
 )
 from services import task_service
 from services.sync_service import sync_engine
+from services.time_service import build_system_time_payload
 
 # ============================================================
 # 日志配置
@@ -145,6 +146,14 @@ async def health_check():
         service=SERVICE_NAME,
         version=VERSION,
     )
+
+
+@app.get("/api/system/time")
+async def system_time():
+    return {
+        "status": "success",
+        **build_system_time_payload(),
+    }
 
 
 # 静态文件

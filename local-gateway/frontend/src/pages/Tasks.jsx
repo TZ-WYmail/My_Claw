@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useApi, apiGet, apiPost } from '../hooks/useApi';
+import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
@@ -498,6 +498,209 @@ function getOverdueDays(dueTime) {
   return Math.max(0, Math.floor((now - due) / (1000 * 60 * 60 * 24)));
 }
 
+function isTaskOnDate(task, isoDate) {
+  return (
+    (task.start_time && task.start_time.startsWith(isoDate)) ||
+    (task.due_time && task.due_time.startsWith(isoDate)) ||
+    (task.end_time && task.end_time.startsWith(isoDate))
+  );
+}
+
+function formatTaskWindow(task) {
+  if (task.start_time && task.end_time) {
+    return `${formatTimeShort(task.start_time)} - ${formatTimeShort(task.end_time)}`;
+  }
+  if (task.start_time) return `开始 ${formatTimeShort(task.start_time)}`;
+  if (task.due_time) return `截止 ${formatTimeShort(task.due_time)}`;
+  return '未安排时间';
+}
+
+function getBoardSections(tasks) {
+  const today = new Date().toISOString().slice(0, 10);
+  const pendingLike = tasks.filter(task => task.status === 'pending' || task.status === 'active');
+  const completed = tasks.filter(task => task.status === 'completed');
+  const deleted = tasks.filter(task => task.status === 'deleted');
+  const overdue = pendingLike.filter(task => getOverdueDays(task.due_time) > 0);
+  const todayLine = pendingLike.filter(task => !overdue.some(item => item.task_id === task.task_id) && isTaskOnDate(task, today));
+  const queued = pendingLike.filter(task =>
+    !overdue.some(item => item.task_id === task.task_id) &&
+    !todayLine.some(item => item.task_id === task.task_id)
+  );
+
+  return [
+    {
+      key: 'overdue',
+      title: '红区追击',
+      subtitle: '先拆掉真正会拖后腿的任务',
+      tone: 'danger',
+      tasks: overdue,
+    },
+    {
+      key: 'today',
+      title: '今日战线',
+      subtitle: '已经落在今天日程上的事项',
+      tone: 'warning',
+      tasks: todayLine,
+    },
+    {
+      key: 'queued',
+      title: '待推进栈',
+      subtitle: '还没排到具体战线，但可以立即推进',
+      tone: 'calm',
+      tasks: queued,
+    },
+    {
+      key: 'completed',
+      title: '已清场',
+      subtitle: '已经收尾的回合',
+      tone: 'success',
+      tasks: completed,
+    },
+    {
+      key: 'deleted',
+      title: '归档区',
+      subtitle: '已经移出的条目',
+      tone: 'muted',
+      tasks: deleted,
+    },
+  ].filter(section => section.tasks.length > 0);
+}
+
+function TaskBoardSummary({ tasks }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = tasks.filter(task => getOverdueDays(task.due_time) > 0).length;
+  const scheduledToday = tasks.filter(task => isTaskOnDate(task, today)).length;
+  const completed = tasks.filter(task => task.status === 'completed').length;
+  const focusMinutes = tasks.reduce((sum, task) => sum + (Number(task.estimated_minutes) || 0), 0);
+  const cells = [
+    { label: '风险任务', value: overdue, tone: 'var(--error)' },
+    { label: '今日已排', value: scheduledToday, tone: 'var(--warning)' },
+    { label: '已收尾', value: completed, tone: 'var(--success)' },
+    { label: '预估分钟', value: focusMinutes || '-', tone: 'var(--accent-alt)' },
+  ];
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+      gap: 'var(--space-sm)',
+      marginBottom: 'var(--space-md)',
+    }}>
+      {cells.map((cell, index) => (
+        <div
+          key={cell.label}
+          className="card"
+          style={{
+            padding: 'var(--space-md)',
+            background: `linear-gradient(135deg, color-mix(in srgb, ${cell.tone} 18%, var(--paper-elevated)) 0%, var(--paper-elevated) 100%)`,
+            transform: `rotate(${index % 2 === 0 ? '-1.2deg' : '1deg'})`,
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+            {cell.label}
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {cell.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TaskBattleCard({
+  task,
+  selected,
+  justCompleted,
+  onToggleSelect,
+  onOpenDetail,
+  onCreateNoteFromTask,
+  onComplete,
+  onDelete,
+}) {
+  const overdueDays = task.status === 'pending' ? getOverdueDays(task.due_time) : 0;
+  const priorityLabel = PRIORITY_MAP[task.priority] || '中';
+  const priorityTone = PRIORITY_COLORS[task.priority] || 'pending';
+
+  return (
+    <div
+      className={`card${justCompleted ? ' task-completed-flash' : ''}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-sm)',
+        padding: 'var(--space-md)',
+        minHeight: 196,
+        background: selected
+          ? 'linear-gradient(135deg, rgba(47, 143, 131, 0.16), var(--paper-elevated))'
+          : 'linear-gradient(180deg, rgba(255,255,255,0.2), var(--paper-elevated))',
+        border: overdueDays >= 1 ? '1px solid rgba(206, 58, 44, 0.28)' : '1px solid var(--border)',
+        boxShadow: 'var(--shadow-md)',
+        transform: selected ? 'rotate(-1deg) translateY(-2px)' : 'rotate(0.6deg)',
+        opacity: justCompleted ? 0.45 : 1,
+        textDecoration: justCompleted ? 'line-through' : 'none',
+        transition: 'transform var(--duration-normal) var(--ease-spring), opacity var(--duration-normal) var(--ease-enter)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={selected} onChange={() => onToggleSelect(task.task_id)} />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+            ID {String(task.task_id).slice(0, 8)}
+          </span>
+        </label>
+        <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 8 }}>
+          <span className={`badge badge-${priorityTone}`}>{priorityLabel}</span>
+          <span className="badge badge-pending">{RECURRENCE_MAP[task.recurrence] || task.recurrence}</span>
+          {overdueDays >= 1 && (
+            <span className="badge badge-error">{overdueDays >= 7 ? '严重逾期' : `逾期 ${overdueDays} 天`}</span>
+          )}
+        </div>
+        <div style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.35, color: 'var(--text-primary)' }}>
+          {task.task_name}
+        </div>
+        {task.description && (
+          <div style={{ marginTop: 8, fontSize: '0.82rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            {task.description.length > 90 ? `${task.description.slice(0, 90)}...` : task.description}
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: 'var(--space-sm)',
+        fontSize: '0.78rem',
+      }}>
+        <div style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.38)' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: 4 }}>时间窗</div>
+          <div style={{ color: 'var(--text-primary)' }}>{formatTaskWindow(task)}</div>
+        </div>
+        <div style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.38)' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: 4 }}>预估投入</div>
+          <div style={{ color: 'var(--text-primary)' }}>{task.estimated_minutes ? `${task.estimated_minutes} 分钟` : '未设置'}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap', marginTop: 'auto' }}>
+        <button className="btn btn-sm btn-ghost" onClick={() => onOpenDetail(task)}>详情</button>
+        <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(task)}>记笔记</button>
+        {task.status === 'pending' && (
+          <button className="btn btn-sm btn-success" onClick={() => onComplete(task.task_id)}>完成</button>
+        )}
+        {task.status !== 'deleted' && (
+          <button className="btn btn-sm btn-danger" onClick={() => onDelete(task.task_id)}>删除</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── All Tasks View ───────────────────────────────────── */
 
 function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = null, clearFocusedTask, consumeCreateAction, onCreateNoteFromTask }) {
@@ -510,6 +713,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
   const [totalPages, setTotalPages] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [viewMode, setViewMode] = useState('board');
   const [showForm, setShowForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [justCompleted, setJustCompleted] = useState(null);
@@ -735,6 +939,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
   const handleStatusFilter = (e) => { setStatusFilter(e.target.value); setPage(1); };
 
   const allSelected = tasks.length > 0 && selectedIds.size === tasks.length;
+  const boardSections = getBoardSections(tasks);
 
   return (
     <div style={{ position: 'relative', paddingBottom: selectedIds.size > 0 ? 60 : 0 }}>
@@ -753,6 +958,28 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
           <option value="completed">已完成</option>
           <option value="deleted">已删除</option>
         </select>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 2,
+          padding: 4,
+          borderRadius: 'var(--radius-full)',
+          background: 'rgba(67, 42, 28, 0.08)',
+          boxShadow: 'inset 0 0 0 1px var(--border)',
+        }}>
+          <button
+            className={`btn btn-sm ${viewMode === 'board' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setViewMode('board')}
+          >
+            战术看板
+          </button>
+          <button
+            className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setViewMode('table')}
+          >
+            数据表
+          </button>
+        </div>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>共 {total} 项</span>
         <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
@@ -784,6 +1011,99 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
             <div className="empty-state-hint">点击「+ 新任务」添加第一个任务</div>
           </div>
         </div>
+      ) : viewMode === 'board' ? (
+        <>
+          <div className="card" style={{
+            marginBottom: 'var(--space-md)',
+            background: 'linear-gradient(135deg, rgba(198, 83, 61, 0.12), rgba(47, 143, 131, 0.12))',
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                  TASK COMMAND BOARD
+                </div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: 8 }}>把任务切成能立刻行动的战线，而不是只剩一张表。</h3>
+                <div style={{ fontSize: '0.86rem', lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 620 }}>
+                  每张卡都保留真实后端动作：详情、记笔记、完成、删除。上方摘要看节奏，下方分区看先打哪一块。
+                </div>
+              </div>
+              <div style={{
+                alignSelf: 'stretch',
+                minWidth: 220,
+                padding: 'var(--space-md)',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255,255,255,0.3)',
+                boxShadow: 'var(--shadow-sm)',
+                transform: 'rotate(1.4deg)',
+              }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+                  当前筛选
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+                  <span className="badge badge-pending">{statusFilter}</span>
+                  {keyword ? <span className="badge badge-warning">{keyword}</span> : <span className="badge badge-completed">无关键词</span>}
+                  <span className="badge badge-pending">第 {page}/{Math.max(totalPages, 1)} 页</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <TaskBoardSummary tasks={tasks} />
+
+          <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
+            {boardSections.map((section, sectionIndex) => (
+              <section
+                key={section.key}
+                className="card"
+                style={{
+                  padding: 'var(--space-md)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.18), var(--paper))',
+                  transform: `rotate(${sectionIndex % 2 === 0 ? '-0.5deg' : '0.45deg'})`,
+                  boxShadow: 'var(--shadow-lg)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-end', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                      {section.key.toUpperCase()}
+                    </div>
+                    <h4 style={{ fontSize: '1rem', marginBottom: 4 }}>{section.title}</h4>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{section.subtitle}</div>
+                  </div>
+                  <span className={`badge badge-${
+                    section.tone === 'danger' ? 'error' :
+                    section.tone === 'warning' ? 'warning' :
+                    section.tone === 'success' ? 'completed' :
+                    'pending'
+                  }`}>
+                    {section.tasks.length} 项
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: 'var(--space-md)',
+                }}>
+                  {section.tasks.map(task => (
+                    <TaskBattleCard
+                      key={task.task_id}
+                      task={task}
+                      selected={selectedIds.has(task.task_id)}
+                      justCompleted={justCompleted === task.task_id}
+                      onToggleSelect={toggleSelect}
+                      onOpenDetail={openDetail}
+                      onCreateNoteFromTask={onCreateNoteFromTask}
+                      onComplete={handleComplete}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'auto' }}>
           <table className="data-table">
@@ -995,11 +1315,7 @@ function TaskDetailDrawer({
         estimated_minutes: form.estimated_minutes ? Number(form.estimated_minutes) : undefined,
         tags: form.tags ? form.tags.split(',').map(item => item.trim()).filter(Boolean) : [],
       };
-      const res = await request(async () => fetch(`/api/task/${task.task_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }).then(r => r.json()));
+      const res = await request(async () => apiPut(`/api/task/${task.task_id}`, payload));
       if (res.status === 'error') throw new Error(res.message);
       toast('任务已更新', 'success');
       setEditMode(false);

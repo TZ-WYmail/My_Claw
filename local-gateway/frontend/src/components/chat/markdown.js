@@ -176,6 +176,15 @@ export function renderMarkdownToHtml(markdown = '') {
       return;
     }
 
+    if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+      flushUnorderedList();
+      flushOrderedList();
+      flushBlockquote();
+      flushTable();
+      html.push('<hr/>');
+      return;
+    }
+
     const listMatch = line.match(/^(\s*)[-*+]\s+(.*)$/);
     if (listMatch) {
       flushBlockquote();

@@ -1,9 +1,9 @@
 import AssistantMarkdown from './AssistantMarkdown';
 
-export default function ChatMessageBubble({ msg, isThinking }) {
+export default function ChatMessageBubble({ msg, isThinking, maxWidth = '75%' }) {
   return (
     <div style={{
-      maxWidth: '75%', padding: '10px 16px', borderRadius: 'var(--radius-lg)',
+      maxWidth, padding: '10px 16px', borderRadius: 'var(--radius-lg)',
       fontSize: '0.9rem', lineHeight: 1.6, wordBreak: 'break-word',
       ...(msg.role === 'user' ? {
         background: 'var(--accent)', color: '#fff',

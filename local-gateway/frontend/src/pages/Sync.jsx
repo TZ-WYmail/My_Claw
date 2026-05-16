@@ -16,21 +16,21 @@ export default function Sync() {
     try {
       const data = await apiGet('/api/sync/status');
       setStatus(data);
-    } catch { /* silent */ }
+    } catch {}
   }, []);
 
   const fetchDevices = useCallback(async () => {
     try {
       const data = await apiGet('/api/sync/devices');
       setDevices(data.devices || data || []);
-    } catch { /* silent */ }
+    } catch {}
   }, []);
 
   const fetchOfflineQueue = useCallback(async () => {
     try {
       const data = await apiGet('/api/sync/offline/queue');
       setOfflineQueue(data.queue || data.items || data || []);
-    } catch { /* silent */ }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -64,59 +64,86 @@ export default function Sync() {
   const queueCount = offlineQueue.length;
 
   return (
-    <div style={{ padding: 'var(--space-lg)', maxWidth: 900, margin: '0 auto' }}>
-      <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 'var(--space-lg)' }}>同步</h2>
+    <div className="page-shell">
+      <section className="mission-masthead">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">SIGNAL HUB</span>
+            <h1 className="mission-title">同步页该像信号台，不该像一张设备登记表。</h1>
+            <div className="mission-copy">
+              先看最后一次同步、在线设备和离线积压，再决定推送、拉取还是完整同步。动作区应该像控制台，设备和队列则像回报面板。
+            </div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">{connectedCount} 台在线</span>
+              <span className="badge badge-warning">{queueCount} 条待同步</span>
+              <span className="badge badge-completed">{lastSync ? formatTimeShort(lastSync) : '尚未同步'}</span>
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">同步策略</div>
+            <div className="mission-sidecard-copy">
+              小改动用推送或拉取，冲突感强的时候用完整同步，离线积压只在队列非空时处理。
+            </div>
+          </div>
+        </div>
+      </section>
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon">🕐</div>
-          <div>
-            <div className="stat-value">{lastSync ? formatTimeShort(lastSync) : '-'}</div>
-            <div className="stat-label">上次同步</div>
-          </div>
+      <div className="board-summary-grid">
+        <div className="board-summary-card">
+          <div className="board-summary-label">上次同步</div>
+          <div className="board-summary-value" style={{ fontSize: '1rem' }}>{lastSync ? formatTimeShort(lastSync) : '-'}</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon">📱</div>
-          <div>
-            <div className="stat-value">{connectedCount}</div>
-            <div className="stat-label">已连接设备</div>
-          </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">在线设备</div>
+          <div className="board-summary-value">{connectedCount}</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon">📩</div>
-          <div>
-            <div className="stat-value">{queueCount}</div>
-            <div className="stat-label">离线队列</div>
-          </div>
+        <div className="board-summary-card">
+          <div className="board-summary-label">离线队列</div>
+          <div className="board-summary-value">{queueCount}</div>
         </div>
       </div>
 
-      {/* Sync Actions */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div className="card-header">
-          <h3>同步操作</h3>
+      <section className="board-lane">
+        <div className="board-lane-header">
+          <div>
+            <div className="section-kicker">COMMANDS</div>
+            <h3 className="board-lane-title">同步控制台</h3>
+            <div className="board-lane-copy">所有动作都还是原来的后端接口，只是把入口改成清晰的战术按钮。</div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={() => handleSync('push')} disabled={!!syncing}>
-            {syncing === 'push' ? '同步中...' : '↑ 推送'}
-          </button>
-          <button className="btn btn-primary" onClick={() => handleSync('pull')} disabled={!!syncing}>
-            {syncing === 'pull' ? '同步中...' : '↓ 拉取'}
-          </button>
-          <button className="btn btn-success" onClick={() => handleSync('full')} disabled={!!syncing}>
-            {syncing === 'full' ? '同步中...' : '⟳ 完整同步'}
-          </button>
-          <button className="btn btn-ghost" onClick={() => handleSync('offline')} disabled={!!syncing || queueCount === 0}>
-            {syncing === 'offline' ? '同步中...' : '📶 离线同步'}
-          </button>
-        </div>
-      </div>
 
-      {/* Device List */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div className="card-header">
-          <h3>设备列表</h3>
+        <div className="board-card-grid">
+          {[
+            { key: 'push', label: '推送', copy: '把本地最新改动送到外部设备。', style: 'btn-primary' },
+            { key: 'pull', label: '拉取', copy: '取回远端最新变更到当前设备。', style: 'btn-primary' },
+            { key: 'full', label: '完整同步', copy: '重新对齐两端状态，适合长时间未同步后使用。', style: 'btn-success' },
+            { key: 'offline', label: '离线同步', copy: '处理积压的离线记录，仅在队列非空时启用。', style: 'btn-ghost', disabled: queueCount === 0 },
+          ].map(item => (
+            <div className="dossier-card" key={item.key}>
+              <div className="section-kicker">ACTION</div>
+              <h3 className="dossier-title">{item.label}</h3>
+              <div className="dossier-copy">{item.copy}</div>
+              <div className="dossier-actions">
+                <button
+                  className={`btn ${item.style}`}
+                  onClick={() => handleSync(item.key)}
+                  disabled={!!syncing || item.disabled}
+                >
+                  {syncing === item.key ? '执行中...' : item.label}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="board-lane">
+        <div className="board-lane-header">
+          <div>
+            <div className="section-kicker">DEVICES</div>
+            <h3 className="board-lane-title">设备信号板</h3>
+            <div className="board-lane-copy">每台设备单独显示状态和最近活跃时间，不再挤进表格行里。</div>
+          </div>
         </div>
         {devices.length === 0 ? (
           <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
@@ -124,34 +151,34 @@ export default function Sync() {
             <div className="empty-state-text">暂无连接设备</div>
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr><th>设备</th><th>平台</th><th>状态</th><th>最后活跃</th></tr>
-            </thead>
-            <tbody>
-              {devices.map((d, i) => (
-                <tr key={d.id || i}>
-                  <td style={{ fontWeight: 500 }}>{d.name || d.device_name || `设备 ${i + 1}`}</td>
-                  <td style={{ color: 'var(--text-tertiary)' }}>{d.platform || d.os || '-'}</td>
-                  <td>
+          <div className="signal-list">
+            {devices.map((d, i) => (
+              <div className="signal-row" key={d.id || i}>
+                <div>
+                  <div className="signal-row-title">{d.name || d.device_name || `设备 ${i + 1}`}</div>
+                  <div className="signal-row-copy">{d.platform || d.os || '-'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ marginBottom: 6 }}>
                     <span className={`badge ${d.connected || d.online ? 'badge-completed' : 'badge-pending'}`}>
                       {d.connected || d.online ? '在线' : '离线'}
                     </span>
-                  </td>
-                  <td style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                    {formatTimeShort(d.last_active || d.lastActive || d.last_seen)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="signal-row-meta">{formatTimeShort(d.last_active || d.lastActive || d.last_seen)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* Offline Queue */}
-      <div className="card">
-        <div className="card-header">
-          <h3>离线队列</h3>
+      <section className="board-lane">
+        <div className="board-lane-header">
+          <div>
+            <div className="section-kicker">QUEUE</div>
+            <h3 className="board-lane-title">离线回传队列</h3>
+            <div className="board-lane-copy">队列项像待发回报，不再压成三列表格。</div>
+          </div>
           {queueCount > 0 && (
             <button className="btn btn-sm btn-ghost" onClick={fetchOfflineQueue}>刷新</button>
           )}
@@ -163,26 +190,21 @@ export default function Sync() {
             <div className="empty-state-hint">所有更改已同步</div>
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr><th>操作</th><th>目标</th><th>时间</th></tr>
-            </thead>
-            <tbody>
-              {offlineQueue.map((item, i) => (
-                <tr key={item.id || i}>
-                  <td>
+          <div className="signal-list">
+            {offlineQueue.map((item, i) => (
+              <div className="signal-row" key={item.id || i}>
+                <div>
+                  <div className="signal-row-title">
                     <span className="badge badge-pending">{item.action || item.type || 'pending'}</span>
-                  </td>
-                  <td style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>{item.target || item.key || '-'}</td>
-                  <td style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                    {formatTimeShort(item.created_at || item.timestamp)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="signal-row-copy">{item.target || item.key || '-'}</div>
+                </div>
+                <div className="signal-row-meta">{formatTimeShort(item.created_at || item.timestamp)}</div>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

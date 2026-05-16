@@ -98,6 +98,10 @@ class TaskManagerRequest(BaseModel):
     description: Optional[str] = Field(None, description="任务描述")
     estimated_minutes: Optional[int] = Field(None, description="预估时间（分钟）")
     tags: Optional[list[str]] = Field(None, description="标签列表")
+    today_only: Optional[bool] = Field(
+        False,
+        description="仅返回今日相关待办，用于载入今日待办",
+    )
 
     @field_validator("due_time")
     @classmethod
@@ -280,6 +284,10 @@ class UnifiedSearchResponse(BaseModel):
     results: dict = Field(default_factory=dict)
     total: int = 0
     scope: str = "all"
+    files: Optional[list[dict]] = None
+    tasks: Optional[list[dict]] = None
+    notes: Optional[list[dict]] = None
+    habits: Optional[list[dict]] = None
 
 
 # ============================================================

@@ -31,7 +31,17 @@ async def handle_unified_search(request: UnifiedSearchRequest):
         page=request.page,
         page_size=request.page_size,
     )
-    return UnifiedSearchResponse(**result)
+    files = result.get("results", {}).get("files", {})
+    tasks = result.get("results", {}).get("tasks", {})
+    notes = result.get("results", {}).get("notes", {})
+    habits = result.get("results", {}).get("habits", {})
+    return UnifiedSearchResponse(
+        **result,
+        files=files.get("items", []),
+        tasks=tasks.get("items", []),
+        notes=notes.get("items", []),
+        habits=habits.get("items", []),
+    )
 
 
 @router.post("/legacy", response_model=FileSearchResponse)

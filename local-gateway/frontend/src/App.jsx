@@ -52,6 +52,10 @@ function AppShell() {
     navigate('tasks', { type: 'focus_task', task });
   }, [navigate]);
 
+  const openAiIntent = useCallback((intent = null) => {
+    navigate('ai-chat', intent ? { type: 'ai_intent', ...intent } : null);
+  }, [navigate]);
+
   useEffect(() => {
     const onHashChange = () => {
       setCurrentView(normalizeView(window.location.hash.slice(1)));
@@ -83,7 +87,7 @@ function AppShell() {
         <Dashboard
           onCreateTask={() => openCreateTask()}
           onCreateNote={openCreateNote}
-          onOpenAi={() => navigate('ai-chat')}
+          onOpenAi={openAiIntent}
           onOpenTasks={() => navigate('tasks')}
           onOpenCalendar={() => navigate('calendar')}
           onOpenNotes={() => navigate('notes')}
@@ -114,7 +118,12 @@ function AppShell() {
           onOpenTask={openTaskDetail}
         />
       );
-      case 'ai-chat': return <AiChat />;
+      case 'ai-chat': return (
+        <AiChat
+          quickAction={quickAction}
+          clearQuickAction={() => setQuickAction(null)}
+        />
+      );
       case 'workflows': return <Workflows />;
       case 'sync': return <Sync />;
       case 'download': return <Download />;
@@ -124,7 +133,7 @@ function AppShell() {
         <Dashboard
           onCreateTask={() => openCreateTask()}
           onCreateNote={openCreateNote}
-          onOpenAi={() => navigate('ai-chat')}
+          onOpenAi={openAiIntent}
           onOpenTasks={() => navigate('tasks')}
           onOpenCalendar={() => navigate('calendar')}
           onOpenNotes={() => navigate('notes')}
@@ -145,7 +154,7 @@ function AppShell() {
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
           onCreateTask={() => openCreateTask()}
           onCreateNote={openCreateNote}
-          onOpenAi={() => navigate('ai-chat')}
+          onOpenAi={() => openAiIntent()}
         />
         <div className={styles.viewContainer}>
           {renderView()}

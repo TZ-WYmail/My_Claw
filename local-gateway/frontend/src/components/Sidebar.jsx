@@ -2,15 +2,15 @@ import { useApp } from '../contexts';
 import styles from './Sidebar.module.css';
 
 const NAV_ITEMS = [
-  { view: 'today', icon: '✨', label: '今天' },
-  { view: 'tasks', icon: '📋', label: '任务' },
-  { view: 'calendar', icon: '📅', label: '日历' },
-  { view: 'notes', icon: '📝', label: '笔记' },
-  { view: 'ai-chat', icon: '🤖', label: 'AI 对话' },
+  { view: 'today', icon: '01', label: '今日作战室' },
+  { view: 'tasks', icon: '02', label: '任务战线' },
+  { view: 'calendar', icon: '03', label: '时间地图' },
+  { view: 'notes', icon: '04', label: '情报档案' },
+  { view: 'ai-chat', icon: '05', label: '参谋台' },
   { sep: true },
-  { view: 'settings', icon: '⚙️', label: '设置' },
+  { view: 'settings', icon: '06', label: '控制室' },
   { sep: true },
-  { view: 'workflows', icon: '⚡', label: '实验功能' },
+  { view: 'workflows', icon: '07', label: '自动化区' },
 ];
 
 export default function Sidebar({ current, onNavigate, collapsed }) {
@@ -19,7 +19,11 @@ export default function Sidebar({ current, onNavigate, collapsed }) {
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
       <div className={styles.header}>
-        <span className={styles.logo}>🧠 LCC</span>
+        <div className={styles.brandMark}>LCC</div>
+        <div className={styles.brandText}>
+          <span className={styles.logo}>Local Command Center</span>
+          {!collapsed && <span className={styles.brandSub}>Paper Ops Edition</span>}
+        </div>
         {connected && !collapsed && <span className={styles.version}>v{version}</span>}
       </div>
       <nav className={styles.nav}>

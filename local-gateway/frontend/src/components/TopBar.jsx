@@ -22,11 +22,14 @@ export default function TopBar({ currentView, onToggleSidebar, onCreateTask, onC
     <div className={styles.topBar}>
       <div className={styles.left}>
         <button className={styles.toggle} onClick={onToggleSidebar} title="⌘B 折叠侧边栏">☰</button>
-        <h2>{VIEW_NAMES[currentView] || currentView}</h2>
+        <div>
+          <div className={styles.kicker}>COMMAND SURFACE</div>
+          <h2>{VIEW_NAMES[currentView] || currentView}</h2>
+        </div>
       </div>
       <div className={styles.right}>
         <input id="global-search" className={styles.search} type="text"
-          placeholder="⌘K 搜索..." autoComplete="off" />
+          placeholder="⌘K 搜索命令、任务、记录..." autoComplete="off" />
         <button className="btn btn-ghost btn-sm" onClick={onCreateTask}>+ 任务</button>
         <button className="btn btn-ghost btn-sm" onClick={onCreateNote}>+ 笔记</button>
         <button className="btn btn-primary btn-sm" onClick={onOpenAi}>AI</button>

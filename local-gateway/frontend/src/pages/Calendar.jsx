@@ -148,26 +148,43 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   return (
-    <div>
-      {/* Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+    <div className="page-shell">
+      <section className="mission-masthead">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">FIELD MAP</span>
+            <h1 className="mission-title">日历页该像作战地图，而不是单纯月格。</h1>
+            <div className="mission-copy">
+              重点不是每一天画得多工整，而是让你迅速看出哪天有任务、哪天有事件、哪天正在专注，然后立刻落到当天处理。
+            </div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">{year}年{month}月</span>
+              {activePomodoro && (
+                <span className="badge badge-completed">{activePomodoro.duration_minutes} 分钟进行中</span>
+              )}
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">导航提示</div>
+            <div className="mission-sidecard-copy">
+              先用月份导航确定战区，再点开具体日期查看任务、事件和专注动作。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="board-toolbar">
         <button className="btn btn-sm" onClick={prevMonth}>&larr;</button>
         <button className="btn btn-sm btn-primary" onClick={goToday}>今天</button>
         <button className="btn btn-sm" onClick={nextMonth}>&rarr;</button>
         <span style={{ fontSize: '1.1rem', fontWeight: 600, marginLeft: 'var(--space-sm)' }}>
           {year}年{month}月
         </span>
-        <div style={{ flex: 1 }} />
-        {activePomodoro && (
-          <span className="badge badge-completed">
-            🍅 {activePomodoro.duration_minutes} 分钟进行中
-          </span>
-        )}
+        <div className="board-toolbar-spacer" />
         <button className="btn btn-sm btn-ghost" onClick={() => onOpenTasks?.()}>看全部任务</button>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="card" style={{ padding: 'var(--space-md)' }}>
+      <section className="board-lane" style={{ padding: 'var(--space-md)' }}>
         {loading ? (
           <div className="skeleton" style={{ height: 400 }} />
         ) : (
@@ -197,15 +214,27 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
                     key={day.date}
                     onClick={() => openDay(day)}
                     style={{
-                      minHeight: 80, padding: 6, borderRadius: 'var(--radius-sm)',
+                      minHeight: 96, padding: 8, borderRadius: 'var(--radius-sm)',
                       cursor: 'pointer', position: 'relative',
-                      background: isToday ? 'rgba(10,132,255,0.08)' : 'transparent',
-                      border: isToday ? '1px solid var(--accent)' : '1px solid transparent',
+                      background: isToday ? 'rgba(198,83,61,0.1)' : 'rgba(255,255,255,0.18)',
+                      border: isToday ? '1px solid var(--accent)' : '1px solid rgba(67, 42, 28, 0.08)',
                       opacity: day.is_current_month ? 1 : 0.35,
-                      transition: 'background 0.15s',
+                      transition: 'background 0.15s, transform 0.15s',
+                      boxShadow: isToday ? 'var(--shadow-sm)' : 'none',
+                      transform: isToday ? 'rotate(-0.8deg)' : 'rotate(0.35deg)',
                     }}
-                    onMouseEnter={e => { if (!isToday) e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                    onMouseLeave={e => { if (!isToday) e.currentTarget.style.background = 'transparent'; }}
+                    onMouseEnter={e => {
+                      if (!isToday) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+                        e.currentTarget.style.transform = 'translateY(-2px) rotate(-0.4deg)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isToday) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
+                        e.currentTarget.style.transform = 'rotate(0.35deg)';
+                      }
+                    }}
                   >
                     <div style={{
                       fontSize: '0.85rem', fontWeight: isToday ? 700 : 400,
@@ -241,14 +270,16 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
             </div>
           </>
         )}
-      </div>
+      </section>
 
-      {/* Day Modal */}
       {modalDay && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" style={{ minWidth: 400, maxWidth: 520, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ minWidth: 400, maxWidth: 560, maxHeight: '84vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)' }}>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{modalDay.date}</h2>
+              <div>
+                <div className="section-kicker">DAY DOSSIER</div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{modalDay.date}</h2>
+              </div>
               <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
                 <button
                   className="btn btn-sm btn-primary"
@@ -260,14 +291,13 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
               </div>
             </div>
 
-            {/* Tasks in this day */}
             {modalDay.tasks && modalDay.tasks.length > 0 && (
-              <div style={{ marginBottom: 'var(--space-md)' }}>
-                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>📋 任务</h3>
+              <div className="board-lane" style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-md)' }}>
+                <h3 className="board-lane-title" style={{ fontSize: '0.95rem', marginBottom: 'var(--space-sm)' }}>当日任务</h3>
                 {modalDay.tasks.map(t => (
                   <div key={t.task_id} style={{
                     padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-tertiary)', marginBottom: 6,
+                    background: 'rgba(255,255,255,0.28)', marginBottom: 6,
                     fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)',
                     alignItems: 'flex-start',
                   }}>
@@ -292,10 +322,9 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
               </div>
             )}
 
-            {/* Events in this day */}
-            <div style={{ marginBottom: 'var(--space-md)' }}>
+            <div className="board-lane" style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-md)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
-                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>📅 事件</h3>
+                <h3 className="board-lane-title" style={{ fontSize: '0.95rem' }}>当日事件</h3>
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={() => setShowAddEvent(s => !s)}

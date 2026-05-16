@@ -14,6 +14,7 @@ from config import DB_PATH
 from services.security_service import validate_update_columns
 from services.utils import human_size
 from services.tag_service import add_task_tags, get_task_tags_batch
+from services.time_service import extract_system_date, is_overdue, system_now, system_today_iso
 
 
 # ============================================================
@@ -546,9 +547,10 @@ async def get_weekly_plan(monday_iso: str = "", sunday_iso: str = "") -> dict:
     }
 
 
-async def get_pending_tasks() -> dict:
-    """获取所有未完成任务，标记是否逾期"""
-    now = datetime.now().isoformat()
+async def get_pending_tasks(today_only: bool = False) -> dict:
+    """获取未完成任务，支持仅返回今日相关任务"""
+    now = system_now()
+    today = system_today_iso()
 
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row
@@ -567,7 +569,14 @@ async def get_pending_tasks() -> dict:
 
     tasks = []
     for row in rows:
-        overdue = row["due_time"] < now
+        overdue = is_overdue(row["due_time"], now)
+        due_date = extract_system_date(row["due_time"])
+        start_date = extract_system_date(row["start_time"])
+        is_today_related = overdue or due_date == today or start_date == today
+
+        if today_only and not is_today_related:
+            continue
+
         tasks.append({
             "task_id": row["task_id"],
             "task_name": row["task_name"],
@@ -584,13 +593,14 @@ async def get_pending_tasks() -> dict:
         })
 
     overdue_count = sum(1 for t in tasks if t["overdue"])
+    scope_label = "今日相关待办" if today_only else "待办"
 
     return {
         "status": "success",
         "tasks": tasks,
         "total": len(tasks),
         "overdue_count": overdue_count,
-        "message": f"共 {len(tasks)} 项待办，其中 {overdue_count} 项已逾期",
+        "message": f"共 {len(tasks)} 项{scope_label}，其中 {overdue_count} 项已逾期",
     }
 
 

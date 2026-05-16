@@ -30,7 +30,6 @@ export default function Settings() {
   const [testing, setTesting] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
 
-  // Notification config state
   const [notifConfig, setNotifConfig] = useState({
     smtp_host: '',
     smtp_port: 465,
@@ -109,11 +108,7 @@ export default function Settings() {
     try {
       const data = await apiPost('/api/notification/test', {});
       setNotifTestResult(data);
-      if (data.status === 'success') {
-        toast('测试邮件发送成功', 'success');
-      } else {
-        toast('测试邮件发送失败', 'error');
-      }
+      toast(data.status === 'success' ? '测试邮件发送成功' : '测试邮件发送失败', data.status === 'success' ? 'success' : 'error');
     } catch {
       setNotifTestResult({ status: 'error', message: '请求失败' });
       toast('测试邮件发送失败', 'error');
@@ -145,11 +140,7 @@ export default function Settings() {
     try {
       const data = await apiPost('/api/chat/test', {});
       setTestResult(data);
-      if (data.success || data.status === 'ok') {
-        toast('连接测试成功', 'success');
-      } else {
-        toast('连接测试失败', 'error');
-      }
+      toast(data.success || data.status === 'ok' ? '连接测试成功' : '连接测试失败', data.success || data.status === 'ok' ? 'success' : 'error');
     } catch {
       setTestResult({ success: false, error: '请求失败' });
       toast('连接测试失败', 'error');
@@ -161,216 +152,81 @@ export default function Settings() {
   const updateField = (field, value) => setConfig(prev => ({ ...prev, [field]: value }));
 
   return (
-    <div style={{ padding: 'var(--space-lg)', maxWidth: 720, margin: '0 auto' }}>
-      <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 'var(--space-lg)' }}>设置</h2>
-
-      {/* AI Config */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div className="card-header">
-          <h3>AI 配置</h3>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-            <button className="btn btn-sm btn-ghost" onClick={handleTest} disabled={testing}>
-              {testing ? '测试中...' : '测试连接'}
-            </button>
-            <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={loading}>
-              保存
-            </button>
+    <div className="page-shell">
+      <section className="mission-masthead">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">CONTROL CHAMBER</span>
+            <h1 className="mission-title">设置页该像控制室，不该像一块普通表单墙。</h1>
+            <div className="mission-copy">
+              AI、通知、外观和快捷键都是系统层配置。这里的重点不是堆字段，而是让你知道什么已经接通、什么还没校准。
+            </div>
+            <div className="mission-chip-row">
+              <span className={`badge ${connected ? 'badge-completed' : 'badge-error'}`}>{connected ? '后端已连接' : '后端未连接'}</span>
+              <span className="badge badge-pending">版本 {version || '-'}</span>
+              <span className="badge badge-warning">主题 {theme === 'dark' ? '深色' : '浅色'}</span>
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">控制原则</div>
+            <div className="mission-sidecard-copy">
+              优先确认连接是否可靠，再调模型和通知。外观和快捷键属于节奏优化，不是第一优先级。
+            </div>
           </div>
         </div>
+      </section>
 
-        {testResult && (
-          <div style={{
-            padding: 'var(--space-sm) var(--space-md)',
-            borderRadius: 'var(--radius-sm)',
-            marginBottom: 'var(--space-md)',
-            fontSize: '0.85rem',
-            background: (testResult.success || testResult.status === 'ok') ? 'rgba(48,209,88,0.08)' : 'rgba(255,69,58,0.08)',
-            color: (testResult.success || testResult.status === 'ok') ? 'var(--success)' : 'var(--error)',
-            border: `1px solid ${(testResult.success || testResult.status === 'ok') ? 'var(--success)' : 'var(--error)'}`,
-          }}>
-            {(testResult.success || testResult.status === 'ok')
-              ? `连接成功 — 模型: ${testResult.model || config.model || '-'}`
-              : `连接失败 — ${testResult.error || testResult.message || '未知错误'}`}
-          </div>
-        )}
-
-        {configLoaded ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            <div className="form-group">
-              <label>模型名称</label>
-              <input
-                value={config.model}
-                onChange={e => updateField('model', e.target.value)}
-                placeholder="如: glm-4-flash"
-              />
-            </div>
-            <div className="form-group">
-              <label>API 地址</label>
-              <input
-                value={config.api_base}
-                onChange={e => updateField('api_base', e.target.value)}
-                placeholder="https://open.bigmodel.cn/api/paas/v4"
-              />
-            </div>
-            <div className="form-group">
-              <label>API Key</label>
-              <input
-                type="password"
-                value={config.api_key}
-                onChange={e => updateField('api_key', e.target.value)}
-                placeholder="sk-..."
-              />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-              <div className="form-group">
-                <label>Temperature ({config.temperature})</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={config.temperature}
-                  onChange={e => updateField('temperature', parseFloat(e.target.value))}
-                  style={{ padding: 0 }}
-                />
+      <div className="war-room-grid">
+        <div className="war-room-stack">
+          <section className="board-lane">
+            <div className="board-lane-header">
+              <div>
+                <div className="section-kicker">AI CORE</div>
+                <h3 className="board-lane-title">AI 配置台</h3>
+                <div className="board-lane-copy">模型、地址、Key 和参数统一放在这里，测试和保存动作保持真实后端接线。</div>
               </div>
-              <div className="form-group">
-                <label>最大 Tokens</label>
-                <input
-                  type="number"
-                  min={256}
-                  max={32768}
-                  value={config.max_tokens}
-                  onChange={e => updateField('max_tokens', e.target.value)}
-                />
+              <div className="inline-actions">
+                <button className="btn btn-sm btn-ghost" onClick={handleTest} disabled={testing}>{testing ? '测试中...' : '测试连接'}</button>
+                <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={loading}>保存</button>
               </div>
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="skeleton skeleton-text" style={{ width: '60%' }} />
-            <div className="skeleton skeleton-text" style={{ width: '80%' }} />
-            <div className="skeleton skeleton-text" style={{ width: '50%' }} />
-          </>
-        )}
-      </div>
 
-      {/* Notification Config */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div
-          className="card-header"
-          style={{ cursor: 'pointer', userSelect: 'none' }}
-          onClick={() => setNotifExpanded(prev => !prev)}
-        >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <span style={{ fontSize: '1.1rem' }}>&#9881;</span>
-            通知配置
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 400 }}>
-              {notifExpanded ? '▲' : '▼'}
-            </span>
-          </h3>
-          {notifExpanded && (
-            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={e => { e.stopPropagation(); handleNotifTest(); }}
-                disabled={notifTesting}
-              >
-                {notifTesting ? '发送中...' : '测试邮件'}
-              </button>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={e => { e.stopPropagation(); handleNotifSave(); }}
-                disabled={loading}
-              >
-                保存配置
-              </button>
-            </div>
-          )}
-        </div>
-
-        {notifExpanded && (
-          <>
-            {notifTestResult && (
-              <div style={{
-                padding: 'var(--space-sm) var(--space-md)',
-                borderRadius: 'var(--radius-sm)',
-                marginBottom: 'var(--space-md)',
-                fontSize: '0.85rem',
-                background: notifTestResult.status === 'success' ? 'rgba(48,209,88,0.08)' : 'rgba(255,69,58,0.08)',
-                color: notifTestResult.status === 'success' ? 'var(--success)' : 'var(--error)',
-                border: `1px solid ${notifTestResult.status === 'success' ? 'var(--success)' : 'var(--error)'}`,
+            {testResult && (
+              <div className="radar-item" style={{
+                background: (testResult.success || testResult.status === 'ok') ? 'rgba(52,93,76,0.1)' : 'rgba(206,58,44,0.08)',
+                borderLeftColor: (testResult.success || testResult.status === 'ok') ? 'var(--success)' : 'var(--error)',
               }}>
-                {notifTestResult.status === 'success'
-                  ? '测试邮件发送成功，请检查收件箱'
-                  : `发送失败 — ${notifTestResult.message || '未知错误'}`}
+                <div className="radar-title">{(testResult.success || testResult.status === 'ok') ? '连接成功' : '连接失败'}</div>
+                <div className="radar-copy">
+                  {(testResult.success || testResult.status === 'ok')
+                    ? `模型: ${testResult.model || config.model || '-'}`
+                    : (testResult.error || testResult.message || '未知错误')}
+                </div>
               </div>
             )}
-            {notifLoaded ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+
+            {configLoaded ? (
+              <div className="command-form">
                 <div className="form-group">
-                  <label>SMTP 服务器</label>
-                  <input
-                    value={notifConfig.smtp_host}
-                    onChange={e => updateNotifField('smtp_host', e.target.value)}
-                    placeholder="如: smtp.qq.com"
-                  />
+                  <label>模型名称</label>
+                  <input value={config.model} onChange={e => updateField('model', e.target.value)} placeholder="如: glm-4-flash" />
+                </div>
+                <div className="form-group">
+                  <label>API 地址</label>
+                  <input value={config.api_base} onChange={e => updateField('api_base', e.target.value)} placeholder="https://open.bigmodel.cn/api/paas/v4" />
+                </div>
+                <div className="form-group">
+                  <label>API Key</label>
+                  <input type="password" value={config.api_key} onChange={e => updateField('api_key', e.target.value)} placeholder="sk-..." />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
                   <div className="form-group">
-                    <label>端口</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={65535}
-                      value={notifConfig.smtp_port}
-                      onChange={e => updateNotifField('smtp_port', e.target.value)}
-                    />
+                    <label>Temperature ({config.temperature})</label>
+                    <input type="range" min="0" max="2" step="0.1" value={config.temperature} onChange={e => updateField('temperature', parseFloat(e.target.value))} style={{ padding: 0 }} />
                   </div>
                   <div className="form-group">
-                    <label>发件邮箱</label>
-                    <input
-                      value={notifConfig.smtp_user}
-                      onChange={e => updateNotifField('smtp_user', e.target.value)}
-                      placeholder="sender@example.com"
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>授权码</label>
-                  <input
-                    type="password"
-                    value={notifConfig.smtp_password}
-                    onChange={e => updateNotifField('smtp_password', e.target.value)}
-                    placeholder="SMTP 授权码（已配置则留空）"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>收件邮箱</label>
-                  <input
-                    value={notifConfig.notify_email}
-                    onChange={e => updateNotifField('notify_email', e.target.value)}
-                    placeholder="receiver@example.com"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-                  <div className="form-group">
-                    <label>开始前提醒（分钟）</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={notifConfig.reminder_minutes_before}
-                      onChange={e => updateNotifField('reminder_minutes_before', e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>截止前提醒（分钟）</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={notifConfig.reminder_due_minutes}
-                      onChange={e => updateNotifField('reminder_due_minutes', e.target.value)}
-                    />
+                    <label>最大 Tokens</label>
+                    <input type="number" min={256} max={32768} value={config.max_tokens} onChange={e => updateField('max_tokens', e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -381,80 +237,142 @@ export default function Settings() {
                 <div className="skeleton skeleton-text" style={{ width: '50%' }} />
               </>
             )}
-          </>
-        )}
-      </div>
+          </section>
 
-      {/* Appearance */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div className="card-header">
-          <h3>外观</h3>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontWeight: 500 }}>主题</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>当前: {theme === 'dark' ? '深色' : '浅色'}</div>
-          </div>
-          <button className="btn" onClick={toggleTheme}>
-            {theme === 'dark' ? '☀️ 浅色' : '🌙 深色'}
-          </button>
-        </div>
-      </div>
+          <section className="board-lane">
+            <div
+              className="board-lane-header"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setNotifExpanded(prev => !prev)}
+            >
+              <div>
+                <div className="section-kicker">NOTIFY NETWORK</div>
+                <h3 className="board-lane-title">通知配置台</h3>
+                <div className="board-lane-copy">{notifExpanded ? '当前展开中，可直接测试和保存通知配置。' : '点击展开 SMTP、提醒时间和测试邮件配置。'}</div>
+              </div>
+              <div className="inline-actions">
+                <span className="badge badge-pending">{notifExpanded ? '已展开' : '已折叠'}</span>
+                <button className="btn btn-sm btn-ghost" onClick={e => { e.stopPropagation(); setNotifExpanded(prev => !prev); }}>{notifExpanded ? '收起' : '展开'}</button>
+              </div>
+            </div>
 
-      {/* Keyboard Shortcuts */}
-      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-        <div className="card-header">
-          <h3>键盘快捷键</h3>
-        </div>
-        <table className="data-table">
-          <thead>
-            <tr><th>快捷键</th><th>功能</th></tr>
-          </thead>
-          <tbody>
-            {KEYBOARD_SHORTCUTS.map(s => (
-              <tr key={s.keys}>
-                <td>
-                  <code style={{
-                    padding: '2px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-tertiary)',
-                    fontSize: '0.8rem',
-                    fontFamily: 'var(--font-mono)',
+            {notifExpanded && (
+              <>
+                <div className="inline-actions" style={{ marginBottom: 'var(--space-md)' }}>
+                  <button className="btn btn-sm btn-ghost" onClick={handleNotifTest} disabled={notifTesting}>{notifTesting ? '发送中...' : '测试邮件'}</button>
+                  <button className="btn btn-sm btn-primary" onClick={handleNotifSave} disabled={loading}>保存配置</button>
+                </div>
+
+                {notifTestResult && (
+                  <div className="radar-item" style={{
+                    background: notifTestResult.status === 'success' ? 'rgba(52,93,76,0.1)' : 'rgba(206,58,44,0.08)',
+                    borderLeftColor: notifTestResult.status === 'success' ? 'var(--success)' : 'var(--error)',
                   }}>
-                    {s.keys}
-                  </code>
-                </td>
-                <td style={{ color: 'var(--text-secondary)' }}>{s.desc}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    <div className="radar-title">{notifTestResult.status === 'success' ? '测试邮件发送成功' : '测试邮件发送失败'}</div>
+                    <div className="radar-copy">{notifTestResult.status === 'success' ? '请检查收件箱。' : (notifTestResult.message || '未知错误')}</div>
+                  </div>
+                )}
 
-      {/* About */}
-      <div className="card">
-        <div className="card-header">
-          <h3>关于</h3>
+                {notifLoaded ? (
+                  <div className="command-form">
+                    <div className="form-group">
+                      <label>SMTP 服务器</label>
+                      <input value={notifConfig.smtp_host} onChange={e => updateNotifField('smtp_host', e.target.value)} placeholder="如: smtp.qq.com" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                      <div className="form-group">
+                        <label>端口</label>
+                        <input type="number" min={1} max={65535} value={notifConfig.smtp_port} onChange={e => updateNotifField('smtp_port', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>发件邮箱</label>
+                        <input value={notifConfig.smtp_user} onChange={e => updateNotifField('smtp_user', e.target.value)} placeholder="sender@example.com" />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>授权码</label>
+                      <input type="password" value={notifConfig.smtp_password} onChange={e => updateNotifField('smtp_password', e.target.value)} placeholder="SMTP 授权码（已配置则留空）" />
+                    </div>
+                    <div className="form-group">
+                      <label>收件邮箱</label>
+                      <input value={notifConfig.notify_email} onChange={e => updateNotifField('notify_email', e.target.value)} placeholder="receiver@example.com" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                      <div className="form-group">
+                        <label>开始前提醒（分钟）</label>
+                        <input type="number" min={1} value={notifConfig.reminder_minutes_before} onChange={e => updateNotifField('reminder_minutes_before', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>截止前提醒（分钟）</label>
+                        <input type="number" min={1} value={notifConfig.reminder_due_minutes} onChange={e => updateNotifField('reminder_due_minutes', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="skeleton skeleton-text" style={{ width: '60%' }} />
+                    <div className="skeleton skeleton-text" style={{ width: '80%' }} />
+                    <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+                  </>
+                )}
+              </>
+            )}
+          </section>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', fontSize: '0.9rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-tertiary)' }}>应用</span>
-            <span style={{ fontWeight: 500 }}>LocalCommandCenter</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-tertiary)' }}>版本</span>
-            <span style={{ fontWeight: 500 }}>{version || '-'}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-tertiary)' }}>后端状态</span>
-            <span className={`badge ${connected ? 'badge-completed' : 'badge-error'}`}>
-              {connected ? '已连接' : '未连接'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-tertiary)' }}>前端</span>
-            <span style={{ fontWeight: 500 }}>React + Vite</span>
-          </div>
+
+        <div className="war-room-stack">
+          <section className="board-lane">
+            <div className="board-lane-header">
+              <div>
+                <div className="section-kicker">APPEARANCE</div>
+                <h3 className="board-lane-title">外观切换</h3>
+                <div className="board-lane-copy">主题切换属于节奏控制，不是附属小按钮。</div>
+              </div>
+            </div>
+            <div className="signal-row">
+              <div>
+                <div className="signal-row-title">当前主题</div>
+                <div className="signal-row-copy">{theme === 'dark' ? '深色作战室' : '浅色作战室'}</div>
+              </div>
+              <button className="btn" onClick={toggleTheme}>{theme === 'dark' ? '切换浅色' : '切换深色'}</button>
+            </div>
+          </section>
+
+          <section className="board-lane">
+            <div className="board-lane-header">
+              <div>
+                <div className="section-kicker">SHORTCUTS</div>
+                <h3 className="board-lane-title">快捷键指挥条</h3>
+                <div className="board-lane-copy">不再用表格列，而是每条快捷键一张指令条。</div>
+              </div>
+            </div>
+            <div className="signal-list">
+              {KEYBOARD_SHORTCUTS.map(item => (
+                <div className="signal-row" key={item.keys}>
+                  <div>
+                    <div className="signal-row-title"><code style={{ fontFamily: 'var(--font-mono)' }}>{item.keys}</code></div>
+                    <div className="signal-row-copy">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="board-lane">
+            <div className="board-lane-header">
+              <div>
+                <div className="section-kicker">SYSTEM STATUS</div>
+                <h3 className="board-lane-title">系统状态</h3>
+                <div className="board-lane-copy">把关于信息也纳入控制室视角，而不是尾部说明文。</div>
+              </div>
+            </div>
+            <div className="signal-list">
+              <div className="signal-row"><div><div className="signal-row-title">应用</div><div className="signal-row-copy">LocalCommandCenter</div></div></div>
+              <div className="signal-row"><div><div className="signal-row-title">版本</div><div className="signal-row-copy">{version || '-'}</div></div></div>
+              <div className="signal-row"><div><div className="signal-row-title">后端</div><div className="signal-row-copy">{connected ? '已连接' : '未连接'}</div></div><span className={`badge ${connected ? 'badge-completed' : 'badge-error'}`}>{connected ? '在线' : '离线'}</span></div>
+              <div className="signal-row"><div><div className="signal-row-title">前端</div><div className="signal-row-copy">React + Vite</div></div></div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
