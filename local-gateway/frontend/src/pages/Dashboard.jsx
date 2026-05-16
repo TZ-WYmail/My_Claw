@@ -3,6 +3,7 @@ import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort, operationIcon } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 function overdueDays(dueTime) {
   if (!dueTime) return 0;
@@ -450,9 +451,10 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
   const fetchOverdueTasks = useCallback(async () => {
     try {
       const res = await apiPost('/api/task', { action: 'get_pending_tasks' });
-      if (res.status === 'success' && res.tasks) {
-        setPendingTasks(res.tasks || []);
-        setOverdueTasks(res.tasks.filter(t => t.overdue).slice(0, 5));
+      if (res.status === 'success') {
+        const tasks = normalizeList(res, ['tasks', 'items']);
+        setPendingTasks(tasks);
+        setOverdueTasks(tasks.filter(t => t.overdue).slice(0, 5));
       }
     } catch {}
   }, []);
@@ -475,7 +477,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
     const entries = await Promise.all(slice.map(async (task) => {
       try {
         const res = await apiGet(`/api/advanced/tasks/${task.task_id}/subtasks`);
-        const subtasks = res.status === 'success' ? (res.subtasks || []) : [];
+        const subtasks = res.status === 'success' ? normalizeList(res, ['subtasks', 'items']) : [];
         const total = subtasks.length;
         const completed = subtasks.filter(item => item.status === 'completed').length;
         return [task.task_id, { total, completed }];

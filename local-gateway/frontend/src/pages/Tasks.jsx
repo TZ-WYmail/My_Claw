@@ -3,6 +3,7 @@ import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort, RECURRENCE_MAP, badgeClass, statusLabel } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 const PRIORITY_MAP = { 0: '紧急', 1: '高', 2: '中', 3: '低' };
 const PRIORITY_COLORS = { 0: 'error', 1: 'warning', 2: 'pending', 3: 'completed' };
@@ -104,7 +105,7 @@ function WeekView({ onCreateNoteFromTask }) {
         })
       );
       if (res.status === 'error') throw new Error(res.message);
-      setTasks(res.tasks || []);
+      setTasks(normalizeList(res, ['tasks', 'items']));
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -784,7 +785,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
       const params = new URLSearchParams({ page, keyword, status: statusFilter, page_size: 20 });
       const res = await request(async () => apiGet(`/api/tasks/all?${params}`));
       if (res.status === 'error') throw new Error(res.message);
-      setTasks(res.tasks || []);
+      setTasks(normalizeList(res, ['tasks', 'items']));
       setTotal(res.total || 0);
       setTotalPages(res.total_pages || 0);
       setSelectedIds(new Set());
@@ -807,7 +808,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
     }
     const res = await apiGet('/api/notes?page_size=100');
     if (res.status === 'success') {
-      const matched = (res.notes || []).filter(note => note.task_id === task.task_id);
+      const matched = normalizeList(res, ['notes', 'items']).filter(note => note.task_id === task.task_id);
       setRelatedNotes(matched);
       return matched;
     }
@@ -822,8 +823,9 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
     }
     const res = await apiGet(`/api/advanced/tasks/${task.task_id}/subtasks`);
     if (res.status === 'success') {
-      setSubtasks(res.subtasks || []);
-      return res.subtasks || [];
+      const subtasks = normalizeList(res, ['subtasks', 'items']);
+      setSubtasks(subtasks);
+      return subtasks;
     }
     setSubtasks([]);
     return [];
@@ -854,8 +856,9 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
         task_name: fmt(sunday, '23:59:59'),
       });
       if (res.status === 'success') {
-        setWeekContext(res.tasks || []);
-        return res.tasks || [];
+        const tasks = normalizeList(res, ['tasks', 'items']);
+        setWeekContext(tasks);
+        return tasks;
       }
     } catch {
       setWeekContext([]);
@@ -902,8 +905,9 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
       // Show progress toast
       const pendingRes = await apiPost('/api/task', { action: 'get_pending_tasks' });
       if (pendingRes.status === 'success') {
+        const pendingTasks = normalizeList(pendingRes, ['tasks', 'items']);
         const today = new Date().toISOString().slice(0, 10);
-        const todayTasks = pendingRes.tasks.filter(t =>
+        const todayTasks = pendingTasks.filter(t =>
           (t.start_time && t.start_time.startsWith(today)) ||
           (t.due_time && t.due_time.startsWith(today))
         );

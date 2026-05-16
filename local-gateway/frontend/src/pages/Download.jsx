@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 const CATEGORIES = [
   { value: 'misc', label: '通用' },
@@ -9,18 +10,6 @@ const CATEGORIES = [
   { value: 'video', label: '媒体' },
   { value: 'code', label: '代码' },
 ];
-
-function normalizeList(payload, preferredKeys = []) {
-  for (const key of preferredKeys) {
-    if (Array.isArray(payload?.[key])) return payload[key];
-  }
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === 'object') {
-    const firstArray = Object.values(payload).find(Array.isArray);
-    if (Array.isArray(firstArray)) return firstArray;
-  }
-  return [];
-}
 
 export default function Download() {
   const toast = useToast();

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   const { loading, request } = useApi();
@@ -28,7 +29,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
       const params = new URLSearchParams({ keyword, page_size: 100 });
       const res = await request(async () => apiGet(`/api/notes?${params}`));
       if (res.status === 'error') throw new Error(res.message);
-      setNotes(res.notes || []);
+      setNotes(normalizeList(res, ['notes', 'items']));
     } catch (e) {
       toast(e.message, 'error');
     }

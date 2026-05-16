@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
+import { normalizeList } from '../utils/normalize';
 
 const FREQUENCY_MAP = { daily: '每天', weekly: '每周', monthly: '每月' };
 const HABIT_COLORS = ['#27ae60', '#0a84ff', '#ff9f0a', '#ff453a', '#af52de', '#5ac8fa', '#ff6b6b', '#30d158'];
@@ -18,7 +19,7 @@ export default function Habits() {
     try {
       const res = await request(async () => apiGet('/api/habits'));
       if (res.status === 'error') throw new Error(res.message);
-      setHabits(res.habits || []);
+      setHabits(normalizeList(res, ['habits', 'items']));
     } catch (e) {
       toast(e.message, 'error');
     }

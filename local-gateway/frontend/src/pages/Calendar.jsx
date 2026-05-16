@@ -3,6 +3,7 @@ import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
 import { formatTimeShort } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -26,7 +27,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
     try {
       const res = await request(async () => apiGet(`/api/advanced/calendar/view?year=${year}&month=${month}`));
       if (res.status === 'error') throw new Error(res.message);
-      setDays(res.days || []);
+      setDays(normalizeList(res, ['days', 'items']));
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -35,7 +36,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
   const fetchEventsForDay = useCallback(async (dateStr) => {
     try {
       const res = await apiGet(`/api/advanced/calendar/events?start_date=${dateStr}&end_date=${dateStr}`);
-      return res.events || [];
+      return normalizeList(res, ['events', 'items']);
     } catch {
       return [];
     }

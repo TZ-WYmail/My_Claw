@@ -2,18 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort } from '../utils/format';
-
-function normalizeList(payload, preferredKeys = []) {
-  for (const key of preferredKeys) {
-    if (Array.isArray(payload?.[key])) return payload[key];
-  }
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === 'object') {
-    const firstArray = Object.values(payload).find(Array.isArray);
-    if (Array.isArray(firstArray)) return firstArray;
-  }
-  return [];
-}
+import { normalizeList } from '../utils/normalize';
 
 export default function Sync() {
   const toast = useToast();

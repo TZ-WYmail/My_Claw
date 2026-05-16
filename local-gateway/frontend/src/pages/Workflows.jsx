@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { formatTimeShort, escapeHtml } from '../utils/format';
+import { normalizeList } from '../utils/normalize';
 
 const TRIGGER_TYPES = ['schedule', 'task_completed', 'task_created', 'habit_checkin', 'download_completed', 'webhook', 'startup'];
 const ACTION_SAMPLE = JSON.stringify([
@@ -15,18 +16,6 @@ const emptyForm = {
   trigger_config: '',
   actions: ACTION_SAMPLE,
 };
-
-function normalizeList(payload, preferredKeys = []) {
-  for (const key of preferredKeys) {
-    if (Array.isArray(payload?.[key])) return payload[key];
-  }
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === 'object') {
-    const firstArray = Object.values(payload).find(Array.isArray);
-    if (Array.isArray(firstArray)) return firstArray;
-  }
-  return [];
-}
 
 const prettyTriggerLabel = (trigger) => {
   const map = {

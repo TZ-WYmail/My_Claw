@@ -22,6 +22,7 @@ import {
   formatMessageStamp,
   buildConversationRounds,
 } from '../components/chat/aiChatShared';
+import { normalizeList } from '../utils/normalize';
 
 export default function AiChat({ quickAction, clearQuickAction }) {
   const toast = useToast();
@@ -204,13 +205,14 @@ export default function AiChat({ quickAction, clearQuickAction }) {
     try {
       const res = await apiPost('/api/task', { action: 'get_pending_tasks', today_only: true });
       if (res.status === 'error') throw new Error(res.message || '载入今日待办失败');
-      replacePlanningTasks((res.tasks || []).map((task) => ({
+      const pendingTasks = normalizeList(res, ['tasks', 'items']);
+      replacePlanningTasks(pendingTasks.map((task) => ({
         task_name: task.task_name,
         due_time: task.due_time ? task.due_time.slice(0, 10) : '',
         earliest_start: task.start_time ? task.start_time.slice(0, 10) : '',
         depends_on: [],
       })));
-      toast(`已载入 ${(res.tasks || []).length} 项今日相关待办`, 'success');
+      toast(`已载入 ${pendingTasks.length} 项今日相关待办`, 'success');
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -253,7 +255,7 @@ export default function AiChat({ quickAction, clearQuickAction }) {
     try {
       const res = await apiGet('/api/chat/conversations');
       if (res.status === 'success') {
-        setConversations(res.conversations || []);
+        setConversations(normalizeList(res, ['conversations', 'items']));
       }
     } catch { /* silent */ }
   }, []);
@@ -262,8 +264,9 @@ export default function AiChat({ quickAction, clearQuickAction }) {
   const loadHistory = useCallback(async () => {
     try {
       const res = await apiGet(`/api/chat/history/${activeConvId}`);
-      if (res.status === 'success' && res.messages?.length > 0) {
-        setMessages(res.messages.map((m, i) => ({
+      const messages = res.status === 'success' ? normalizeList(res, ['messages', 'items']) : [];
+      if (messages.length > 0) {
+        setMessages(messages.map((m, i) => ({
           id: m.id || i,
           role: m.role,
           content: m.content || '',
@@ -271,6 +274,8 @@ export default function AiChat({ quickAction, clearQuickAction }) {
           model: m.model || '',
           timestamp: m.timestamp,
         })));
+      } else {
+        setMessages([]);
       }
     } catch { /* silent */ }
   }, [activeConvId]);
@@ -314,8 +319,9 @@ export default function AiChat({ quickAction, clearQuickAction }) {
     setActiveConvId(convId);
     try {
       const res = await apiGet(`/api/chat/history/${convId}`);
-      if (res.status === 'success' && res.messages?.length > 0) {
-        setMessages(res.messages.map((m, i) => ({
+      const messages = res.status === 'success' ? normalizeList(res, ['messages', 'items']) : [];
+      if (messages.length > 0) {
+        setMessages(messages.map((m, i) => ({
           id: m.id || i, role: m.role, content: m.content || '',
           thinking: m.thinking || '', model: m.model || '', timestamp: m.timestamp,
         })));
