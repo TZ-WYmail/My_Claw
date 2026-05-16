@@ -92,6 +92,26 @@ export function priorityMeta(priority) {
   return found || PRIORITY_OPTIONS[2];
 }
 
+export function overdueDays(dueTime) {
+  const due = toValidDate(dueTime);
+  if (!due) return 0;
+  const now = new Date();
+  return Math.max(0, Math.floor((now - due) / (1000 * 60 * 60 * 24)));
+}
+
+export function isTaskOnDate(task, isoDate, fields = ['start_time', 'due_time', 'end_time']) {
+  return fields.some((field) => task?.[field] && task[field].startsWith(isoDate));
+}
+
+export function taskWindowLabel(task) {
+  if (task?.start_time && task?.end_time) {
+    return `${formatTimeShort(task.start_time)} - ${formatTimeShort(task.end_time)}`;
+  }
+  if (task?.start_time) return `开始 ${formatTimeShort(task.start_time)}`;
+  if (task?.due_time) return `截止 ${formatTimeShort(task.due_time)}`;
+  return '未安排时间';
+}
+
 export function operationIcon(op) {
   const map = { add_task: '📋', complete_task: '✅', delete_task: '🗑️', download: '📥', sandbox: '🔧' };
   return map[op] || '📌';

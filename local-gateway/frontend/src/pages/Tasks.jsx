@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
-import { formatTimeShort, recurrenceLabel, badgeClass, statusLabel, priorityMeta } from '../utils/format';
+import { formatTimeShort, recurrenceLabel, badgeClass, statusLabel, priorityMeta, isTaskOnDate, overdueDays as getOverdueDays, taskWindowLabel } from '../utils/format';
 import { PRIORITY_OPTIONS } from '../utils/constants';
 import { ensureArray, normalizeList } from '../utils/normalize';
 const TABS = [
@@ -535,30 +535,6 @@ function WeekView({ onCreateNoteFromTask }) {
   );
 }
 
-function getOverdueDays(dueTime) {
-  if (!dueTime) return 0;
-  const due = new Date(dueTime);
-  const now = new Date();
-  return Math.max(0, Math.floor((now - due) / (1000 * 60 * 60 * 24)));
-}
-
-function isTaskOnDate(task, isoDate) {
-  return (
-    (task.start_time && task.start_time.startsWith(isoDate)) ||
-    (task.due_time && task.due_time.startsWith(isoDate)) ||
-    (task.end_time && task.end_time.startsWith(isoDate))
-  );
-}
-
-function formatTaskWindow(task) {
-  if (task.start_time && task.end_time) {
-    return `${formatTimeShort(task.start_time)} - ${formatTimeShort(task.end_time)}`;
-  }
-  if (task.start_time) return `开始 ${formatTimeShort(task.start_time)}`;
-  if (task.due_time) return `截止 ${formatTimeShort(task.due_time)}`;
-  return '未安排时间';
-}
-
 function getBoardSections(tasks) {
   const today = new Date().toISOString().slice(0, 10);
   const pendingLike = tasks.filter(task => task.status === 'pending' || task.status === 'active');
@@ -722,7 +698,7 @@ function TaskBattleCard({
       }}>
         <div style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.38)' }}>
           <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: 4 }}>时间窗</div>
-          <div style={{ color: 'var(--text-primary)' }}>{formatTaskWindow(task)}</div>
+          <div style={{ color: 'var(--text-primary)' }}>{taskWindowLabel(task)}</div>
         </div>
         <div style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.38)' }}>
           <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: 4 }}>预估投入</div>

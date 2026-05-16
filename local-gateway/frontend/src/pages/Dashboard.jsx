@@ -2,31 +2,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { useApp } from '../contexts/AppContext';
-import { formatTimeShort, operationIcon } from '../utils/format';
+import { formatTimeShort, isTaskOnDate, operationIcon, overdueDays, taskWindowLabel } from '../utils/format';
 import { normalizeList } from '../utils/normalize';
-
-function overdueDays(dueTime) {
-  if (!dueTime) return 0;
-  const due = new Date(dueTime);
-  const now = new Date();
-  return Math.max(0, Math.floor((now - due) / (1000 * 60 * 60 * 24)));
-}
-
-function isTaskToday(task, isoDate) {
-  return (
-    (task.start_time && task.start_time.startsWith(isoDate)) ||
-    (task.due_time && task.due_time.startsWith(isoDate))
-  );
-}
-
-function taskWindow(task) {
-  if (task.start_time && task.end_time) {
-    return `${formatTimeShort(task.start_time)} - ${formatTimeShort(task.end_time)}`;
-  }
-  if (task.start_time) return `开始 ${formatTimeShort(task.start_time)}`;
-  if (task.due_time) return `截止 ${formatTimeShort(task.due_time)}`;
-  return '未安排时间';
-}
 
 function progressText(progress) {
   if (progress >= 100) return '今日主线已清空，可以收尾或继续扩张。';
@@ -61,7 +38,7 @@ function BattleHero({
           </h1>
           <div className="mission-copy">
             {heroTask
-              ? `当前主线时间窗：${taskWindow(heroTask)}。${progressText(progress)}`
+              ? `当前主线时间窗：${taskWindowLabel(heroTask)}。${progressText(progress)}`
               : '先创建或安排一项今天必须推进的任务。首页不该只是总览，而应该直接把你推入行动。'}
           </div>
           <div className="mission-chip-row">
@@ -202,7 +179,7 @@ function FrontlineMap({
 function RiskRadar({ overdueTasks, pendingTasks, todayTasks, onOpenTaskDetail, onOpenAi, onOpenCalendar }) {
   const unscheduledToday = todayTasks.filter(task => !task.start_time).length;
   const heavyLoad = todayTasks.filter(task => task.estimated_minutes).reduce((sum, task) => sum + Number(task.estimated_minutes || 0), 0);
-  const staleTasks = pendingTasks.filter(task => !isTaskToday(task, new Date().toISOString().slice(0, 10)) && !task.overdue).slice(0, 2);
+  const staleTasks = pendingTasks.filter(task => !isTaskOnDate(task, new Date().toISOString().slice(0, 10), ['start_time', 'due_time']) && !task.overdue).slice(0, 2);
   const radarItems = [];
 
   if (overdueTasks.length > 0) {
@@ -540,7 +517,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
   const todayIso = new Date().toISOString().slice(0, 10);
 
   const todayTasks = useMemo(() => {
-    const list = pendingTasks.filter(task => isTaskToday(task, todayIso) || task.overdue);
+    const list = pendingTasks.filter(task => isTaskOnDate(task, todayIso, ['start_time', 'due_time']) || task.overdue);
     return Array.isArray(list) ? list.slice(0, 6) : [];
   }, [pendingTasks, todayIso]);
 
