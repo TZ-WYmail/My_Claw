@@ -33,6 +33,29 @@ export function recurrenceLabel(value) {
   return RECURRENCE_MAP[value] || value || '未设置';
 }
 
+const DOWNLOAD_STATUS_LABELS = {
+  downloading: '下载中',
+  paused: '已暂停',
+  completed: '已完成',
+  failed: '失败',
+  queued: '排队中',
+  cancelled: '已取消',
+};
+
+const FREQUENCY_LABELS = {
+  daily: '每天',
+  weekly: '每周',
+  monthly: '每月',
+};
+
+export function frequencyLabel(value) {
+  return FREQUENCY_LABELS[value] || value || '未设置';
+}
+
+export function downloadStatusLabel(value) {
+  return DOWNLOAD_STATUS_LABELS[value] || value || '未知状态';
+}
+
 const STATUS_LABELS = {
   pending: '待执行', completed: '已完成', deleted: '已删除',
   '待执行': '待执行', '已完成': '已完成', '已删除': '已删除',

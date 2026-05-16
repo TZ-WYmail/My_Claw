@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { formatTimeShort } from '../utils/format';
+import { downloadStatusLabel, formatTimeShort } from '../utils/format';
 import { normalizeList } from '../utils/normalize';
 
 const CATEGORIES = [
@@ -92,11 +92,6 @@ export default function Download() {
     } catch (e) {
       toast(e.message || `${labels[action]}失败`, 'error');
     }
-  };
-
-  const statusLabel = (s) => {
-    const map = { downloading: '下载中', paused: '已暂停', completed: '已完成', failed: '失败', queued: '排队中', cancelled: '已取消' };
-    return map[s] || s;
   };
 
   const statusBadge = (s) => {
@@ -243,7 +238,7 @@ export default function Download() {
                     <div className="section-kicker">DOWNLOAD</div>
                     <h3 className="dossier-title">{item.filename || item.url || `下载 #${item.job_id}`}</h3>
                   </div>
-                  <span className={`badge ${statusBadge(item.status)}`}>{statusLabel(item.status)}</span>
+                  <span className={`badge ${statusBadge(item.status)}`}>{downloadStatusLabel(item.status)}</span>
                 </div>
 
                 <div className="dossier-meta-grid">

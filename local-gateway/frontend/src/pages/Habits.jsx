@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi, apiGet, apiPost } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
+import { frequencyLabel } from '../utils/format';
 import { normalizeList } from '../utils/normalize';
-
-const FREQUENCY_MAP = { daily: '每天', weekly: '每周', monthly: '每月' };
 const HABIT_COLORS = ['#27ae60', '#0a84ff', '#ff9f0a', '#ff453a', '#af52de', '#5ac8fa', '#ff6b6b', '#30d158'];
 
 export default function Habits() {
@@ -141,7 +140,7 @@ export default function Habits() {
               <div className="form-group">
                 <label>频率</label>
                 <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}>
-                  {Object.entries(FREQUENCY_MAP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  {['daily', 'weekly', 'monthly'].map((value) => <option key={value} value={value}>{frequencyLabel(value)}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -253,7 +252,7 @@ export default function Habits() {
                 <div className="dossier-meta-grid">
                   <div className="dossier-meta-box">
                     <div className="dossier-meta-label">频率</div>
-                    <div>{FREQUENCY_MAP[habit.frequency] || habit.frequency}</div>
+                    <div>{frequencyLabel(habit.frequency)}</div>
                   </div>
                   <div className="dossier-meta-box">
                     <div className="dossier-meta-label">目标</div>
