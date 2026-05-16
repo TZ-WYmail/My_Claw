@@ -138,8 +138,22 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
   const taggedCount = notes.filter(note => note.tags && note.tags.length > 0).length;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 04 / Archive Clippings</div>
+          <h1 className="atlas-chapter-title">笔记页应该像档案剪报册，先看线索和出处，再决定进入哪条任务。</h1>
+          <div className="atlas-chapter-copy">
+            这里的重点不是“能写字”，而是让记录具备出处、标签和任务关联。你应该先看到哪条记录有价值，再决定展开、编辑或者回跳到原任务。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">档案规则</div>
+          <div className="atlas-chapter-note-copy">标题写结论，标签写索引，正文写过程，任务关联写归属。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">INTEL WALL</span>
@@ -162,7 +176,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
         </div>
       </section>
 
-      <div className="board-toolbar">
+      <div className="atlas-toolbar">
         <input
           type="text"
           placeholder="搜索笔记..."
@@ -175,7 +189,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
       </div>
 
       {showForm && (
-        <section className="board-lane">
+        <section className="board-lane atlas-ledger-lane">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">WRITE</div>
@@ -254,7 +268,7 @@ export default function Notes({ quickAction, clearQuickAction, onOpenTask }) {
           </div>
         </section>
       ) : (
-        <section className="board-lane">
+        <section className="board-lane atlas-paper-stack">
           <div className="board-lane-header">
             <div>
               <div className="section-kicker">DOSSIERS</div>

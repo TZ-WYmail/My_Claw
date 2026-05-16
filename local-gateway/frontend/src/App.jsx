@@ -149,15 +149,18 @@ function AppShell() {
       <Sidebar current={currentView} onNavigate={navigate}
         collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(c => !c)} />
       <main className={styles.mainArea}>
-        <TopBar
-          currentView={currentView}
-          onToggleSidebar={() => setSidebarCollapsed(c => !c)}
-          onCreateTask={() => openCreateTask()}
-          onCreateNote={openCreateNote}
-          onOpenAi={() => openAiIntent()}
-        />
-        <div className={styles.viewContainer}>
-          {renderView()}
+        <div className={`atlas-spread ${styles.spreadFrame}`} />
+        <div className={styles.spreadInner}>
+          <TopBar
+            currentView={currentView}
+            onToggleSidebar={() => setSidebarCollapsed(c => !c)}
+            onCreateTask={() => openCreateTask()}
+            onCreateNote={openCreateNote}
+            onOpenAi={() => openAiIntent()}
+          />
+          <div className={styles.viewContainer}>
+            {renderView()}
+          </div>
         </div>
       </main>
     </div>

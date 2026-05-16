@@ -148,8 +148,22 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 03 / Monthly Map</div>
+          <h1 className="atlas-chapter-title">日历页应该像一张月度地图，先看哪块地带拥挤，再决定去哪里落点。</h1>
+          <div className="atlas-chapter-copy">
+            日期格不是抽象格子，而是每天的任务地块。事件、任务、专注记录应该在地图上留下不同密度的标记，帮助你先判断压力，再打开单日档案。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">地图阅读法</div>
+          <div className="atlas-chapter-note-copy">先看月份密度，再点单日卷宗，再补事件或安排同日任务。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">FIELD MAP</span>
@@ -173,18 +187,18 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
         </div>
       </section>
 
-      <div className="board-toolbar">
+      <div className="atlas-toolbar">
         <button className="btn btn-sm" onClick={prevMonth}>&larr;</button>
         <button className="btn btn-sm btn-primary" onClick={goToday}>今天</button>
         <button className="btn btn-sm" onClick={nextMonth}>&rarr;</button>
-        <span style={{ fontSize: '1.1rem', fontWeight: 600, marginLeft: 'var(--space-sm)' }}>
+        <span className="atlas-toolbar-label" style={{ fontSize: '1.02rem', fontWeight: 600, marginLeft: 'var(--space-sm)' }}>
           {year}年{month}月
         </span>
         <div className="board-toolbar-spacer" />
         <button className="btn btn-sm btn-ghost" onClick={() => onOpenTasks?.()}>看全部任务</button>
       </div>
 
-      <section className="board-lane" style={{ padding: 'var(--space-md)' }}>
+      <section className="board-lane atlas-ledger-lane calendar-map-lane" style={{ padding: 'var(--space-md)' }}>
         {loading ? (
           <div className="skeleton" style={{ height: 400 }} />
         ) : (

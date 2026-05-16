@@ -64,8 +64,22 @@ export default function Sync() {
   const queueCount = offlineQueue.length;
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 06 / Signal Relay</div>
+          <h1 className="atlas-chapter-title">同步页应该像回传收发台，先看设备信号和积压，再决定推送、拉取还是完整对齐。</h1>
+          <div className="atlas-chapter-copy">
+            同步不是一个按钮，而是一组判断。你需要先知道现在有多少设备在线、最后一次同步在什么时候、离线回传积压了多少，再做动作。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">操作顺序</div>
+          <div className="atlas-chapter-note-copy">先看状态，再选动作，最后核查设备和离线回传队列。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">SIGNAL HUB</span>
@@ -103,7 +117,7 @@ export default function Sync() {
         </div>
       </div>
 
-      <section className="board-lane">
+      <section className="board-lane atlas-ledger-lane">
         <div className="board-lane-header">
           <div>
             <div className="section-kicker">COMMANDS</div>
@@ -137,7 +151,7 @@ export default function Sync() {
         </div>
       </section>
 
-      <section className="board-lane">
+      <section className="board-lane atlas-paper-stack">
         <div className="board-lane-header">
           <div>
             <div className="section-kicker">DEVICES</div>
@@ -172,7 +186,7 @@ export default function Sync() {
         )}
       </section>
 
-      <section className="board-lane">
+      <section className="board-lane atlas-paper-stack">
         <div className="board-lane-header">
           <div>
             <div className="section-kicker">QUEUE</div>

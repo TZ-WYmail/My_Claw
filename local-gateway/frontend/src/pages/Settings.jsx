@@ -152,8 +152,22 @@ export default function Settings() {
   const updateField = (field, value) => setConfig(prev => ({ ...prev, [field]: value }));
 
   return (
-    <div className="page-shell">
-      <section className="mission-masthead">
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 10 / Wiring Check</div>
+          <h1 className="atlas-chapter-title">设置页应该像接线检定页，先确认链路和状态，再调参数，不应该是一堵普通表单墙。</h1>
+          <div className="atlas-chapter-copy">
+            AI、通知、外观和快捷键本质上都是系统层配置。你需要先知道哪条链路已经接通、哪块还没校准，再做修改和测试，而不是盲填字段。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">检定顺序</div>
+          <div className="atlas-chapter-note-copy">先测 AI，再看通知，再调外观和快捷键，最后复核系统状态。</div>
+        </div>
+      </section>
+
+      <section className="mission-masthead atlas-leaf">
         <div className="mission-masthead-grid">
           <div>
             <span className="section-kicker">CONTROL CHAMBER</span>
@@ -178,7 +192,7 @@ export default function Settings() {
 
       <div className="war-room-grid">
         <div className="war-room-stack">
-          <section className="board-lane">
+          <section className="board-lane atlas-ledger-lane">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">AI CORE</div>
@@ -239,7 +253,7 @@ export default function Settings() {
             )}
           </section>
 
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div
               className="board-lane-header"
               style={{ cursor: 'pointer' }}
@@ -321,7 +335,7 @@ export default function Settings() {
         </div>
 
         <div className="war-room-stack">
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">APPEARANCE</div>
@@ -338,7 +352,7 @@ export default function Settings() {
             </div>
           </section>
 
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">SHORTCUTS</div>
@@ -358,7 +372,7 @@ export default function Settings() {
             </div>
           </section>
 
-          <section className="board-lane">
+          <section className="board-lane atlas-paper-stack">
             <div className="board-lane-header">
               <div>
                 <div className="section-kicker">SYSTEM STATUS</div>

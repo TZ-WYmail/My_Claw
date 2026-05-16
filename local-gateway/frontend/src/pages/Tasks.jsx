@@ -27,9 +27,23 @@ export default function Tasks({ quickAction, clearQuickAction, onCreateNoteFromT
   }, [quickAction, clearQuickAction]);
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-      {TABS.map(t => (
+    <div className="page-shell atlas-page-shell">
+      <section className="atlas-chapter-head">
+        <div>
+          <div className="section-kicker">Chapter 02 / Schedule Foldout</div>
+          <h1 className="atlas-chapter-title">任务页要像排程折页，而不是一块普通管理面板。</h1>
+          <div className="atlas-chapter-copy">
+            周视图负责看时间地带和落点，全部任务负责看索引抽屉和任务档案。两种视图都保留现有真实后端动作。
+          </div>
+        </div>
+        <div className="atlas-chapter-note">
+          <div className="atlas-chapter-note-title">阅读顺序</div>
+          <div className="atlas-chapter-note-copy">先看周内落点，再看全部索引，最后打开单项档案处理细节。</div>
+        </div>
+      </section>
+
+      <div className="atlas-tab-strip">
+        {TABS.map(t => (
           <button
             key={t.key}
             className={`btn ${tab === t.key ? 'btn-primary' : 'btn-ghost'}`}
@@ -198,13 +212,33 @@ function WeekView({ onCreateNoteFromTask }) {
   }, [popupTaskId]);
 
   return (
-    <div>
-      {/* Navigation bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+    <div className="schedule-foldout">
+      <section className="mission-masthead atlas-leaf schedule-hero">
+        <div className="mission-masthead-grid">
+          <div>
+            <span className="section-kicker">Week Foldout</span>
+            <h1 className="mission-title">这一周的任务需要落在时间折页里，而不是只存在于抽象待办中。</h1>
+            <div className="mission-copy">
+              已安排任务显示在时间河道上，未安排任务单独挂到页脚待定位区。先让任务有落点，再谈优先级和推进。
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">本周窗口</div>
+            <div className="mission-sidecard-copy">{weekLabel}</div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">已排 {scheduled.length}</span>
+              <span className="badge badge-warning">待定位 {unscheduled.length}</span>
+              <span className="badge badge-completed">章节 周视图</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="atlas-toolbar">
         <button className="btn btn-sm" onClick={goPrev}>&larr; 上一周</button>
         <button className="btn btn-sm btn-primary" onClick={goToday}>本周</button>
         <button className="btn btn-sm" onClick={goNext}>下一周 &rarr;</button>
-        <span style={{ fontSize: '0.9rem', fontWeight: 500, marginLeft: 'var(--space-sm)' }}>{weekLabel}</span>
+        <span className="atlas-toolbar-label">{weekLabel}</span>
       </div>
 
       {loading ? (
@@ -222,8 +256,15 @@ function WeekView({ onCreateNoteFromTask }) {
         </div>
       ) : (
         <>
-          {/* Timeline grid */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <section className="board-lane atlas-ledger-lane" style={{ padding: 'var(--space-md)', overflow: 'hidden' }}>
+            <div className="board-lane-header">
+              <div>
+                <div className="section-kicker">Weekly Terrain</div>
+                <h3 className="board-lane-title">时间折页</h3>
+                <div className="board-lane-copy">每一天都是一块时间地带，任务纸条被贴到具体时段上。</div>
+              </div>
+              <span className="badge badge-pending">滚动查看 06:00 - 23:00</span>
+            </div>
             {/* Column headers */}
             <div style={{
               display: 'grid',
@@ -413,12 +454,18 @@ function WeekView({ onCreateNoteFromTask }) {
                 })}
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Unscheduled tasks */}
           {unscheduled.length > 0 && (
-            <div className="card" style={{ marginTop: 'var(--space-md)' }}>
-              <h4 style={{ fontSize: '0.85rem', marginBottom: 'var(--space-sm)', color: 'var(--text-secondary)' }}>未安排时间</h4>
+            <section className="board-lane atlas-paper-stack" style={{ marginTop: 'var(--space-md)' }}>
+              <div className="board-lane-header">
+                <div>
+                  <div className="section-kicker">Unplaced Slips</div>
+                  <h4 className="board-lane-title">待定位任务条</h4>
+                  <div className="board-lane-copy">这些任务还没被钉到本周时间地块上，先决定它们去哪一天。</div>
+                </div>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
                 {unscheduled.map(t => (
                   <div
@@ -483,7 +530,7 @@ function WeekView({ onCreateNoteFromTask }) {
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
         </>
       )}
@@ -944,7 +991,28 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
   return (
     <div style={{ position: 'relative', paddingBottom: selectedIds.size > 0 ? 60 : 0 }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
+      <section className="mission-masthead atlas-leaf task-index-hero">
+        <div className="mission-masthead-grid">
+          <div>
+            <div className="section-kicker">Task Index Cabinet</div>
+            <h1 className="mission-title">全部任务不是单纯表格，而是一组可以翻检的任务索引抽屉。</h1>
+            <div className="mission-copy">
+              你可以切换看板或表格，但默认应该先看到任务所处的战区、风险级别和上下文，而不是只有字段列。
+            </div>
+          </div>
+          <div className="mission-sidecard">
+            <div className="mission-sidecard-title">索引状态</div>
+            <div className="mission-sidecard-copy">当前筛选会决定你看到哪组任务抽屉，详情区继续保持真实任务编辑和联动能力。</div>
+            <div className="mission-chip-row">
+              <span className="badge badge-pending">{statusFilter}</span>
+              {keyword ? <span className="badge badge-warning">{keyword}</span> : <span className="badge badge-completed">无关键词</span>}
+              <span className="badge badge-pending">总计 {total}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="atlas-toolbar" style={{ marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
         <input
           type="text"
           placeholder="搜索任务..."
@@ -981,7 +1049,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
           </button>
         </div>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>共 {total} 项</span>
+        <span className="atlas-toolbar-label">共 {total} 项</span>
         <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
           {showForm ? '取消' : '+ 新任务'}
         </button>
@@ -1013,7 +1081,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
         </div>
       ) : viewMode === 'board' ? (
         <>
-          <div className="card" style={{
+          <div className="card atlas-ledger-lane" style={{
             marginBottom: 'var(--space-md)',
             background: 'linear-gradient(135deg, rgba(198, 83, 61, 0.12), rgba(47, 143, 131, 0.12))',
             boxShadow: 'var(--shadow-lg)',
