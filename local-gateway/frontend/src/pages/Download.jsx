@@ -2,6 +2,7 @@ import MailComposerModal from '../components/maildesk/MailComposerModal';
 import MailControlGrid from '../components/maildesk/MailControlGrid';
 import OpenLetterPanel from '../components/maildesk/OpenLetterPanel';
 import MailRailPanel from '../components/maildesk/MailRailPanel';
+import MailTaskModal from '../components/maildesk/MailTaskModal';
 import {
   DecisionQueueCard,
   formatDateTime,
@@ -296,6 +297,16 @@ export default function Download({
         toneOptions={TONE_OPTIONS}
         onResetToLatestDraft={state.handleResetComposerToLatestDraft}
         onSaveDraftOnly={state.handleSaveDraftOnly}
+      />
+
+      <MailTaskModal
+        open={state.taskComposerOpen}
+        onClose={() => state.setTaskComposerOpen(false)}
+        onSubmit={state.handleSubmitTaskFromMail}
+        thread={state.taskComposerThread}
+        taskCreating={state.taskCreatingThreadId === state.taskComposerThreadId}
+        taskDraftForm={state.taskDraftForm}
+        setTaskDraftForm={state.setTaskDraftForm}
       />
     </div>
   );

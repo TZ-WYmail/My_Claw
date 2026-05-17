@@ -40,6 +40,8 @@ export function useMailDeskState({
   const [composerResetting, setComposerResetting] = useState(false);
   const [composerSaving, setComposerSaving] = useState(false);
   const [composerSending, setComposerSending] = useState(false);
+  const [taskComposerOpen, setTaskComposerOpen] = useState(false);
+  const [taskComposerThreadId, setTaskComposerThreadId] = useState('');
   const [archivingThreadId, setArchivingThreadId] = useState('');
   const [markingReadThreadId, setMarkingReadThreadId] = useState('');
   const [decisionUpdating, setDecisionUpdating] = useState({ threadId: '', status: '' });
@@ -80,6 +82,12 @@ export function useMailDeskState({
     signature: '',
     scheduled_send_at: '',
   });
+  const [taskDraftForm, setTaskDraftForm] = useState({
+    task_name: '',
+    due_time: '',
+    priority: 2,
+    description: '',
+  });
 
   const activeAccount = accounts.find(item => item.account_id === selectedAccount) || accounts[0] || null;
   const activeDraft = useMemo(
@@ -103,6 +111,10 @@ export function useMailDeskState({
   );
   const railThread = threads[selectedThreadIndex >= 0 ? selectedThreadIndex : 0] || null;
   const selectedThread = threadDetail?.thread || threads.find(item => item.thread_id === selectedThreadId) || null;
+  const taskComposerThread = useMemo(
+    () => threads.find((item) => item.thread_id === taskComposerThreadId) || (selectedThread?.thread_id === taskComposerThreadId ? selectedThread : null),
+    [selectedThread, taskComposerThreadId, threads],
+  );
   const selectedMailtoHref = useMemo(
     () => buildMailtoReplyLink(selectedThread, threadDetail, activeDraft),
     [activeDraft, selectedThread, threadDetail],
@@ -232,6 +244,22 @@ export function useMailDeskState({
       .filter(Boolean)
       .map(email => ({ email, name: email.split('@')[0] || email }));
   }, []);
+
+  const createTaskDraftFromThread = useCallback((thread) => {
+    const sourceDetail = thread?.thread_id && thread?.thread_id === selectedThreadId ? threadDetail : null;
+    const latestInbound = (sourceDetail?.messages || []).filter((item) => item.direction === 'inbound').slice(-1)[0];
+    const descriptionParts = [
+      thread?.analysis_reason ? `参谋判断：${thread.analysis_reason}` : '',
+      thread?.snippet ? `邮件摘要：${thread.snippet}` : '',
+      latestInbound?.text_body ? `最近来信：${latestInbound.text_body.slice(0, 400)}` : '',
+    ].filter(Boolean);
+    return {
+      task_name: `邮件跟进：${thread?.subject || '未命名来信'}`,
+      due_time: '',
+      priority: thread?.risk_level === 'high' ? 1 : 2,
+      description: descriptionParts.join('\n\n'),
+    };
+  }, [selectedThreadId, threadDetail]);
 
   const fetchAccounts = useCallback(async () => {
     const data = await apiGet('/api/mail/accounts');
@@ -421,6 +449,16 @@ export function useMailDeskState({
     hydrateComposerFromDraft(draft, thread);
     setComposerOpen(true);
   }, [hydrateComposerFromDraft]);
+
+  const openTaskComposer = useCallback((thread) => {
+    if (!thread?.thread_id) {
+      toast('当前没有可落成任务的邮件线程', 'warning');
+      return;
+    }
+    setTaskComposerThreadId(thread.thread_id);
+    setTaskDraftForm(createTaskDraftFromThread(thread));
+    setTaskComposerOpen(true);
+  }, [createTaskDraftFromThread, toast]);
 
   const createDraftPayload = useCallback(() => ({
     account_id: draftForm.account_id,
@@ -661,20 +699,37 @@ export function useMailDeskState({
   }, [onOpenAi, selectedThreadId, threadDetail]);
 
   const handleCreateTaskFromMail = useCallback(async (thread) => {
-    setTaskCreatingThreadId(thread.thread_id);
+    openTaskComposer(thread);
+  }, [openTaskComposer]);
+
+  const handleSubmitTaskFromMail = useCallback(async (e) => {
+    e?.preventDefault?.();
+    if (!taskComposerThread?.thread_id) {
+      toast('当前没有可关联的邮件线程', 'warning');
+      return;
+    }
+    if (!taskDraftForm.task_name.trim()) {
+      toast('请先写下任务标题', 'warning');
+      return;
+    }
+    setTaskCreatingThreadId(taskComposerThread.thread_id);
     try {
-      const data = await request(() => apiPost(`/api/mail/threads/${thread.thread_id}/create-task`, {
-        task_name: `邮件跟进：${thread.subject}`,
-        priority: thread.risk_level === 'high' ? 1 : 2,
+      const data = await request(() => apiPost(`/api/mail/threads/${taskComposerThread.thread_id}/create-task`, {
+        task_name: taskDraftForm.task_name.trim(),
+        due_time: taskDraftForm.due_time ? new Date(taskDraftForm.due_time).toISOString() : null,
+        description: taskDraftForm.description.trim(),
+        priority: Number(taskDraftForm.priority),
       }));
       toast(`已落成任务：${data.task_name}`, 'success');
       syncThreadDetailIntoDesk(data, { removeWhenFilteredOut: false });
+      setTaskComposerOpen(false);
+      setTaskComposerThreadId('');
     } catch (e) {
       toast(e.message || '从邮件创建任务失败', 'error');
     } finally {
       setTaskCreatingThreadId('');
     }
-  }, [request, syncThreadDetailIntoDesk, toast]);
+  }, [request, syncThreadDetailIntoDesk, taskComposerThread, taskDraftForm, toast]);
 
   const handleGenerateReplyDraft = useCallback(async (thread) => {
     setReplyDraftGeneratingThreadId(thread.thread_id);
@@ -853,6 +908,10 @@ export function useMailDeskState({
     composerResetting,
     composerSaving,
     composerSending,
+    taskComposerOpen,
+    setTaskComposerOpen,
+    taskComposerThread,
+    taskComposerThreadId,
     archivingThreadId,
     markingReadThreadId,
     decisionUpdating,
@@ -869,6 +928,8 @@ export function useMailDeskState({
     setThreadFilters,
     draftForm,
     setDraftForm,
+    taskDraftForm,
+    setTaskDraftForm,
     activeAccount,
     activeDraft,
     pollingSummary,
@@ -885,6 +946,7 @@ export function useMailDeskState({
     copyPortalLink,
     refreshAll,
     openDraftComposer,
+    openTaskComposer,
     fetchThreadDetail,
     fetchAgentRuns,
     handleComposeSubmit,
@@ -898,6 +960,7 @@ export function useMailDeskState({
     handleDecisionStatus,
     handleDiscussWithAi,
     handleCreateTaskFromMail,
+    handleSubmitTaskFromMail,
     handleGenerateReplyDraft,
     handleReplyThread,
     handleSendDraftFromPanel,
