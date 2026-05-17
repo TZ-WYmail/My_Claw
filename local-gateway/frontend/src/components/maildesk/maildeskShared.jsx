@@ -137,6 +137,10 @@ export function getDraftStatusBadge(status) {
   return 'badge-pending';
 }
 
+export function hasScheduledDraft(thread) {
+  return !!thread?.latest_draft_scheduled_send_at;
+}
+
 const MAIL_ALLOWED_TAGS = new Set([
   'a', 'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's',
   'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'hr',
@@ -400,6 +404,7 @@ export function ThreadCard({ thread, active, onOpen }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           {!!thread.unread_count && <span className="badge badge-error">{thread.unread_count} 未读</span>}
           {thread.has_draft && <span className="badge badge-pending">有草稿</span>}
+          {hasScheduledDraft(thread) && <span className="badge badge-ghost">已定时</span>}
           {thread.waiting_user_decision && <span className={`badge ${getRiskBadgeClass(thread.risk_level)}`}>{getReplyLevelLabel(thread.reply_level)}</span>}
         </div>
       </div>
@@ -427,6 +432,12 @@ export function ThreadCard({ thread, active, onOpen }) {
           <div className="dossier-meta-label">参谋判断</div>
           <div>{getMailKindLabel(thread.mail_kind)}</div>
         </div>
+        {hasScheduledDraft(thread) && (
+          <div className="dossier-meta-box">
+            <div className="dossier-meta-label">计划寄出</div>
+            <div>{formatDateTime(thread.latest_draft_scheduled_send_at)}</div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 'var(--space-md)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>

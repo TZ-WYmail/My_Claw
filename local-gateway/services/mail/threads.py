@@ -117,6 +117,8 @@ def thread_from_row(row: aiosqlite.Row) -> dict:
     data["needs_reply"] = bool(data.get("needs_reply", 0))
     data["has_draft"] = bool(data.get("has_draft", 0))
     data["waiting_user_decision"] = bool(data.get("waiting_user_decision", 0))
+    data["latest_draft_scheduled_send_at"] = data.get("latest_draft_scheduled_send_at") or ""
+    data["latest_draft_status"] = data.get("latest_draft_status") or ""
     return data
 
 
@@ -489,6 +491,20 @@ async def list_mail_threads(
                has_new_inbound, has_pending_draft, is_archived, last_actor,
                needs_reply, has_draft, mail_kind, reply_level, decision_status,
                waiting_user_decision, analysis_reason, action_suggestions_json,
+               (
+                   SELECT scheduled_send_at
+                   FROM mail_drafts
+                   WHERE thread_id = mail_threads.thread_id AND status IN ('draft', 'queued', 'failed')
+                   ORDER BY updated_at DESC
+                   LIMIT 1
+               ) AS latest_draft_scheduled_send_at,
+               (
+                   SELECT status
+                   FROM mail_drafts
+                   WHERE thread_id = mail_threads.thread_id AND status IN ('draft', 'queued', 'failed')
+                   ORDER BY updated_at DESC
+                   LIMIT 1
+               ) AS latest_draft_status,
                last_analyzed_at, linked_task_count, linked_note_count,
                linked_event_count, risk_level, created_at, updated_at
         FROM mail_threads

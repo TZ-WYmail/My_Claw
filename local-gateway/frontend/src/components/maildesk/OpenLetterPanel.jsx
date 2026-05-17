@@ -108,6 +108,12 @@ export default function OpenLetterPanel({
             {getAutoPolicyNarrative(selectedThreadAccount.auto_mail_policy)}
           </div>
         )}
+        {!!selectedThread?.latest_draft_scheduled_send_at && (
+          <div className="mail-letter-note">
+            这条线程当前挂着一份计划寄出的草稿，时间定在 {formatDateTime(selectedThread.latest_draft_scheduled_send_at)}。
+            {selectedThread.latest_draft_status === 'failed' ? ' 不过它上一次发送失败过，寄出前仍值得再看一眼。' : ' 在那之前，你仍然可以继续改写或提前寄出。'}
+          </div>
+        )}
       </div>
       {selectedThread && (
         <div className="mail-letter-toolbar">

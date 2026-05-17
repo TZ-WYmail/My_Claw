@@ -208,3 +208,38 @@ async def test_same_subject_different_counterparty_does_not_merge(temp_mail_db):
 
     threads = await mail_service.list_mail_threads(account_id=account_id)
     assert len(threads) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_mail_threads_includes_latest_scheduled_draft_state(temp_mail_db):
+    account = await mail_service.create_mail_account(
+        display_name="Desk",
+        email_address="desk@example.com",
+    )
+    account_id = account["account_id"]
+
+    inbound = await mail_service.ingest_mail_message(
+        account_id=account_id,
+        subject="Schedule a reply",
+        text_body="Please get back to me tomorrow morning.",
+        from_name="Client F",
+        from_email="clientf@example.com",
+        to=[{"name": "Desk", "email": "desk@example.com"}],
+        direction="inbound",
+        folder_kind="inbox",
+        received_at="2026-05-16T16:00:00",
+    )
+
+    await mail_service.create_mail_draft(
+        account_id=account_id,
+        thread_id=inbound["thread_id"],
+        subject="Re: Schedule a reply",
+        body_html="I will write back tomorrow morning.",
+        to=[{"name": "Client F", "email": "clientf@example.com"}],
+        scheduled_send_at="2026-05-17T09:30:00",
+    )
+
+    threads = await mail_service.list_mail_threads(account_id=account_id)
+    assert len(threads) == 1
+    assert threads[0]["latest_draft_scheduled_send_at"] == "2026-05-17T09:30:00"
+    assert threads[0]["latest_draft_status"] == "draft"
