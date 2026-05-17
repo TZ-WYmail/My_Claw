@@ -16,6 +16,8 @@ import {
   getReplyLevelLabel,
   getRiskBadgeClass,
   MessagePaper,
+  renderPlainTextWithLinks,
+  sanitizeMailHtml,
 } from './maildeskShared.jsx';
 import { badgeClass, overdueDays, priorityMeta, statusLabel, taskWindowLabel } from '../../utils/format';
 
@@ -516,40 +518,51 @@ export default function OpenLetterPanel({
           {(threadDetail.messages || []).map(message => (
             <MessagePaper key={message.message_id} message={message} />
           ))}
-          {(threadDetail.drafts || []).filter(draft => draft.status !== 'sent').map(draft => (
-            <article key={draft.draft_id} className="dossier-card" style={{ transform: 'rotate(-0.2deg)', borderColor: 'var(--warning)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                <div>
-                  <div className="section-kicker">草稿席</div>
-                  <h3 className="dossier-title">{draft.subject}</h3>
-                </div>
-                <span className={`badge ${getDraftStatusBadge(draft.status)}`}>{getDraftStatusLabel(draft.status)}</span>
-              </div>
-              <div className="mission-chip-row" style={{ marginTop: 'var(--space-sm)' }}>
-                <span className="badge badge-ghost">{draft.ai_generated ? 'AI 起草' : '手动草稿'}</span>
-                <span className={`badge ${draft.user_edited_after_ai ? 'badge-warning' : 'badge-ghost'}`}>
-                  {draft.user_edited_after_ai ? '你后来改过' : '保持原始版本'}
-                </span>
-                {!!draft.scheduled_send_at && (
-                  <span className="badge badge-ghost">计划寄出 {formatDateTime(draft.scheduled_send_at)}</span>
-                )}
-              </div>
-              {draft.status === 'failed' && (
-                <div className="mail-inline-alert mail-inline-alert-error" style={{ marginTop: 'var(--space-md)' }}>
-                  这份草稿上一次发送没有成功。你可以先继续编辑，确认收件人与内容后重新寄出。
-                </div>
-              )}
-              <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                {draft.body_html || '这份草稿还没有正文。'}
-              </div>
-              <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
-                <button className="btn btn-sm btn-primary" onClick={() => onOpenDraftComposer(draft, selectedThread)}>继续编辑</button>
-                <button className="btn btn-sm btn-ghost" onClick={() => onSendDraft(draft)} disabled={draftSendingId === draft.draft_id}>
-                  {draftSendingId === draft.draft_id ? '寄送中…' : draft.status === 'failed' ? '重新寄出这版' : '发送这版'}
-                </button>
-              </div>
-            </article>
-          ))}
+          {(threadDetail.drafts || []).filter(draft => draft.status !== 'sent').map((draft) => {
+              const sanitizedDraftHtml = sanitizeMailHtml(draft.body_html);
+              const draftPlainBody = (draft.body_html || '').replace(/<br\s*\/?>/gi, '\n');
+
+              return (
+                <article key={draft.draft_id} className="dossier-card" style={{ transform: 'rotate(-0.2deg)', borderColor: 'var(--warning)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                    <div>
+                      <div className="section-kicker">草稿席</div>
+                      <h3 className="dossier-title">{draft.subject}</h3>
+                    </div>
+                    <span className={`badge ${getDraftStatusBadge(draft.status)}`}>{getDraftStatusLabel(draft.status)}</span>
+                  </div>
+                  <div className="mission-chip-row" style={{ marginTop: 'var(--space-sm)' }}>
+                    <span className="badge badge-ghost">{draft.ai_generated ? 'AI 起草' : '手动草稿'}</span>
+                    <span className={`badge ${draft.user_edited_after_ai ? 'badge-warning' : 'badge-ghost'}`}>
+                      {draft.user_edited_after_ai ? '你后来改过' : '保持原始版本'}
+                    </span>
+                    {!!draft.scheduled_send_at && (
+                      <span className="badge badge-ghost">计划寄出 {formatDateTime(draft.scheduled_send_at)}</span>
+                    )}
+                  </div>
+                  {draft.status === 'failed' && (
+                    <div className="mail-inline-alert mail-inline-alert-error" style={{ marginTop: 'var(--space-md)' }}>
+                      这份草稿上一次发送没有成功。你可以先继续编辑，确认收件人与内容后重新寄出。
+                    </div>
+                  )}
+                  <div className="mail-message-body" style={{ marginTop: 10 }}>
+                    {sanitizedDraftHtml ? (
+                      <div className="mail-rich-body" dangerouslySetInnerHTML={{ __html: sanitizedDraftHtml }} />
+                    ) : (
+                      <div className="mail-plain-body">
+                        {renderPlainTextWithLinks(draftPlainBody || '这份草稿还没有正文。')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
+                    <button className="btn btn-sm btn-primary" onClick={() => onOpenDraftComposer(draft, selectedThread)}>继续编辑</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => onSendDraft(draft)} disabled={draftSendingId === draft.draft_id}>
+                      {draftSendingId === draft.draft_id ? '寄送中…' : draft.status === 'failed' ? '重新寄出这版' : '发送这版'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
         </div>
       )}
     </section>
