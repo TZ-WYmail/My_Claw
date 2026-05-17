@@ -1,6 +1,27 @@
 import pytest
 
 import services.mail_service as mail_service
+from services.mail import runtime as mail_runtime
+
+
+@pytest.fixture(autouse=True)
+async def reset_mail_polling_runtime():
+    await mail_runtime.stop_mail_polling_scheduler()
+    mail_runtime.mail_polling_runtime.state.update({
+        "enabled": False,
+        "interval_seconds": 300,
+        "folder_kind": "inbox",
+        "limit": 20,
+        "last_started_at": "",
+        "last_finished_at": "",
+        "last_success_at": "",
+        "last_error": "",
+        "last_summary": {},
+        "is_running": False,
+    })
+    mail_runtime.mail_polling_runtime.task = None
+    yield
+    await mail_runtime.stop_mail_polling_scheduler()
 
 
 @pytest.mark.asyncio
@@ -65,3 +86,39 @@ async def test_run_mail_polling_once_aggregates_sync_results(temp_mail_db, monke
     assert summary["results"][0]["new_count"] == 2
     assert summary["results"][0]["latest_uid"] == ""
     assert summary["results"][0]["sync"] is None
+
+
+@pytest.mark.asyncio
+async def test_mail_polling_runtime_stop_clears_task_state():
+    runtime = mail_runtime.mail_polling_runtime
+    runtime.state["enabled"] = True
+
+    async def idle_loop():
+        await asyncio.sleep(3600)
+
+    import asyncio
+    runtime.task = asyncio.create_task(idle_loop())
+    await runtime.stop_scheduler()
+
+    assert runtime.task is None
+    assert runtime.state["is_running"] is False
+
+
+@pytest.mark.asyncio
+async def test_run_mail_polling_once_records_top_level_failure(monkeypatch):
+    runtime = mail_runtime.mail_polling_runtime
+    runtime.state["folder_kind"] = "inbox"
+    runtime.state["limit"] = 5
+
+    class BrokenService:
+        async def list_mail_accounts(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(mail_runtime, "get_runtime_mail_service", lambda: BrokenService())
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await runtime.run_once()
+
+    assert runtime.state["last_error"] == "boom"
+    assert runtime.state["is_running"] is False
+    assert runtime.state["last_finished_at"]
