@@ -28,12 +28,12 @@
 1. 应用启动与子系统初始化耦合过深，失败隔离能力弱。
 2. 多个服务/页面文件严重超长，职责混装明显。
 3. 邮件子系统虽然拆过第一轮，但公开边界仍靠 `import *` 与兼容别名维持，是真拆不彻底。
-4. 邮件路由把 JSON API、Portal HTML、表单处理和展示模板混在一个文件里。
+4. 邮件路由已经拆出 API 与 Portal 两层，但 Portal 渲染文件仍然偏重。
 5. AI 服务拥有过宽的执行能力，且安全模型偏经验规则，不够可证明。
 6. 工作流与 AI Shell 执行存在重复实现和策略漂移。
 7. 沙盒输出文件回传逻辑疑似低层实现错误，可能写出 tar 流而不是原始文件内容。
 8. 广泛存在 `except Exception` / bare `except` / `pass`，错误被吞没，导致系统可观测性偏弱。
-9. 前端邮件工作台的状态与副作用集中在单一 Hook 中，已经成为新的维护瓶颈。
+9. 前端邮件工作台已完成第一轮 hook 拆分，但页面编排层与通用请求层仍有明显瓶颈。
 10. 配置、构建产物、运行时状态存在多处双重来源，容易产生漂移与部署混乱。
 
 ### 2.2 风险分级
@@ -115,7 +115,8 @@
 
 典型文件：
 
-- [mail.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail.py)
+- [mail_api.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_api.py)
+- [mail_portal.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_portal.py)
 - [runtime.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/mail/runtime.py)
 
 问题：
@@ -125,8 +126,8 @@
 
 建议：
 
-- 将 `routers/mail.py` 拆为 `mail_api.py` 与 `mail_portal.py`。
-- 将 portal HTML 模板提取为模板函数或模板文件。
+- 保持 `mail.py` 只做聚合入口，不再回流业务逻辑。
+- 将 `mail_portal.py` 里的 HTML 字符串进一步收敛为 renderer / template 层。
 - 后台轮询运行态只保留状态机与调度，不做表现层拼装。
 
 ---
@@ -141,7 +142,8 @@
 - [ai_planning_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/ai_planning_service.py) `1587`
 - [task_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/task_service.py) `1391`
 - [threads.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/mail/threads.py) `797`
-- [mail.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail.py) `707`
+- [mail_portal.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_portal.py) `437`
+- [mail_api.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_api.py) `279`
 
 问题：
 
@@ -242,33 +244,31 @@
 
 - 第二轮重构的目标不是“继续拆文件”，而是“收口 API”。
 
-### 5.2 `routers/mail.py` 混装太重
+### 5.2 邮件路由已完成第一轮拆分，但 Portal 层仍然偏重
 
-文件：[mail.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail.py)
+文件：
+
+- [mail.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail.py)
+- [mail_api.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_api.py)
+- [mail_portal.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_portal.py)
 
 观察：
 
-- 账户 API
-- 线程 API
-- 草稿 API
-- polling API
-- Portal HTML 页面
-- Portal form POST
-- 快捷动作跳转
-- 内联 CSS 模板
-
-全部在一个路由文件中。
+- `mail.py` 已退化为聚合入口。
+- JSON API 已迁到 `mail_api.py`。
+- HTML Portal、表单 POST、快捷动作跳转、内联 CSS 主要集中在 `mail_portal.py`。
 
 问题：
 
-- 审查体验差。
-- 一个小改动很容易碰到其他表现层逻辑。
-- API 和 portal 页面迭代节奏完全不同，不适合共存一个文件。
+- 这说明路由拆分方向是对的，但第二轮还没完成。
+- `mail_portal.py` 仍同时承载页面结构、样式、文案和动作路由。
+- Portal 页面的展示改动仍容易碰到提交逻辑。
 
 建议：
 
-- 立即拆为 API 路由与 portal 路由。
-- Portal HTML 使用模板或最少抽出 renderer。
+- 维持当前路由分层，不要回退。
+- 继续把 `mail_portal.py` 拆成 portal actions + renderer/template。
+- 把 `_portal_result_page`、主页面 HTML 和 quick action 重定向逻辑分离。
 
 ### 5.3 `runtime.py` 使用模块级全局状态
 
@@ -353,7 +353,7 @@
 - 优先允许高度只读命令。
 - 对工作目录、环境变量、文件访问范围做更强约束。
 
-### 6.2 `ai_service.py` 仍导入旧常量，存在配置漂移风险
+### 6.2 `config.py` 仍保留兼容常量，存在配置漂移风险
 
 文件：
 
@@ -363,11 +363,12 @@
 观察：
 
 - `config.py` 同时暴露 `ai_config` 对象和兼容常量 `AI_API_BASE`/`AI_API_KEY`/`AI_MODEL`/`GATEWAY_BASE_URL`。
-- `ai_service.py` 同时导入常量和 `ai_config`。
+- 当前 `ai_service.py` 已主要通过 `ai_config` 读取动态配置。
+- 但兼容常量仍存在，其他模块后续仍可能误用。
 
 问题：
 
-- 若代码路径误读旧常量，就可能拿到启动期值而不是运行时更新后的值。
+- 若其他代码路径误读旧常量，就可能拿到启动期值而不是运行时更新后的值。
 - 这是典型双重来源问题。
 
 建议：
@@ -375,26 +376,25 @@
 - 禁止继续使用兼容常量读取动态配置。
 - 把兼容常量标记为弃用并逐步移除。
 
-### 6.3 沙盒输出回传疑似错误处理 tar 流
+### 6.3 沙盒输出回传逻辑已修正，但仍应补回归测试
 
 文件：[sandbox_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/sandbox_service.py)
 
 证据：
 
 - `_copy_output_files()` 使用 `container.get_archive(container_path)` 获取字节流。
-- 当前逻辑直接把 `bits` 写入目标文件。
+- 当前实现已经会解包 tar 并提取实际文件内容。
+- 旧版风险判断说明这里曾是高风险点，也说明该函数需要测试锁死。
 
 问题：
 
-- Docker `get_archive()` 返回的是 tar archive 流，不是原始文件内容。
-- 当前实现可能把 tar 内容当文件本体写到磁盘。
-
-这不是风格问题，可能是实际功能错误。
+- 这里已经不是现存实现错误，而是“已修正但没有专门测试保护”的点。
+- 未来若再次重构，很容易回退到错误处理 tar 流的状态。
 
 建议：
 
-- 先补测试确认当前行为。
-- 正确解包 tar，再提取文件内容。
+- 补测试确认当前行为。
+- 在测试里直接构造 tar 字节流，验证目标文件内容而非仅验证返回路径。
 
 ### 6.4 `security_service.py` 设计仍偏零散工具集合
 
@@ -413,30 +413,35 @@
 
 ## 7. 前端结构问题
 
-### 7.1 `useMailDeskState.js` 已成为新的单点瓶颈
+### 7.1 `useMailDeskState.js` 风险已下降，但仍是页面编排层瓶颈
 
 文件：[useMailDeskState.js](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/frontend/src/hooks/useMailDeskState.js)
 
-行数：`975`
+行数：`410`
 
 观察：
 
-- 同时维护 dashboard、threads、accounts、polling、sync、thread detail、composer、task composer、agent runs、filters、quick action、portal link、AI 讨论入口。
-- 既有状态组装，又有网络请求，又有视图切换，又有交互命令。
+- 经过最近一轮拆分，它已主要作为 orchestration hook 存在。
+- 核心动作已下沉到：
+  - `useMailDeskData`
+  - `useMailDeskComposer`
+  - `useMailDeskAccountActions`
+  - `useMailDeskPollingActions`
+  - `useMailDeskThreadActions`
+  - `useMailDeskDerivedState`
+  - `useMailDeskLifecycle`
+- 但它仍在汇总 dashboard、threads、accounts、polling、sync、thread detail、composer、filters、quick action 与 AI 讨论入口。
 
 问题：
 
-- 这已经相当于一个本地前端 store + controller。
-- 任何小改动都可能触及一大片副作用。
+- 最大风险已不再是“超长”，而是“页面编排层继续变胖”。
+- 若继续把更多 UI 决策、网络协调和跨模块副作用加回这里，它会再次回到单点瓶颈。
 
 建议：
 
-- 按职责拆成：
-  - `useMailDeskQuery`
-  - `useMailComposer`
-  - `useMailPollingControls`
-  - `useMailThreadActions`
-  - `useMailAgentRuns`
+- 保持现有拆分方向，不要再把逻辑回灌到单一 hook。
+- 下一步优先补 `useApi` 能力与 `Download.jsx` 页面编排拆分。
+- 若继续增长，再把 query/loading/error 聚合抽成更轻的 query coordinator。
 
 ### 7.2 `AiChat.jsx` 仍是多套产品能力的拼接页
 
@@ -646,22 +651,22 @@
 
 ### 第一阶段：先补真实风险
 
-1. 修正并验证 `sandbox_service._copy_output_files()`。
+1. 为 `sandbox_service._copy_output_files()` 补回归测试。
 2. 统一 AI 与 workflow 的命令执行策略。
 3. 收紧 `ai_service.py` 对动态配置和执行路径的边界。
 4. 清理关键路径的 bare `except` 与无日志吞错。
 
 ### 第二阶段：做后端边界
 
-1. 拆 `routers/mail.py` 为 API 与 portal 两层。
+1. 继续拆 `mail_portal.py` 的 renderer 与 action 处理。
 2. 将 `mail/facade.py` 从 `import *` 收口为显式导出。
 3. 将 `mail/runtime.py` 从模块级全局迁移为 runtime 对象。
 4. 开始拆 `ai_service.py` 与 `workflow_service.py` 的执行器/编排器。
 
 ### 第三阶段：做前端拆压
 
-1. 拆 `useMailDeskState.js`。
-2. 给 `useApi.js` 增加 abort 与统一错误模型。
+1. 给 `useApi.js` 增加 abort 与统一错误模型。
+2. 将 `Download.jsx` 的页面编排进一步瘦身，避免 hook 拆完又把复杂度压回页面。
 3. 将 `AiChat.jsx` 的 planning orchestration 抽离。
 4. 将 `Tasks.jsx` 的番茄钟、任务详情、周上下文逻辑拆开。
 
@@ -688,4 +693,3 @@
 - 把前端从“大页面/大 Hook”转向可维护的模块化结构
 
 只要整改顺序正确，这个仓库可以从“功能很强的原型”进入“可持续演化的本地产品系统”。
-

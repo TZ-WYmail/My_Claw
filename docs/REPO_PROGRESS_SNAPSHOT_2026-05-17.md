@@ -2,26 +2,26 @@
 
 日期：2026-05-17  
 分支：`main`  
-相对远端状态：`ahead 3`
+相对远端状态：`ahead 19`
 
 ---
 
 ## 1. 当前仓库状态
 
-- 当前工作树处于干净状态，适合继续分析、改造或切下一阶段任务。
-- 本地相对远端领先 3 个提交，尚未推送。
-- 最近一轮工作重点集中在“书信台 / Mail Desk”前端完善与规划文档收束。
+- 当前工作树在分析过程中曾被前端构建产物短暂污染，需注意 `local-gateway/static/index.html` 会在 `vite build` 后被改写。
+- 本地相对远端领先 19 个提交，尚未推送。
+- 最近一轮工作重点集中在“书信台 / Mail Desk”前端模块化、回归测试补齐与邮件系统分析文档收束。
 
 最近 8 个提交：
 
-- `420c38c` `Simulate mail policy outcomes in desk`
-- `733c36c` `Explain direct mail evidence in desk`
-- `27e4ec8` `Prune obsolete planning docs`
-- `e49894d` `Add mail thread snapshot strip`
-- `2fb6d96` `Polish mail rail card carousel`
-- `6d48eee` `Render mail desk drafts as letters`
-- `1744860` `Expand mail message envelope details`
-- `9b7e042` `Add guided mail task composer`
+- `c5b725f` `test(maildesk): cover polling and thread hooks`
+- `8eba74f` `test(maildesk): cover derived and account hooks`
+- `4455343` `test(maildesk): cover shared mail rendering`
+- `367ca43` `test(maildesk): cover open letter panel`
+- `a49c672` `test(maildesk): add frontend smoke coverage`
+- `f9a6846` `refactor(maildesk): split lifecycle hook`
+- `af72c1b` `refactor(maildesk): split derived state`
+- `d905be2` `refactor(maildesk): split account actions`
 
 ---
 
@@ -39,6 +39,8 @@
 - 增加了自动策略结果模拟，前端可以提示切换策略后该信将如何处理
 - 增加了“邮件转任务”的引导式 composer
 - 增加了 agent run 记录与轮询结果展示能力
+- `useMailDeskState` 已从超长单体下沉为编排层，核心交互拆进多个 hook
+- 已为 `MailRailPanel`、`MailControlGrid`、`OpenLetterPanel` 以及邮件工作台核心 hook 补上前端 smoke / behavior 测试
 
 ### 2.2 邮件子系统后端能力
 
@@ -81,6 +83,7 @@
 - 前端仍存在几个过大的页面/状态中心文件。
 - API、页面渲染、后台运行态、自动化执行边界还不够清晰。
 - 配置、运行态、部署产物仍存在双重来源或耦合过深的问题。
+- 构建产物与静态入口同目录，仍然会制造提交流程噪音。
 
 ---
 
@@ -91,7 +94,8 @@
 - [ai_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/ai_service.py)
 - [ai_planning_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/ai_planning_service.py)
 - [task_service.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/task_service.py)
-- [mail.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail.py)
+- [mail_portal.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_portal.py)
+- [mail_api.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/routers/mail_api.py)
 - [AiChat.jsx](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/frontend/src/pages/AiChat.jsx)
 - [Tasks.jsx](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/frontend/src/pages/Tasks.jsx)
 - [useMailDeskState.js](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/frontend/src/hooks/useMailDeskState.js)
@@ -100,19 +104,23 @@
 
 - `Tasks.jsx`: 1740
 - `ai_planning_service.py`: 1587
-- `ai_service.py`: 1446
+- `ai_service.py`: 1354
 - `task_service.py`: 1391
 - `AiChat.jsx`: 1185
-- `useMailDeskState.js`: 975
 - `mail/threads.py`: 797
-- `routers/mail.py`: 707
+- `Dashboard.jsx`: 742
+- `mail_portal.py`: 437
+- `useMailDeskState.js`: 410
+- `mail/threads.py`: 797
+- `mail_api.py`: 279
 
 ---
 
 ## 5. 测试现状
 
-- `local-gateway/test` 目录当前共有 30 个顶层文件。
+- `local-gateway/test` 目录当前共有 31 个顶层文件。
 - 其中邮件相关测试 9 个，已经覆盖账户、自动化、草稿、门面、解析、运行态、同步、线程、工具函数。
+- 前端邮件工作台已有 8 个针对组件和 hook 的测试文件，已经覆盖 rail、Open Letter、Control Grid、shared render、derived state、account actions、polling actions、thread actions。
 - 测试基础比早期原型阶段明显更好，但对跨模块集成、失败恢复、并发运行态的覆盖仍偏弱。
 
 邮件相关测试文件：
@@ -135,4 +143,3 @@
 本次快照配套的深入审查文档见：
 
 - [REPOSITORY_DEEP_ANALYSIS_2026-05-17.md](/data/sda/tanzheng/Desktop/My_Claw/docs/REPOSITORY_DEEP_ANALYSIS_2026-05-17.md)
-
