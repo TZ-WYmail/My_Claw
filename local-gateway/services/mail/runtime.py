@@ -203,7 +203,9 @@ async def _mail_polling_loop():
         try:
             await run_mail_polling_once()
         except asyncio.CancelledError:
+            logger.info("邮件轮询循环收到取消信号")
             break
         except Exception as exc:
             _mail_polling_state["last_error"] = str(exc)
+            logger.exception("邮件轮询循环异常")
         await asyncio.sleep(max(60, int(_mail_polling_state["interval_seconds"])))

@@ -657,6 +657,7 @@ async def _execute_tool(name: str, args: dict) -> dict:
             resp = await client.post(url, json=args)
             return resp.json()
     except Exception as e:
+        logger.exception("工具调用失败: %s", name)
         return {"status": "error", "message": f"工具调用失败: {e}"}
 
 
@@ -1175,6 +1176,7 @@ def _save_conversation_message(conversation_id: str, role: str, content: str, th
             with open(meta_file, "r", encoding="utf-8") as f:
                 meta = _json.loads(f.read())
         except Exception:
+            logger.warning("读取对话元数据失败，使用空元数据重建: %s", meta_file)
             meta = {}
     else:
         meta = {
@@ -1229,6 +1231,7 @@ def _load_conversation_history(conversation_id: str) -> list[dict]:
                 try:
                     msg = _json.loads(line)
                 except _json.JSONDecodeError:
+                    logger.warning("跳过损坏的历史消息 JSON: conversation=%s", conversation_id)
                     continue
 
                 # 跳过格式损坏的消息：缺少 role 或 role 无效
@@ -1283,6 +1286,7 @@ def _save_conversation_meta(conversation_id: str, title: str = None):
             with open(meta_file, "r", encoding="utf-8") as f:
                 meta = _json.loads(f.read())
         except Exception:
+            logger.warning("加载对话元数据失败，准备重建: %s", meta_file)
             meta = {}
     else:
         meta = {
@@ -1318,6 +1322,7 @@ def _load_conversation_meta(conversation_id: str) -> dict:
         with open(meta_file, "r", encoding="utf-8") as f:
             return _json.loads(f.read())
     except Exception:
+        logger.warning("读取对话元数据失败，返回空结构: %s", meta_file)
         return empty
 
 
@@ -1342,6 +1347,7 @@ def _list_all_conversations() -> list[dict]:
                 "message_count": meta.get("message_count", 0),
             })
         except Exception:
+            logger.warning("读取对话列表元数据失败，已跳过: %s", meta_file)
             continue
 
     items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
