@@ -132,6 +132,15 @@ export default function MailComposerModal({
             <textarea value={draftForm.signature} onChange={(e) => setDraftForm(prev => ({ ...prev, signature: e.target.value }))} style={{ minHeight: 90 }} />
           </div>
 
+          <div className="form-group">
+            <label>计划寄出时间</label>
+            <input
+              type="datetime-local"
+              value={draftForm.scheduled_send_at || ''}
+              onChange={(e) => setDraftForm(prev => ({ ...prev, scheduled_send_at: e.target.value }))}
+            />
+          </div>
+
           {sendReviewOpen && (
             <section className="mail-send-review">
               <div className="section-kicker">SEND REVIEW</div>
@@ -161,6 +170,10 @@ export default function MailComposerModal({
                   <div className="mail-send-review-value">
                     {toneOptions.find((option) => option.value === draftForm.tone_mode)?.label || draftForm.tone_mode || '未选择'}
                   </div>
+                </div>
+                <div className="mail-send-review-card">
+                  <div className="mail-send-review-label">计划寄出</div>
+                  <div className="mail-send-review-value">{draftForm.scheduled_send_at || '立即寄出'}</div>
                 </div>
               </div>
               {activeDraft?.status === 'failed' && (

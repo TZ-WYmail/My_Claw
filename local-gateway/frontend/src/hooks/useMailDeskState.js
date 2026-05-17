@@ -66,6 +66,7 @@ export function useMailDeskState({
     body_html: '',
     tone_mode: 'warm',
     signature: '',
+    scheduled_send_at: '',
   });
 
   const activeAccount = accounts.find(item => item.account_id === selectedAccount) || accounts[0] || null;
@@ -283,6 +284,7 @@ export function useMailDeskState({
       body_html: '',
       tone_mode: activeAccount?.tone_mode || 'warm',
       signature: activeAccount?.signature_text || '',
+      scheduled_send_at: '',
     }));
   }, [activeAccount]);
 
@@ -307,6 +309,7 @@ export function useMailDeskState({
     thread_id: composerThreadId || undefined,
     tone_mode: draftForm.tone_mode,
     signature: draftForm.signature,
+    scheduled_send_at: draftForm.scheduled_send_at ? new Date(draftForm.scheduled_send_at).toISOString() : null,
     user_edited_after_ai: true,
   }), [composerThreadId, draftForm, parseRecipientLine]);
 

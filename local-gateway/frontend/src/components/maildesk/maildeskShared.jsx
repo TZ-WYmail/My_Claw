@@ -302,6 +302,10 @@ export function renderPlainTextWithLinks(text) {
 }
 
 export function createComposerStateFromDraft(draft, thread, activeAccount) {
+  const scheduledSendAt = draft?.scheduled_send_at || '';
+  const normalizedScheduledSendAt = scheduledSendAt
+    ? String(scheduledSendAt).replace('Z', '').slice(0, 16)
+    : '';
   return {
     account_id: draft?.account_id || thread?.account_id || activeAccount?.account_id || '',
     to: (draft?.to || []).map(item => item.email).join(', '),
@@ -311,6 +315,7 @@ export function createComposerStateFromDraft(draft, thread, activeAccount) {
     body_html: (draft?.body_html || '').replace(/<br\s*\/?>/gi, '\n'),
     tone_mode: draft?.tone_mode || activeAccount?.tone_mode || 'warm',
     signature: draft?.signature || activeAccount?.signature_text || '',
+    scheduled_send_at: normalizedScheduledSendAt,
   };
 }
 
