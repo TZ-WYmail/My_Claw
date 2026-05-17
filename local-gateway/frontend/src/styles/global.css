@@ -1556,6 +1556,124 @@ textarea { resize: vertical; min-height: 80px; }
   border-top: 1px solid rgba(67, 42, 28, 0.12);
 }
 
+.mail-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+}
+
+.mail-control-card {
+  padding: 14px 16px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05)),
+    rgba(255, 248, 234, 0.54);
+  border: 1px solid rgba(67, 42, 28, 0.1);
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.mail-control-title {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.mail-control-copy {
+  font-size: 0.82rem;
+  line-height: 1.62;
+  color: var(--text-secondary);
+}
+
+.mail-filter-form {
+  gap: 10px;
+}
+
+.mail-filter-toggles,
+.mail-control-meta,
+.mail-composer-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.mail-polling-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mail-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px dashed rgba(67, 42, 28, 0.14);
+  background: rgba(255,255,255,0.28);
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.mail-toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.mail-inline-alert {
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.mail-inline-alert-error {
+  background: rgba(206,58,44,0.12);
+  color: var(--error);
+  border: 1px solid rgba(206,58,44,0.2);
+}
+
+.mail-polling-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.mail-polling-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mail-polling-summary-card {
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.32);
+  border: 1px solid rgba(67, 42, 28, 0.08);
+}
+
+.mail-polling-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.mail-polling-summary-value {
+  font-family: var(--font-serif);
+  font-size: 1.02rem;
+  color: var(--text-primary);
+}
+
+.mail-detail-block summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
 .war-room-hero {
   background:
     radial-gradient(circle at 14% 18%, rgba(198, 83, 61, 0.22), transparent 24%),
@@ -3671,6 +3789,10 @@ textarea { resize: vertical; min-height: 80px; }
 
   .mail-spread-lane {
     min-height: auto;
+  }
+
+  .mail-polling-grid {
+    grid-template-columns: 1fr;
   }
 
   .mail-letter-toolbar {
