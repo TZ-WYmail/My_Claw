@@ -116,6 +116,16 @@ function getExecutionStatusLabel(status) {
   return status || '未记录';
 }
 
+function getAgentRunFilterLabel(filter) {
+  if (filter === 'user_confirmation_required') return '待确认';
+  if (filter === 'draft_created') return '已起草';
+  if (filter === 'sent') return '已寄出';
+  if (filter === 'failed') return '失败';
+  if (filter === 'skipped') return '已跳过';
+  if (filter === 'skipped_non_direct') return '非直接来信';
+  return '全部记录';
+}
+
 const MAIL_ALLOWED_TAGS = new Set([
   'a', 'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's',
   'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'hr',
@@ -468,6 +478,8 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   const [accountTestResult, setAccountTestResult] = useState(null);
   const [composerDraftId, setComposerDraftId] = useState('');
   const [composerThreadId, setComposerThreadId] = useState('');
+  const [agentRunsLoading, setAgentRunsLoading] = useState(false);
+  const [agentRunFilter, setAgentRunFilter] = useState('all');
   const [pollingState, setPollingState] = useState({
     enabled: false,
     interval_seconds: 300,
@@ -505,6 +517,11 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   );
   const pollingSummary = pollingState.last_summary || null;
   const pollingResults = pollingSummary?.results || [];
+  const selectedAgentRuns = useMemo(() => {
+    const runs = threadDetail?.agent_runs || [];
+    if (agentRunFilter === 'all') return runs;
+    return runs.filter((run) => run.status === agentRunFilter);
+  }, [agentRunFilter, threadDetail]);
 
   const openPortalPage = useCallback((thread) => {
     if (!thread?.portal_url) {
@@ -617,6 +634,27 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
     }
     const data = await apiGet(`/api/mail/threads/${threadId}`);
     setThreadDetail(data);
+  }, []);
+
+  const fetchAgentRuns = useCallback(async (threadId, limit = 20) => {
+    if (!threadId) {
+      return;
+    }
+    setAgentRunsLoading(true);
+    try {
+      const data = await apiGet(`/api/mail/threads/${threadId}/agent-runs?limit=${limit}`);
+      setThreadDetail((prev) => {
+        if (!prev || prev.thread?.thread_id !== threadId) {
+          return prev;
+        }
+        return {
+          ...prev,
+          agent_runs: data.agent_runs || [],
+        };
+      });
+    } finally {
+      setAgentRunsLoading(false);
+    }
   }, []);
 
   const refreshAll = useCallback(async (accountId = selectedAccount, folder = selectedFolder) => {
@@ -956,7 +994,6 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   };
 
   const selectedThread = threadDetail?.thread || threads.find(item => item.thread_id === selectedThreadId) || null;
-  const selectedAgentRuns = threadDetail?.agent_runs || [];
 
   const openPrevThread = () => {
     if (selectedThreadIndex > 0) {
@@ -1559,29 +1596,58 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                       </div>
                       <span className="badge badge-ghost">{selectedAgentRuns.length} 条记录</span>
                     </div>
-                    <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-                      {selectedAgentRuns.map((run) => (
-                        <div key={run.run_id} className="signal-row" style={{ alignItems: 'flex-start' }}>
-                          <div>
-                            <div className="signal-row-title">
-                              {run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}
-                            </div>
-                            <div className="signal-row-copy">
-                              {run.result_summary || '系统已记录这一轮自动处理。'}
-                            </div>
-                            {!!run.details?.reason_code && (
-                              <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                                {getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}
-                                {run.details?.policy ? ` · 策略 ${getAutoMailPolicyLabel(run.details.policy)}` : ''}
-                              </div>
-                            )}
-                            <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                              {formatDateTime(run.updated_at || run.created_at)}
-                            </div>
-                          </div>
-                          <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
-                        </div>
+                    <div className="mail-filter-toggles" style={{ marginTop: 'var(--space-md)' }}>
+                      {['all', 'user_confirmation_required', 'draft_created', 'sent', 'failed', 'skipped_non_direct'].map((filter) => (
+                        <button
+                          key={filter}
+                          type="button"
+                          className={`badge ${agentRunFilter === filter ? 'badge-warning' : 'badge-ghost'}`}
+                          onClick={() => setAgentRunFilter(filter)}
+                        >
+                          {getAgentRunFilterLabel(filter)}
+                        </button>
                       ))}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => fetchAgentRuns(selectedThread.thread_id)}
+                        disabled={agentRunsLoading}
+                      >
+                        {agentRunsLoading ? '刷新中…' : '刷新台账'}
+                      </button>
+                    </div>
+                    <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
+                      {selectedAgentRuns.length === 0 ? (
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">当前筛选下没有记录</div>
+                            <div className="signal-row-copy">切换筛选标签，或刷新这条线程的自动处理台账。</div>
+                          </div>
+                        </div>
+                      ) : (
+                        selectedAgentRuns.map((run) => (
+                          <div key={run.run_id} className="signal-row" style={{ alignItems: 'flex-start' }}>
+                            <div>
+                              <div className="signal-row-title">
+                                {run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}
+                              </div>
+                              <div className="signal-row-copy">
+                                {run.result_summary || '系统已记录这一轮自动处理。'}
+                              </div>
+                              {!!run.details?.reason_code && (
+                                <div className="signal-row-copy" style={{ marginTop: 6 }}>
+                                  {getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}
+                                  {run.details?.policy ? ` · 策略 ${getAutoMailPolicyLabel(run.details.policy)}` : ''}
+                                </div>
+                              )}
+                              <div className="signal-row-copy" style={{ marginTop: 6 }}>
+                                {formatDateTime(run.updated_at || run.created_at)}
+                              </div>
+                            </div>
+                            <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </article>
                 )}
