@@ -370,6 +370,35 @@ _MAX_CONVERSATIONS = 50
 _CONVERSATION_TTL = 7200  # 2小时无活动自动清理
 
 
+def _read_json_file(path, *, default, warning: str | None = None):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return _json.loads(handle.read())
+    except Exception as exc:
+        if warning:
+            logger.warning("%s: %s (%s)", warning, path, exc)
+        return default
+
+
+def _unlink_if_exists(path, *, warning: str) -> bool:
+    if not path.exists():
+        return False
+    try:
+        path.unlink()
+        return True
+    except Exception as exc:
+        logger.warning("%s: %s (%s)", warning, path, exc)
+        return False
+
+
+def _response_text_preview(response: httpx.Response, limit: int = 1000) -> str:
+    try:
+        return response.text[:limit]
+    except Exception as exc:
+        logger.warning("读取 HTTP 响应文本失败: %s", exc)
+        return ""
+
+
 def _cleanup_old_conversations():
     """清理过期或超量对话历史"""
     import time as _time
@@ -617,13 +646,13 @@ async def _call_ai(messages: list[dict]) -> Optional[dict]:
             resp.raise_for_status()
             return resp.json()
     except httpx.HTTPStatusError as e:
-        body = e.response.text[:1000]
+        body = _response_text_preview(e.response)
         logger.error(f"AI API HTTP 错误: {e.response.status_code} body={body}")
         # Log the messages that caused the error for debugging
         logger.error(f"Failed messages: {_json.dumps(validated, ensure_ascii=False)[:2000]}")
         return None
     except Exception as e:
-        logger.error(f"AI API 调用失败: {e}")
+        logger.exception("AI API 调用失败")
         return None
 
 
@@ -666,25 +695,16 @@ def clear_conversation(conversation_id: str = "default"):
     from config import BASE_DIR
 
     # 清理内存
-    try:
-        del _conversations[conversation_id]
-    except KeyError:
-        pass
-
-    try:
-        del _conversation_timestamps[conversation_id]
-    except KeyError:
-        pass
+    _conversations.pop(conversation_id, None)
+    _conversation_timestamps.pop(conversation_id, None)
 
     # 清理磁盘文件
     conv_dir = BASE_DIR / "data" / "conversations"
     for suffix in ["", "_history"]:
         f = conv_dir / f"{conversation_id}{suffix}.jsonl"
-        if f.exists():
-            f.unlink()
+        _unlink_if_exists(f, warning="删除对话文件失败")
     meta_f = conv_dir / f"{conversation_id}_meta.json"
-    if meta_f.exists():
-        meta_f.unlink()
+    _unlink_if_exists(meta_f, warning="删除对话元数据失败")
 
 
 def delete_conversation_data(conversation_id: str) -> dict:
@@ -926,11 +946,13 @@ async def test_connection(api_base: str = None, api_key: str = None, model: str 
     except httpx.HTTPStatusError as e:
         detail = ""
         try:
-            detail = e.response.json().get("error", {}).get("message", e.response.text[:200])
-        except Exception:
-            detail = e.response.text[:200]
+            detail = e.response.json().get("error", {}).get("message", _response_text_preview(e.response, 200))
+        except Exception as exc:
+            logger.warning("解析 AI 测试错误响应失败: %s", exc)
+            detail = _response_text_preview(e.response, 200)
         return {"status": "error", "message": f"HTTP {e.response.status_code}", "reply": f"❌ API 返回错误 ({e.response.status_code}): {detail}"}
     except Exception as e:
+        logger.exception("AI 连接测试失败")
         return {"status": "error", "message": str(e), "reply": f"❌ 测试失败: {e}"}
 
 
@@ -1065,11 +1087,7 @@ async def chat_stream(user_message: str, conversation_id: str = "default"):
                                             current_tool_calls[tc_idx]["function"]["name"] += fn_delta["name"]
 
             except httpx.HTTPStatusError as e:
-                body = ""
-                try:
-                    body = e.response.text[:1000]
-                except Exception:
-                    pass
+                body = _response_text_preview(e.response)
                 logger.error(f"Stream API HTTP 错误: {e.response.status_code} body={body}")
                 logger.error(f"Failed messages: {_json.dumps(validated, ensure_ascii=False)[:2000]}")
                 yield sse("error", {"message": f"API 返回 {e.response.status_code}: {body[:200]}"})
@@ -1172,12 +1190,7 @@ def _save_conversation_message(conversation_id: str, role: str, content: str, th
 
     meta_file = conv_dir / f"{conversation_id}_meta.json"
     if meta_file.exists():
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta = _json.loads(f.read())
-        except Exception:
-            logger.warning("读取对话元数据失败，使用空元数据重建: %s", meta_file)
-            meta = {}
+        meta = _read_json_file(meta_file, default={}, warning="读取对话元数据失败，使用空元数据重建")
     else:
         meta = {
             "title": "新对话",
@@ -1282,12 +1295,7 @@ def _save_conversation_meta(conversation_id: str, title: str = None):
 
     # 加载已有元数据
     if meta_file.exists():
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta = _json.loads(f.read())
-        except Exception:
-            logger.warning("加载对话元数据失败，准备重建: %s", meta_file)
-            meta = {}
+        meta = _read_json_file(meta_file, default={}, warning="加载对话元数据失败，准备重建")
     else:
         meta = {
             "title": "新对话",
@@ -1318,12 +1326,7 @@ def _load_conversation_meta(conversation_id: str) -> dict:
     if not meta_file.exists():
         return empty
 
-    try:
-        with open(meta_file, "r", encoding="utf-8") as f:
-            return _json.loads(f.read())
-    except Exception:
-        logger.warning("读取对话元数据失败，返回空结构: %s", meta_file)
-        return empty
+    return _read_json_file(meta_file, default=empty, warning="读取对话元数据失败，返回空结构")
 
 
 def _list_all_conversations() -> list[dict]:
@@ -1336,19 +1339,16 @@ def _list_all_conversations() -> list[dict]:
 
     items = []
     for meta_file in conv_dir.glob("*_meta.json"):
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta = _json.loads(f.read())
-            conversation_id = meta_file.stem.replace("_meta", "")
-            items.append({
-                "id": conversation_id,
-                "title": meta.get("title", ""),
-                "updated_at": meta.get("updated_at", ""),
-                "message_count": meta.get("message_count", 0),
-            })
-        except Exception:
-            logger.warning("读取对话列表元数据失败，已跳过: %s", meta_file)
+        meta = _read_json_file(meta_file, default=None, warning="读取对话列表元数据失败，已跳过")
+        if not isinstance(meta, dict):
             continue
+        conversation_id = meta_file.stem.replace("_meta", "")
+        items.append({
+            "id": conversation_id,
+            "title": meta.get("title", ""),
+            "updated_at": meta.get("updated_at", ""),
+            "message_count": meta.get("message_count", 0),
+        })
 
     items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
     return items
