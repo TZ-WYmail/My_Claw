@@ -50,6 +50,12 @@ function getReplyLevelLabel(level) {
   return '仅供阅读';
 }
 
+function getDecisionStatusLabel(status) {
+  if (status === 'snoozed') return '稍后再问';
+  if (status === 'cleared') return '暂时处理完';
+  return '待你决定';
+}
+
 function getMailKindLabel(kind) {
   if (kind === 'planning') return '规划相关';
   if (kind === 'reply') return '往返信件';
@@ -301,6 +307,36 @@ function createComposerStateFromDraft(draft, thread, activeAccount) {
     tone_mode: draft?.tone_mode || activeAccount?.tone_mode || 'warm',
     signature: draft?.signature || activeAccount?.signature_text || '',
   };
+}
+
+function buildMailtoReplyLink(thread, detail, draft) {
+  const threadSubject = draft?.subject || thread?.subject || '';
+  const subject = threadSubject ? (threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`) : '';
+  const recipients = [];
+  const pushRecipient = (item) => {
+    const email = `${item?.email || ''}`.trim();
+    if (!email || recipients.includes(email)) return;
+    recipients.push(email);
+  };
+
+  (draft?.to || []).forEach(pushRecipient);
+  if (recipients.length === 0) {
+    const latestInbound = (detail?.messages || []).filter((item) => item.direction === 'inbound').slice(-1)[0];
+    (latestInbound?.reply_to || []).forEach(pushRecipient);
+    if (recipients.length === 0 && latestInbound?.from_email) {
+      pushRecipient({ email: latestInbound.from_email });
+    }
+  }
+
+  if (recipients.length === 0) {
+    return '';
+  }
+
+  const params = new URLSearchParams();
+  if (subject) {
+    params.set('subject', subject);
+  }
+  return `mailto:${recipients.join(',')}?${params.toString()}`;
 }
 
 function DecisionQueueCard({ thread, onOpen, onDiscuss, onCreateTask }) {
@@ -569,6 +605,10 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   );
   const railThread = threads[selectedThreadIndex >= 0 ? selectedThreadIndex : 0] || null;
   const selectedThread = threadDetail?.thread || threads.find(item => item.thread_id === selectedThreadId) || null;
+  const selectedMailtoHref = useMemo(
+    () => buildMailtoReplyLink(selectedThread, threadDetail, activeDraft),
+    [activeDraft, selectedThread, threadDetail],
+  );
 
   const parseRecipientLine = (value) => {
     return value
@@ -1593,6 +1633,12 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                   这封信也有一张可从邮件里直接点开的处理页。桌面端和邮件端现在走的是同一条入口，不再是两套说法。
                 </div>
               )}
+              {!!selectedThread?.decision_status && (
+                <div className="mail-letter-note">
+                  当前处理状态是“{getDecisionStatusLabel(selectedThread.decision_status)}”。
+                  {selectedThread.waiting_user_decision ? ' 它仍停在你的裁决栈里。' : ' 现在不占用待决定队列，但你随时可以把它重新放回案头。'}
+                </div>
+              )}
               {!!selectedThread?.linked_task_count && (
                 <div className="mail-letter-note">
                   这封信已经牵出 {selectedThread.linked_task_count} 项任务，纸页之外，事情已经开始移动。
@@ -1615,6 +1661,11 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                   <div className="inline-actions" style={{ marginTop: 8 }}>
                     <button className="btn btn-sm btn-primary" onClick={() => openPortalPage(selectedThread)}>打开处理页</button>
                     <button className="btn btn-sm btn-ghost" onClick={() => copyPortalLink(selectedThread)}>复制处理页链接</button>
+                    {selectedMailtoHref && (
+                      <a className="btn btn-sm btn-ghost" href={selectedMailtoHref}>
+                        在邮箱里继续回
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -1626,6 +1677,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                     </button>
                     {!!selectedThread.unread_count && <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(selectedThread.thread_id)}>标记已读</button>}
                     {selectedThread.latest_folder_kind !== 'archive' && <button className="btn btn-sm btn-ghost" onClick={() => handleArchive(selectedThread.thread_id)}>归档</button>}
+                    {selectedThread.decision_status !== 'pending' && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'pending')}>恢复待决定</button>}
                     {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'snoozed')}>稍后再问</button>}
                     {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'cleared')}>暂时处理完</button>}
                     <button
