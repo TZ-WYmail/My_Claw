@@ -99,6 +99,20 @@ export function getExecutionStatusLabel(status) {
   return status || '未记录';
 }
 
+export function formatMailSyncCounts(item) {
+  const fetched = Number(item?.fetched_count || 0);
+  const nextCount = Number(item?.new_count || 0);
+  return `${fetched} 抓取 / ${nextCount} 新增`;
+}
+
+export function getPollingResultNarrative(item) {
+  if (!item) return '本轮没有留下可阅读的执行细节。';
+  const folderLabel = getInboxLabel(item.folder_kind || 'inbox');
+  const baseMessage = item.message || `已检查 ${folderLabel}`;
+  const latestUid = item.latest_uid ? ` · 停在 UID ${item.latest_uid}` : '';
+  return `${baseMessage} · ${formatMailSyncCounts(item)}${latestUid}`;
+}
+
 export function getAgentRunFilterLabel(filter) {
   if (filter === 'user_confirmation_required') return '待确认';
   if (filter === 'draft_created') return '已起草';

@@ -155,8 +155,13 @@ async def run_mail_polling_once() -> dict:
                 )
                 summary["results"].append({
                     "account_id": account_id,
+                    "folder_kind": result.get("folder_kind") or _mail_polling_state["folder_kind"],
                     "status": result.get("status"),
                     "message": result.get("message", ""),
+                    "fetched_count": int(result.get("fetched_count") or 0),
+                    "new_count": int(result.get("new_count") or 0),
+                    "latest_uid": result.get("latest_uid") or "",
+                    "sync": result.get("sync") or None,
                 })
                 if result.get("status") == "success":
                     summary["success_count"] += 1
@@ -165,7 +170,16 @@ async def run_mail_polling_once() -> dict:
                     summary["error_count"] += 1
             except Exception as exc:
                 summary["error_count"] += 1
-                summary["results"].append({"account_id": account_id, "status": "error", "message": str(exc)})
+                summary["results"].append({
+                    "account_id": account_id,
+                    "folder_kind": _mail_polling_state["folder_kind"],
+                    "status": "error",
+                    "message": str(exc),
+                    "fetched_count": 0,
+                    "new_count": 0,
+                    "latest_uid": "",
+                    "sync": None,
+                })
                 logger.exception("邮件轮询同步失败: %s", account_id)
 
         if summary["account_count"] == 0:

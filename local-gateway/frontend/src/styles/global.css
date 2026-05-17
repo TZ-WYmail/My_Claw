@@ -1680,6 +1680,25 @@ textarea { resize: vertical; min-height: 80px; }
   font-weight: 600;
 }
 
+.mail-detail-block-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.34);
+  border: 1px solid rgba(67, 42, 28, 0.08);
+}
+
+.mail-detail-block-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+}
+
+.mail-detail-block-card summary::-webkit-details-marker {
+  display: none;
+}
+
 .war-room-hero {
   background:
     radial-gradient(circle at 14% 18%, rgba(198, 83, 61, 0.22), transparent 24%),

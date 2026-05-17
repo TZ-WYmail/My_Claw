@@ -60,3 +60,8 @@ async def test_run_mail_polling_once_aggregates_sync_results(temp_mail_db, monke
     assert summary["success_count"] == 1
     assert summary["new_count"] == 2
     assert summary["results"][0]["account_id"] == first["account_id"]
+    assert summary["results"][0]["folder_kind"] == "inbox"
+    assert summary["results"][0]["fetched_count"] == 0
+    assert summary["results"][0]["new_count"] == 2
+    assert summary["results"][0]["latest_uid"] == ""
+    assert summary["results"][0]["sync"] is None

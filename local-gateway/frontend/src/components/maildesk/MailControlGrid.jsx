@@ -1,7 +1,10 @@
 import {
   formatDateTime,
+  formatMailSyncCounts,
   getAutoMailPolicyLabel,
   getExecutionBadgeClass,
+  getInboxLabel,
+  getPollingResultNarrative,
   getExecutionStatusLabel,
 } from './maildeskShared.jsx';
 
@@ -163,15 +166,43 @@ export default function MailControlGrid({
                     </div>
                   ) : (
                     pollingResults.map((item, index) => (
-                      <div key={`${item.account_id || 'result'}-${index}`} className="signal-row">
-                        <div>
-                          <div className="signal-row-title">
+                      <details key={`${item.account_id || 'result'}-${index}`} className="mail-detail-block mail-detail-block-card">
+                        <summary>
+                          <span>
                             {(accounts.find(account => account.account_id === item.account_id)?.display_name) || item.account_id || '未命名账户'}
+                          </span>
+                          <span className={`badge ${getExecutionBadgeClass(item.status)}`}>{getExecutionStatusLabel(item.status)}</span>
+                        </summary>
+                        <div className="signal-list" style={{ marginTop: 'var(--space-sm)' }}>
+                          <div className="signal-row">
+                            <div>
+                              <div className="signal-row-title">本轮执行摘要</div>
+                              <div className="signal-row-copy">{getPollingResultNarrative(item)}</div>
+                            </div>
                           </div>
-                          <div className="signal-row-copy">{item.message || '本轮已记录执行结果。'}</div>
+                          <div className="signal-row">
+                            <div>
+                              <div className="signal-row-title">轮询信箱</div>
+                              <div className="signal-row-copy">{getInboxLabel(item.folder_kind || pollingState.folder_kind || 'inbox')}</div>
+                            </div>
+                            <span className="badge badge-ghost">{formatMailSyncCounts(item)}</span>
+                          </div>
+                          {!!item.sync?.finished_at && (
+                            <div className="signal-row">
+                              <div>
+                                <div className="signal-row-title">最近完成</div>
+                                <div className="signal-row-copy">{formatDateTime(item.sync.finished_at)}</div>
+                              </div>
+                              <span className="badge badge-ghost">{item.latest_uid || item.sync.latest_uid || '无 UID'}</span>
+                            </div>
+                          )}
+                          {!!item.sync?.error_message && (
+                            <div className="mail-inline-alert mail-inline-alert-error">
+                              {item.sync.error_message}
+                            </div>
+                          )}
                         </div>
-                        <span className={`badge ${getExecutionBadgeClass(item.status)}`}>{getExecutionStatusLabel(item.status)}</span>
-                      </div>
+                      </details>
                     ))
                   )}
                 </div>

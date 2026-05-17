@@ -264,26 +264,50 @@ export default function OpenLetterPanel({
                   </div>
                 ) : (
                   selectedAgentRuns.map((run) => (
-                    <div key={run.run_id} className="signal-row" style={{ alignItems: 'flex-start' }}>
-                      <div>
-                        <div className="signal-row-title">
-                          {run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}
-                        </div>
-                        <div className="signal-row-copy">
-                          {run.result_summary || '系统已记录这一轮自动处理。'}
+                    <details key={run.run_id} className="mail-detail-block mail-detail-block-card">
+                      <summary>
+                        <span>{run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}</span>
+                        <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
+                      </summary>
+                      <div className="signal-list" style={{ marginTop: 'var(--space-sm)' }}>
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">结果摘要</div>
+                            <div className="signal-row-copy">{run.result_summary || '系统已记录这一轮自动处理。'}</div>
+                          </div>
+                          <span className="badge badge-ghost">{formatDateTime(run.updated_at || run.created_at)}</span>
                         </div>
                         {!!run.details?.reason_code && (
-                          <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                            {getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}
-                            {run.details?.policy ? ` · 策略 ${getAutoMailPolicyLabel(run.details.policy)}` : ''}
+                          <div className="signal-row">
+                            <div>
+                              <div className="signal-row-title">原因代码</div>
+                              <div className="signal-row-copy">{getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}</div>
+                            </div>
+                            <span className="badge badge-ghost">{run.details.reason_code}</span>
                           </div>
                         )}
-                        <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                          {formatDateTime(run.updated_at || run.created_at)}
-                        </div>
+                        {(run.details?.policy || run.details?.command) && (
+                          <div className="signal-row">
+                            <div>
+                              <div className="signal-row-title">策略与指令</div>
+                              <div className="signal-row-copy">
+                                {run.details?.policy ? `策略 ${getAutoMailPolicyLabel(run.details.policy)}` : '未记录策略'}
+                                {run.details?.command ? ` · ${getMailCommandLabel(run.details.command)}` : ' · 未识别邮件指令'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {!!run.details?.draft_id && (
+                          <div className="signal-row">
+                            <div>
+                              <div className="signal-row-title">关联草稿</div>
+                              <div className="signal-row-copy">这次自动处理写到了草稿 {run.details.draft_id}。</div>
+                            </div>
+                            <span className="badge badge-ghost">{run.details.draft_id}</span>
+                          </div>
+                        )}
                       </div>
-                      <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
-                    </div>
+                    </details>
                   ))
                 )}
               </div>
