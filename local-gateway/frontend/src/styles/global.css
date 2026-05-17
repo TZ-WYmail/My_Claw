@@ -1480,6 +1480,35 @@ textarea { resize: vertical; min-height: 80px; }
   color: var(--text-primary);
 }
 
+.mail-message-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.mail-message-meta-card {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 251, 243, 0.78);
+  border: 1px solid rgba(103, 78, 40, 0.12);
+}
+
+.mail-message-meta-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.mail-message-meta-value {
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
 .mail-plain-body {
   white-space: normal;
   word-break: break-word;

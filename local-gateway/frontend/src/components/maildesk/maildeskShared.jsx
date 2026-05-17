@@ -496,6 +496,18 @@ export function MessagePaper({ message }) {
   const sanitizedHtml = useMemo(() => sanitizeMailHtml(message.html_body), [message.html_body]);
   const plainBody = message.text_body || (!sanitizedHtml ? message.html_body : '') || '';
   const attachments = message.attachments || [];
+  const recipientGroups = [
+    { label: 'To', items: message.to || [] },
+    { label: 'Cc', items: message.cc || [] },
+    { label: 'Bcc', items: message.bcc || [] },
+    { label: 'Reply-To', items: message.reply_to || [] },
+  ].filter((group) => group.items.length > 0);
+  const threadSignals = [
+    message.internet_message_id ? { label: 'Message-ID', value: message.internet_message_id } : null,
+    message.in_reply_to ? { label: 'In-Reply-To', value: message.in_reply_to } : null,
+    message.delivery_status ? { label: '投递状态', value: message.delivery_status } : null,
+    message.folder_id ? { label: 'Folder', value: message.folder_id } : null,
+  ].filter(Boolean);
 
   return (
     <article className="dossier-card mail-message-paper" style={{ transform: `rotate(${message.direction === 'inbound' ? '-0.5deg' : '0.4deg'})` }}>
@@ -516,6 +528,26 @@ export function MessagePaper({ message }) {
       <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '8px 0 12px' }}>
         {formatDateTime(message.received_at || message.sent_at || message.created_at)}
       </div>
+      {(recipientGroups.length > 0 || threadSignals.length > 0) && (
+        <div className="mail-message-meta-grid">
+          {recipientGroups.map((group) => (
+            <div key={group.label} className="mail-message-meta-card">
+              <div className="mail-message-meta-label">{group.label}</div>
+              <div className="mail-message-meta-value">
+                {group.items.map((item) => item.name || item.email).filter(Boolean).join(', ')}
+              </div>
+            </div>
+          ))}
+          {threadSignals.map((item) => (
+            <div key={item.label} className="mail-message-meta-card">
+              <div className="mail-message-meta-label">{item.label}</div>
+              <div className="mail-message-meta-value" title={item.value}>
+                {String(item.value).length > 72 ? `${String(item.value).slice(0, 72)}...` : item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mail-message-body">
         {sanitizedHtml ? (
           <div className="mail-rich-body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
