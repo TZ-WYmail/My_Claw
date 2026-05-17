@@ -1506,6 +1506,40 @@ textarea { resize: vertical; min-height: 80px; }
   color: var(--text-secondary);
 }
 
+.mail-policy-simulation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mail-policy-simulation-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 251, 243, 0.78);
+  border: 1px solid rgba(103, 78, 40, 0.12);
+}
+
+.mail-policy-simulation-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.mail-policy-simulation-title {
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.mail-policy-simulation-copy {
+  font-size: 0.79rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .mail-letter-note {
   padding: 10px 12px;
   border-left: 3px solid rgba(176, 139, 110, 0.46);
@@ -3954,6 +3988,10 @@ textarea { resize: vertical; min-height: 80px; }
 
   .mail-thread-shadow-card {
     display: none;
+  }
+
+  .mail-policy-simulation-grid {
+    grid-template-columns: 1fr;
   }
 
   .mail-lane-status {

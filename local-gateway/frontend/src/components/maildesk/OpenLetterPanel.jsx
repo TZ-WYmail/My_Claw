@@ -130,6 +130,77 @@ function getDirectMailEvidence(thread, messages = [], account = null) {
   };
 }
 
+function getPolicySimulationCards(thread, messages = [], account = null) {
+  const evidence = getDirectMailEvidence(thread, messages, account);
+  const latestInbound = [...messages].reverse().find((item) => item.direction === 'inbound') || null;
+  const hasInbound = !!latestInbound;
+  const commandLabel = thread?.mail_kind === 'planning'
+    ? '这封信还带有规划相关特征，更适合先压成任务或至少保留待决定状态。'
+    : thread?.reply_level === 'must_reply'
+      ? '这封信当前带着明确回复压力，自动策略会直接影响它停在哪一步。'
+      : '这封信更像普通往返，策略差异主要体现在草稿是否停留在你这里。';
+  const isDirectLike = evidence.chips.some((item) => item.label === '私人邮箱域名' || item.label.startsWith('命中 '));
+  const isBlockedByNoReply = evidence.chips.some((item) => item.label === '命中 no-reply' || item.label === '来自我方地址' || item.label === '发件人缺失');
+
+  const buildCard = (policy) => {
+    if (!hasInbound) {
+      return {
+        policy,
+        tone: 'ghost',
+        title: '当前不会触发自动回信',
+        body: '因为线程里没有新的入站邮件，切换策略也不会立刻推动自动回信链路。',
+      };
+    }
+    if (isBlockedByNoReply) {
+      return {
+        policy,
+        tone: 'ghost',
+        title: '大概率仍会停在自动处理之外',
+        body: '这封信当前更像通知、自发信或缺失关键发件信息；仅切策略通常不足以让它进入自动回信路径。',
+      };
+    }
+    if (!isDirectLike && policy === 'auto_send') {
+      return {
+        policy,
+        tone: 'warning',
+        title: '仍可能被拦在直接协商判定前',
+        body: '即使切到自动寄出，只要线程继续被视为非直接协商来信，系统依旧会先跳过自动回信。',
+      };
+    }
+    if (policy === 'draft_only') {
+      return {
+        policy,
+        tone: 'ghost',
+        title: '会起草，但不主动推进寄出',
+        body: '系统会生成一份回复草稿，把它留在案头，等你自己决定是否发送或继续改写。',
+      };
+    }
+    if (policy === 'draft_and_notify') {
+      return {
+        policy,
+        tone: 'warning',
+        title: '会起草并把决定权交还给你',
+        body: '系统会写好草稿并把线程留在待你确认的状态，既不静默跳过，也不会越权代寄。',
+      };
+    }
+    return {
+      policy,
+      tone: thread?.risk_level === 'high' || thread?.reply_level === 'must_reply' ? 'error' : 'completed',
+      title: thread?.risk_level === 'high' || thread?.reply_level === 'must_reply'
+        ? '会尝试直接代寄，风险偏高'
+        : '会尝试直接代寄',
+      body: thread?.risk_level === 'high' || thread?.reply_level === 'must_reply'
+        ? '这封信当前回复压力较强，若改成自动寄出，系统一旦判断通过就可能直接把回信送出。'
+        : '若线程继续被判成直接协商来信，系统在起草成功后会直接完成寄送，不再等待你确认。',
+    };
+  };
+
+  return {
+    lead: commandLabel,
+    cards: ['draft_only', 'draft_and_notify', 'auto_send'].map(buildCard),
+  };
+}
+
 export default function OpenLetterPanel({
   selectedFolder,
   selectedThread,
@@ -175,6 +246,7 @@ export default function OpenLetterPanel({
   const taskCount = (threadDetail?.task_summaries || []).length;
   const agentRunCount = (threadDetail?.agent_runs || []).length;
   const directMailEvidence = getDirectMailEvidence(selectedThread, threadDetail?.messages || [], selectedThreadAccount);
+  const policySimulation = getPolicySimulationCards(selectedThread, threadDetail?.messages || [], selectedThreadAccount);
 
   return (
     <section className="board-lane atlas-ledger-lane mail-spread-lane mail-letter-lane">
@@ -401,6 +473,23 @@ export default function OpenLetterPanel({
                 <span className={`badge ${selectedThread.needs_reply ? 'badge-warning' : 'badge-ghost'}`}>
                   {selectedThread.needs_reply ? '倾向直接协商' : '偏信息/通知'}
                 </span>
+              </div>
+              <div className="signal-row">
+                <div>
+                  <div className="signal-row-title">切换策略后的处理模拟</div>
+                  <div className="signal-row-copy">{policySimulation.lead}</div>
+                  <div className="mail-policy-simulation-grid" style={{ marginTop: 8 }}>
+                    {policySimulation.cards.map((item) => (
+                      <div key={item.policy} className="mail-policy-simulation-card">
+                        <div className="mail-policy-simulation-head">
+                          <span className={`badge badge-${item.tone}`}>{getAutoMailPolicyLabel(item.policy)}</span>
+                        </div>
+                        <div className="mail-policy-simulation-title">{item.title}</div>
+                        <div className="mail-policy-simulation-copy">{item.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               {latestAgentRun && (
                 <>
