@@ -66,6 +66,70 @@ function getTaskTimingState(task) {
   return { label: '尚未排时', tone: 'ghost', narrative: '这项任务已经落地，但还没有真正排进日程。' };
 }
 
+function getDirectMailEvidence(thread, messages = [], account = null) {
+  const inbound = [...messages].reverse().find((item) => item.direction === 'inbound') || null;
+  const sender = `${inbound?.from_email || ''}`.trim().toLowerCase();
+  const own = `${account?.email_address || ''}`.trim().toLowerCase();
+  const subject = `${thread?.subject || ''}`.toLowerCase();
+  const body = `${inbound?.text_body || inbound?.html_body || ''}`.toLowerCase();
+  const conversationalHits = ['请', '能否', '可以吗', '帮我', '安排', '怎么', '是否', 'reply', 'confirm'];
+  const matchedTokens = conversationalHits.filter((token) => subject.includes(token) || body.includes(token));
+
+  if (!inbound) {
+    return {
+      verdict: '当前线程没有新的入站来信，因此不会进入直接协商判断。',
+      chips: [{ label: '无入站来信', tone: 'ghost' }],
+    };
+  }
+
+  const chips = [];
+  if (!sender) {
+    chips.push({ label: '发件人缺失', tone: 'error' });
+    return {
+      verdict: '最近入站邮件没有可用发件人地址，系统无法把它认定成可靠的直接协商来信。',
+      chips,
+    };
+  }
+  if (sender === own) {
+    chips.push({ label: '来自我方地址', tone: 'ghost' });
+    return {
+      verdict: '最近一封入站看起来来自当前账户自己，因此不会被当成对方主动发来的协商来信。',
+      chips,
+    };
+  }
+
+  if (sender.includes('no-reply') || sender.includes('noreply')) {
+    chips.push({ label: '命中 no-reply', tone: 'error' });
+    return {
+      verdict: '发件地址带有 no-reply 特征，系统倾向把它视为通知或系统邮件，而不是可继续往返的对象。',
+      chips,
+    };
+  }
+
+  if (sender.endsWith('@qq.com') || sender.endsWith('@gmail.com') || sender.endsWith('@outlook.com')) {
+    chips.push({ label: '私人邮箱域名', tone: 'completed' });
+    return {
+      verdict: '发件人来自常见私人邮箱域名，系统会优先把它视为真人直接来信。',
+      chips,
+    };
+  }
+
+  if (matchedTokens.length > 0) {
+    chips.push({ label: `命中 ${matchedTokens.length} 个协商词`, tone: 'completed' });
+    matchedTokens.slice(0, 3).forEach((token) => chips.push({ label: `词: ${token}`, tone: 'ghost' }));
+    return {
+      verdict: '虽然发件地址不是常见私人邮箱，但主题或正文里出现了明显的协商/确认语气，因此系统仍把它判成直接来信。',
+      chips,
+    };
+  }
+
+  chips.push({ label: '未命中协商信号', tone: 'ghost' });
+  return {
+    verdict: '发件地址不像私人来信，主题和正文也没有明显协商词，因此系统更可能把它视为信息型或系统型邮件。',
+    chips,
+  };
+}
+
 export default function OpenLetterPanel({
   selectedFolder,
   selectedThread,
@@ -110,6 +174,7 @@ export default function OpenLetterPanel({
   const isDecisionPending = (status) => decisionUpdating.threadId === selectedThreadId && decisionUpdating.status === status;
   const taskCount = (threadDetail?.task_summaries || []).length;
   const agentRunCount = (threadDetail?.agent_runs || []).length;
+  const directMailEvidence = getDirectMailEvidence(selectedThread, threadDetail?.messages || [], selectedThreadAccount);
 
   return (
     <section className="board-lane atlas-ledger-lane mail-spread-lane mail-letter-lane">
@@ -322,6 +387,20 @@ export default function OpenLetterPanel({
                   </div>
                 </div>
                 <span className="badge badge-ghost">{selectedThreadAccount ? getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy) : '未识别'}</span>
+              </div>
+              <div className="signal-row">
+                <div>
+                  <div className="signal-row-title">直接协商判定证据</div>
+                  <div className="signal-row-copy">{directMailEvidence.verdict}</div>
+                  <div className="mission-chip-row" style={{ marginTop: 6 }}>
+                    {directMailEvidence.chips.map((item) => (
+                      <span key={item.label} className={`badge badge-${item.tone}`}>{item.label}</span>
+                    ))}
+                  </div>
+                </div>
+                <span className={`badge ${selectedThread.needs_reply ? 'badge-warning' : 'badge-ghost'}`}>
+                  {selectedThread.needs_reply ? '倾向直接协商' : '偏信息/通知'}
+                </span>
               </div>
               {latestAgentRun && (
                 <>
