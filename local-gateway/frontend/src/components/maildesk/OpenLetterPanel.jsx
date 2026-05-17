@@ -373,18 +373,32 @@ export default function OpenLetterPanel({
               )}
             </div>
           </article>
-          {(threadDetail.task_summaries || []).length > 0 && (
-            <article className="dossier-card" style={{ transform: 'rotate(-0.18deg)', borderColor: 'rgba(47, 111, 237, 0.28)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                <div>
-                  <div className="section-kicker">TASK FALLOUT</div>
-                  <h3 className="dossier-title">由这封信牵出的任务</h3>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
-                    邮件不该只停留在阅读层。已经落进任务系统的事项，会在这里留下下一步抓手。
+          <article className="dossier-card" style={{ transform: 'rotate(-0.18deg)', borderColor: 'rgba(47, 111, 237, 0.28)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+              <div>
+                <div className="section-kicker">TASK FALLOUT</div>
+                <h3 className="dossier-title">由这封信牵出的任务</h3>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
+                  邮件不该只停留在阅读层。已经落进任务系统的事项，会在这里留下下一步抓手。
+                </div>
+              </div>
+              <span className="badge badge-ghost">{(threadDetail.task_summaries || []).length} 项</span>
+            </div>
+            {(threadDetail.task_summaries || []).length === 0 ? (
+              <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
+                <div className="signal-row">
+                  <div>
+                    <div className="signal-row-title">这封信还没有牵出任务</div>
+                    <div className="signal-row-copy">如果它涉及安排、确认、交付或跟进，现在就可以把它压成一项可执行任务，不必让事情继续悬在邮件里。</div>
+                  </div>
+                  <div className="inline-actions">
+                    <button className="btn btn-sm btn-primary" onClick={() => handleCreateTaskFromMail(selectedThread)} disabled={isCreatingTask}>
+                      {isCreatingTask ? '落任务中…' : '落成第一项任务'}
+                    </button>
                   </div>
                 </div>
-                <span className="badge badge-ghost">{threadDetail.task_summaries.length} 项</span>
               </div>
+            ) : (
               <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
                 {threadDetail.task_summaries.map((task) => (
                   <div key={task.link_id || task.task_id} className="signal-row">
@@ -415,9 +429,14 @@ export default function OpenLetterPanel({
                     </div>
                   </div>
                 ))}
+                <div className="inline-actions" style={{ marginTop: 'var(--space-sm)' }}>
+                  <button className="btn btn-sm btn-ghost" onClick={() => handleCreateTaskFromMail(selectedThread)} disabled={isCreatingTask}>
+                    {isCreatingTask ? '落任务中…' : '再落一项任务'}
+                  </button>
+                </div>
               </div>
-            </article>
-          )}
+            )}
+          </article>
           {(threadDetail.messages || []).map(message => (
             <MessagePaper key={message.message_id} message={message} />
           ))}
