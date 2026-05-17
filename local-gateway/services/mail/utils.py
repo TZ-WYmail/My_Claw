@@ -74,8 +74,11 @@ def extract_reference_ids(value: Optional[str]) -> list[str]:
     raw = (value or "").strip()
     if not raw:
         return []
-    matched = re.findall(r"<([^>]+)>", raw)
-    items = matched or re.split(r"\s+", raw)
+    # Preserve original token order and accept both canonical <id> and bare ids.
+    items = [
+        matched.group(1) if matched.group(1) is not None else matched.group(2)
+        for matched in re.finditer(r"<([^>]+)>|(\S+)", raw)
+    ]
     ordered: list[str] = []
     seen: set[str] = set()
     for item in items:
@@ -133,4 +136,3 @@ def build_mail_portal_links(thread_id: str) -> dict[str, str]:
         "quick_snooze_url": f"{base_url}/api/mail/portal/{thread_id}/quick/decision?token={token}&decision_status=snoozed",
         "quick_done_url": f"{base_url}/api/mail/portal/{thread_id}/quick/decision?token={token}&decision_status=cleared",
     }
-

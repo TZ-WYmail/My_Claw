@@ -632,6 +632,31 @@ local-gateway/test/
 
 这样后续再清理内部依赖时，信心会更高。
 
+当前进度补充：
+
+- 已新增：
+  - [test_mail_utils.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/test/test_mail_utils.py)
+  - [test_mail_parsing.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/test/test_mail_parsing.py)
+  - [test_mail_sync.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/test/test_mail_sync.py)
+- 本轮新增覆盖点包括：
+  - `normalize_subject()` 的多层前缀剥离
+  - `json_loads()` 的非 list / 非法 JSON 回退
+  - `extract_reference_ids()` 的顺序保持、去重与裸 message-id 兼容
+  - portal token / links 构造
+  - MIME 邮件头、正文、附件解析
+  - AI 回信生成的无 key 回退与 HTTP 异常回退
+  - IMAP 同步中的重复邮件跳过路径
+  - IMAP 搜索失败时的错误落库路径
+
+本轮还修复了一个真实缺陷：
+
+- [utils.py](/data/sda/tanzheng/Desktop/My_Claw/local-gateway/services/mail/utils.py) 中 `extract_reference_ids()` 过去在 `References` 头同时包含尖括号 ID 与裸 ID 时，会漏掉裸 ID，且顺序不稳定
+- 现已改为按原始 token 流顺序解析，兼容更“脏”的真实邮件头
+
+当前验证结果：
+
+- 邮件相关测试：`33 passed`
+
 原因：
 
 - 这些模块副作用少
