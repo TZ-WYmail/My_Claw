@@ -1410,6 +1410,12 @@ textarea { resize: vertical; min-height: 80px; }
   padding: 8px 10px 16px;
 }
 
+.mail-thread-stage-carousel {
+  min-height: 360px;
+  display: grid;
+  align-items: center;
+}
+
 .mail-thread-stage::before,
 .mail-thread-stage::after {
   content: "";
@@ -1429,6 +1435,38 @@ textarea { resize: vertical; min-height: 80px; }
 .mail-thread-stage .dossier-card {
   position: relative;
   z-index: 1;
+}
+
+.mail-thread-stage-carousel > .dossier-card {
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.mail-thread-shadow-card {
+  position: absolute;
+  top: 18px;
+  width: min(44%, 240px);
+  pointer-events: none;
+  opacity: 0.6;
+  filter: saturate(0.8);
+  z-index: 0;
+}
+
+.mail-thread-shadow-card .dossier-card {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: rgba(67, 42, 28, 0.12) !important;
+  background: rgba(255, 249, 239, 0.86);
+}
+
+.mail-thread-shadow-card-prev {
+  left: 0;
+  transform: translateX(-8%) rotate(-4deg) scale(0.92);
+}
+
+.mail-thread-shadow-card-next {
+  right: 0;
+  transform: translateX(8%) rotate(4deg) scale(0.92);
 }
 
 .mail-rail-pagination {
@@ -3884,6 +3922,14 @@ textarea { resize: vertical; min-height: 80px; }
   .mail-rail-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .mail-thread-stage-carousel {
+    min-height: auto;
+  }
+
+  .mail-thread-shadow-card {
+    display: none;
   }
 
   .mail-lane-status {

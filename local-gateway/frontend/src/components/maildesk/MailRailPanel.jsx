@@ -10,6 +10,9 @@ export default function MailRailPanel({
   openNextThread,
   setSelectedThreadId,
 }) {
+  const prevThread = selectedThreadIndex > 0 ? threads[selectedThreadIndex - 1] : null;
+  const nextThread = selectedThreadIndex >= 0 && selectedThreadIndex < threads.length - 1 ? threads[selectedThreadIndex + 1] : null;
+
   return (
     <section className="board-lane atlas-paper-stack mail-spread-lane mail-rail-lane">
       <div className="board-lane-header mail-lane-header">
@@ -70,13 +73,31 @@ export default function MailRailPanel({
             </div>
 
             {railThread && (
-              <div className="mail-thread-stage">
+              <div className="mail-thread-stage mail-thread-stage-carousel">
+                {prevThread && (
+                  <div className="mail-thread-shadow-card mail-thread-shadow-card-prev" aria-hidden="true">
+                    <ThreadCard
+                      thread={prevThread}
+                      active={false}
+                      onOpen={setSelectedThreadId}
+                    />
+                  </div>
+                )}
                 <ThreadCard
                   key={railThread.thread_id}
                   thread={railThread}
                   active={railThread.thread_id === selectedThreadId}
                   onOpen={setSelectedThreadId}
                 />
+                {nextThread && (
+                  <div className="mail-thread-shadow-card mail-thread-shadow-card-next" aria-hidden="true">
+                    <ThreadCard
+                      thread={nextThread}
+                      active={false}
+                      onOpen={setSelectedThreadId}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
