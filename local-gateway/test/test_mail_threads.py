@@ -243,3 +243,60 @@ async def test_list_mail_threads_includes_latest_scheduled_draft_state(temp_mail
     assert len(threads) == 1
     assert threads[0]["latest_draft_scheduled_send_at"] == "2026-05-17T09:30:00"
     assert threads[0]["latest_draft_status"] == "draft"
+
+
+@pytest.mark.asyncio
+async def test_list_mail_threads_filters_scheduled_and_failed_drafts(temp_mail_db):
+    account = await mail_service.create_mail_account(
+        display_name="Desk",
+        email_address="desk@example.com",
+    )
+    account_id = account["account_id"]
+
+    scheduled_thread = await mail_service.ingest_mail_message(
+        account_id=account_id,
+        subject="Schedule later",
+        text_body="Reply later today.",
+        from_name="Client G",
+        from_email="clientg@example.com",
+        to=[{"name": "Desk", "email": "desk@example.com"}],
+        direction="inbound",
+        folder_kind="inbox",
+        received_at="2026-05-16T17:00:00",
+    )
+    failed_thread = await mail_service.ingest_mail_message(
+        account_id=account_id,
+        subject="Retry send",
+        text_body="Need the reply again.",
+        from_name="Client H",
+        from_email="clienth@example.com",
+        to=[{"name": "Desk", "email": "desk@example.com"}],
+        direction="inbound",
+        folder_kind="inbox",
+        received_at="2026-05-16T17:05:00",
+    )
+
+    await mail_service.create_mail_draft(
+        account_id=account_id,
+        thread_id=scheduled_thread["thread_id"],
+        subject="Re: Schedule later",
+        body_html="Replying later.",
+        to=[{"name": "Client G", "email": "clientg@example.com"}],
+        scheduled_send_at="2026-05-17T20:00:00",
+    )
+    failed_draft = await mail_service.create_mail_draft(
+        account_id=account_id,
+        thread_id=failed_thread["thread_id"],
+        subject="Re: Retry send",
+        body_html="Retry body.",
+        to=[{"name": "Client H", "email": "clienth@example.com"}],
+    )
+    await mail_service.update_mail_draft(failed_draft["draft_id"], status="failed")
+
+    scheduled_only = await mail_service.list_mail_threads(account_id=account_id, scheduled_only=True)
+    failed_only = await mail_service.list_mail_threads(account_id=account_id, failed_draft_only=True)
+
+    assert len(scheduled_only) == 1
+    assert scheduled_only[0]["thread_id"] == scheduled_thread["thread_id"]
+    assert len(failed_only) == 1
+    assert failed_only[0]["thread_id"] == failed_thread["thread_id"]

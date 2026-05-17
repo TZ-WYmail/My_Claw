@@ -462,6 +462,8 @@ async def list_mail_threads(
     unread_only: bool = False,
     q: str = "",
     waiting_user_decision: Optional[bool] = None,
+    scheduled_only: bool = False,
+    failed_draft_only: bool = False,
 ) -> list[dict]:
     conditions = ["1=1"]
     params: list = []
@@ -481,6 +483,30 @@ async def list_mail_threads(
     if waiting_user_decision is not None:
         conditions.append("waiting_user_decision = ?")
         params.append(1 if waiting_user_decision else 0)
+    if scheduled_only:
+        conditions.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM mail_drafts
+                WHERE thread_id = mail_threads.thread_id
+                  AND status IN ('draft', 'queued', 'failed')
+                  AND scheduled_send_at IS NOT NULL
+                  AND scheduled_send_at != ''
+            )
+            """
+        )
+    if failed_draft_only:
+        conditions.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM mail_drafts
+                WHERE thread_id = mail_threads.thread_id
+                  AND status = 'failed'
+            )
+            """
+        )
     if q:
         conditions.append("(subject LIKE ? OR snippet LIKE ? OR participants_json LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])

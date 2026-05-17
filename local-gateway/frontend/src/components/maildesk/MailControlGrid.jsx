@@ -27,6 +27,7 @@ export default function MailControlGrid({
   syncStatus,
   threadFilters,
   setThreadFilters,
+  refreshDeskThreads,
 }) {
   return (
     <section className="board-lane atlas-paper-stack" style={{ marginBottom: 'var(--space-xl)' }}>
@@ -57,13 +58,23 @@ export default function MailControlGrid({
               <button type="button" className={`badge ${threadFilters.unreadOnly ? 'badge-warning' : 'badge-ghost'}`} onClick={() => setThreadFilters(prev => ({ ...prev, unreadOnly: !prev.unreadOnly }))}>只看未读</button>
               <button type="button" className={`badge ${threadFilters.needsReplyOnly ? 'badge-error' : 'badge-ghost'}`} onClick={() => setThreadFilters(prev => ({ ...prev, needsReplyOnly: !prev.needsReplyOnly }))}>只看待回信</button>
               <button type="button" className={`badge ${threadFilters.waitingDecisionOnly ? 'badge-pending' : 'badge-ghost'}`} onClick={() => setThreadFilters(prev => ({ ...prev, waitingDecisionOnly: !prev.waitingDecisionOnly }))}>只看待决定</button>
+              <button type="button" className={`badge ${threadFilters.scheduledOnly ? 'badge-completed' : 'badge-ghost'}`} onClick={() => setThreadFilters(prev => ({ ...prev, scheduledOnly: !prev.scheduledOnly }))}>只看定时寄出</button>
+              <button type="button" className={`badge ${threadFilters.failedDraftOnly ? 'badge-error' : 'badge-ghost'}`} onClick={() => setThreadFilters(prev => ({ ...prev, failedDraftOnly: !prev.failedDraftOnly }))}>只看发送失败</button>
               <button
                 type="button"
                 className="badge badge-ghost"
-                onClick={() => setThreadFilters({ query: '', unreadOnly: false, needsReplyOnly: false, waitingDecisionOnly: false })}
+                onClick={() => setThreadFilters({
+                  query: '',
+                  unreadOnly: false,
+                  needsReplyOnly: false,
+                  waitingDecisionOnly: false,
+                  scheduledOnly: false,
+                  failedDraftOnly: false,
+                })}
               >
                 清空筛选
               </button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={refreshDeskThreads} disabled={loading}>刷新案头</button>
             </div>
           </div>
         </article>

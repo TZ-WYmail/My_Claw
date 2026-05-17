@@ -56,6 +56,8 @@ export function useMailDeskState({
     unreadOnly: false,
     needsReplyOnly: false,
     waitingDecisionOnly: false,
+    scheduledOnly: false,
+    failedDraftOnly: false,
   });
   const [draftForm, setDraftForm] = useState({
     account_id: '',
@@ -160,6 +162,8 @@ export function useMailDeskState({
     if (threadFilters.unreadOnly) params.set('unread_only', 'true');
     if (threadFilters.needsReplyOnly) params.set('needs_reply', 'true');
     if (threadFilters.waitingDecisionOnly) params.set('waiting_user_decision', 'true');
+    if (threadFilters.scheduledOnly) params.set('scheduled_only', 'true');
+    if (threadFilters.failedDraftOnly) params.set('failed_draft_only', 'true');
     const query = params.toString();
     const data = await apiGet(`/api/mail/threads${query ? `?${query}` : ''}`);
     const items = normalizeList(data, ['threads']);
@@ -607,6 +611,19 @@ export function useMailDeskState({
     }
   }, [fetchDashboard, fetchThreadDetail, fetchThreads, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
+  const refreshDeskThreads = useCallback(async () => {
+    try {
+      await Promise.all([
+        fetchDashboard(selectedAccount),
+        fetchThreads(selectedAccount, selectedFolder),
+        fetchSyncStatus(selectedAccount),
+      ]);
+      toast('案头线程已经刷新', 'success');
+    } catch (e) {
+      toast(e.message || '刷新案头失败', 'error');
+    }
+  }, [fetchDashboard, fetchSyncStatus, fetchThreads, selectedAccount, selectedFolder, toast]);
+
   const handleResetComposerToLatestDraft = useCallback(async () => {
     const threadId = composerThreadId || selectedThreadId;
     if (!composerDraftId || !threadId) {
@@ -738,6 +755,7 @@ export function useMailDeskState({
     handleReplyThread,
     handleSendDraftFromPanel,
     handleRefreshSelectedThread,
+    refreshDeskThreads,
     handleResetComposerToLatestDraft,
     handlePolicyChange,
     openPrevThread,

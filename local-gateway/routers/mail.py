@@ -253,6 +253,8 @@ async def list_threads(
     needs_reply: Optional[bool] = Query(None),
     unread_only: bool = Query(False),
     waiting_user_decision: Optional[bool] = Query(None),
+    scheduled_only: bool = Query(False),
+    failed_draft_only: bool = Query(False),
     q: str = Query(""),
 ):
     threads = await mail_service.list_mail_threads(
@@ -261,6 +263,8 @@ async def list_threads(
         needs_reply=needs_reply,
         unread_only=unread_only,
         waiting_user_decision=waiting_user_decision,
+        scheduled_only=scheduled_only,
+        failed_draft_only=failed_draft_only,
         q=q,
     )
     return {"status": "success", "threads": threads}
