@@ -2,6 +2,7 @@ import {
   formatDateTime,
   getAgentRunFilterLabel,
   getAgentRunReasonLabel,
+  getAgentRunReasonNarrative,
   getAgentRunStatusBadge,
   getAgentRunStatusLabel,
   getAutoMailPolicyLabel,
@@ -11,6 +12,7 @@ import {
   getDraftStatusLabel,
   getInboxLabel,
   getMailCommandLabel,
+  getMailCommandNarrative,
   getReplyLevelLabel,
   getRiskBadgeClass,
   MessagePaper,
@@ -388,6 +390,9 @@ export default function OpenLetterPanel({
                           <div>
                             <div className="signal-row-title">原因代码</div>
                             <div className="signal-row-copy">{getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}</div>
+                            <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                              {getAgentRunReasonNarrative(run.details.reason_code)}
+                            </div>
                           </div>
                           <span className="badge badge-ghost">{run.details.reason_code}</span>
                         </div>
@@ -400,6 +405,11 @@ export default function OpenLetterPanel({
                               {run.details?.policy ? `策略 ${getAutoMailPolicyLabel(run.details.policy)}` : '未记录策略'}
                               {run.details?.command ? ` · ${getMailCommandLabel(run.details.command)}` : ' · 未识别邮件指令'}
                             </div>
+                            {!!run.details?.command && (
+                              <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                                {getMailCommandNarrative(run.details.command)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -408,6 +418,11 @@ export default function OpenLetterPanel({
                           <div>
                             <div className="signal-row-title">关联草稿</div>
                             <div className="signal-row-copy">这次自动处理写到了草稿 {run.details.draft_id}。</div>
+                            <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                              {run.status === 'sent'
+                                ? '这一版草稿已经被真正寄出，不再只是停在案头。'
+                                : '如果你打开这封信的草稿席，通常就会看到这一版内容。'}
+                            </div>
                           </div>
                           <span className="badge badge-ghost">{run.details.draft_id}</span>
                         </div>

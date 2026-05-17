@@ -2,10 +2,10 @@ import {
   formatDateTime,
   formatMailSyncCounts,
   getAutoMailPolicyLabel,
+  getExecutionStatusLabel,
   getExecutionBadgeClass,
   getInboxLabel,
   getPollingResultNarrative,
-  getExecutionStatusLabel,
 } from './maildeskShared.jsx';
 
 export default function MailControlGrid({
@@ -166,6 +166,10 @@ export default function MailControlGrid({
                   <div className="mail-polling-summary-label">新增来信</div>
                   <div className="mail-polling-summary-value">{pollingSummary.new_count ?? 0}</div>
                 </div>
+                <div className="mail-polling-summary-card">
+                  <div className="mail-polling-summary-label">跳过</div>
+                  <div className="mail-polling-summary-value">{pollingSummary.skipped_count ?? 0}</div>
+                </div>
               </div>
               <details className="mail-detail-block">
                 <summary>展开本轮轮询台账</summary>
@@ -193,6 +197,15 @@ export default function MailControlGrid({
                               <div className="signal-row-copy">{getPollingResultNarrative(item)}</div>
                             </div>
                           </div>
+                          {!!item.message && (
+                            <div className="signal-row">
+                              <div>
+                                <div className="signal-row-title">执行返回</div>
+                                <div className="signal-row-copy">{item.message}</div>
+                              </div>
+                              <span className={`badge ${getExecutionBadgeClass(item.status)}`}>{getExecutionStatusLabel(item.status)}</span>
+                            </div>
+                          )}
                           <div className="signal-row">
                             <div>
                               <div className="signal-row-title">轮询信箱</div>
@@ -200,6 +213,17 @@ export default function MailControlGrid({
                             </div>
                             <span className="badge badge-ghost">{formatMailSyncCounts(item)}</span>
                           </div>
+                          {!!item.sync?.status && (
+                            <div className="signal-row">
+                              <div>
+                                <div className="signal-row-title">同步记录状态</div>
+                                <div className="signal-row-copy">
+                                  {item.sync.started_at ? `开始于 ${formatDateTime(item.sync.started_at)}` : '这一轮没有写下开始时间'}
+                                </div>
+                              </div>
+                              <span className={`badge ${getExecutionBadgeClass(item.sync.status)}`}>{getExecutionStatusLabel(item.sync.status)}</span>
+                            </div>
+                          )}
                           {!!item.sync?.finished_at && (
                             <div className="signal-row">
                               <div>
@@ -207,6 +231,20 @@ export default function MailControlGrid({
                                 <div className="signal-row-copy">{formatDateTime(item.sync.finished_at)}</div>
                               </div>
                               <span className="badge badge-ghost">{item.latest_uid || item.sync.latest_uid || '无 UID'}</span>
+                            </div>
+                          )}
+                          {item.status === 'success' && !item.sync?.error_message && (
+                            <div className="signal-row">
+                              <div>
+                                <div className="signal-row-title">结果判断</div>
+                                <div className="signal-row-copy">
+                                  {(item.new_count || 0) > 0
+                                    ? '这一轮确实抓到了新的来信，案头应该已经更新。'
+                                    : ((item.fetched_count || 0) > 0
+                                      ? '这一轮完成了邮箱检查，但没有带回新的线程变化。'
+                                      : '这一轮执行完成，但没有抓到可同步的新内容。')}
+                                </div>
+                              </div>
                             </div>
                           )}
                           {!!item.sync?.error_message && (

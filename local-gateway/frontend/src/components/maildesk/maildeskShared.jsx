@@ -53,6 +53,13 @@ export function getMailCommandLabel(command) {
   return '未识别到邮件指令';
 }
 
+export function getMailCommandNarrative(command) {
+  if (command === 'create_task') return '系统从来信里读到了更偏执行安排的意图，所以优先尝试把它压成任务。';
+  if (command === 'draft_reply') return '系统判断这更像一封需要继续协商的来信，因此先准备回复草稿。';
+  if (command === 'archive') return '系统识别到它更像可以直接收束的往来，所以优先建议归档。';
+  return '这一轮没有读到明确的快捷意图，系统按默认回信链路继续处理。';
+}
+
 export function getAgentRunStatusLabel(status) {
   if (status === 'draft_created') return '已起草';
   if (status === 'user_confirmation_required') return '待你确认';
@@ -78,6 +85,16 @@ export function getAgentRunReasonLabel(reasonCode) {
   if (reasonCode === 'policy_auto_send') return '策略允许自动寄出';
   if (reasonCode === 'send_failed') return '发信阶段失败';
   return '';
+}
+
+export function getAgentRunReasonNarrative(reasonCode) {
+  if (reasonCode === 'non_direct_thread') return '这封信被判断为系统通知、营销订阅或非直接协商邮件，因此自动回信链路主动停住了。';
+  if (reasonCode === 'draft_generation_failed') return '代理已经尝试起草，但在生成回复内容这一步没有顺利走通。';
+  if (reasonCode === 'policy_draft_only') return '账户策略规定只生成草稿，不主动把信送到确认或寄出阶段。';
+  if (reasonCode === 'policy_requires_confirmation') return '账户策略要求先把草稿放回你的案头，由你决定是否真的发出。';
+  if (reasonCode === 'policy_auto_send') return '账户策略允许代理在判断足够明确时直接代寄回信。';
+  if (reasonCode === 'send_failed') return '草稿已经生成，但在真正发信时被线路或服务端错误拦下。';
+  return '系统留下了一条原因代码，但还没有对应的人类可读说明。';
 }
 
 export function getAutoPolicyNarrative(policy) {
