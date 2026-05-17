@@ -15,7 +15,52 @@ import {
   getRiskBadgeClass,
   MessagePaper,
 } from './maildeskShared.jsx';
-import { badgeClass, priorityMeta, statusLabel } from '../../utils/format';
+import { badgeClass, overdueDays, priorityMeta, statusLabel, taskWindowLabel } from '../../utils/format';
+
+function getTaskTimingState(task) {
+  if (!task) {
+    return { label: '尚未落时间', tone: 'ghost', narrative: '这项任务还没有真正挂上执行时段。' };
+  }
+
+  if (task.status === 'completed') {
+    if (task.end_time) {
+      return { label: '已完成', tone: 'completed', narrative: `已在 ${formatDateTime(task.end_time)} 收束。` };
+    }
+    return { label: '已完成', tone: 'completed', narrative: '这项任务已经完成，但没有记录结束时间。' };
+  }
+
+  if (task.status === 'deleted') {
+    return { label: '已删除', tone: 'error', narrative: '这项任务已经被移出执行面，不再继续推进。' };
+  }
+
+  const overdue = overdueDays(task.due_time);
+  if (overdue > 0) {
+    return {
+      label: overdue >= 7 ? '严重逾期' : `逾期 ${overdue} 天`,
+      tone: 'error',
+      narrative: `这件事已经越过截止时间 ${overdue} 天，仍停在待执行状态。`,
+    };
+  }
+
+  if (task.start_time) {
+    const start = new Date(task.start_time);
+    if (!Number.isNaN(start.getTime())) {
+      if (start > new Date()) {
+        return { label: '待进入时间窗', tone: 'ghost', narrative: `它已经排上时间，但执行窗要到 ${formatDateTime(task.start_time)} 才真正打开。` };
+      }
+      if (task.end_time) {
+        return { label: '执行窗已展开', tone: 'warning', narrative: `它已经进入执行窗，计划在 ${formatDateTime(task.end_time)} 前收束。` };
+      }
+      return { label: '已经开工', tone: 'warning', narrative: '它已经进入执行阶段，但还没有写下结束时间。' };
+    }
+  }
+
+  if (task.due_time) {
+    return { label: '等待截止前处理', tone: 'ghost', narrative: '这件事只有截止点，没有明确开始时段，容易在邮件流里继续拖着。' };
+  }
+
+  return { label: '尚未排时', tone: 'ghost', narrative: '这项任务已经落地，但还没有真正排进日程。' };
+}
 
 export default function OpenLetterPanel({
   selectedFolder,
@@ -400,35 +445,51 @@ export default function OpenLetterPanel({
               </div>
             ) : (
               <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-                {threadDetail.task_summaries.map((task) => (
-                  <div key={task.link_id || task.task_id} className="signal-row">
-                    <div>
-                      <div className="signal-row-title">{task.task_name || task.task_id}</div>
-                      <div className="signal-row-copy">
-                        {task.due_time ? `截止 ${formatDateTime(task.due_time)}` : '未写截止时间'}
-                      </div>
-                      <div className="mission-chip-row" style={{ marginTop: 6 }}>
-                        {task.status && <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>}
-                        {typeof task.priority === 'number' && (
-                          <span className={`badge badge-${priorityMeta(task.priority).tone}`}>{priorityMeta(task.priority).label}</span>
+                {threadDetail.task_summaries.map((task) => {
+                  const timingState = getTaskTimingState(task);
+                  const isOverduePending = overdueDays(task.due_time) > 0 && task.status === 'pending';
+
+                  return (
+                    <div
+                      key={task.link_id || task.task_id}
+                      className="signal-row"
+                      style={{
+                        alignItems: 'flex-start',
+                        borderColor: isOverduePending ? 'rgba(206, 58, 44, 0.28)' : undefined,
+                      }}
+                    >
+                      <div>
+                        <div className="signal-row-title">{task.task_name || task.task_id}</div>
+                        <div className="signal-row-copy" style={{ color: 'var(--text-primary)' }}>
+                          {taskWindowLabel(task)}
+                        </div>
+                        <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                          {timingState.narrative}
+                        </div>
+                        <div className="mission-chip-row" style={{ marginTop: 6 }}>
+                          {task.status && <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>}
+                          {typeof task.priority === 'number' && (
+                            <span className={`badge badge-${priorityMeta(task.priority).tone}`}>{priorityMeta(task.priority).label}</span>
+                          )}
+                          <span className={`badge badge-${timingState.tone}`}>{timingState.label}</span>
+                        </div>
+                        {!!task.description && (
+                          <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                            {task.description.length > 120 ? `${task.description.slice(0, 120)}...` : task.description}
+                          </div>
                         )}
                       </div>
-                      {!!task.description && (
-                        <div className="signal-row-copy" style={{ marginTop: 4 }}>
-                          {task.description.length > 120 ? `${task.description.slice(0, 120)}...` : task.description}
-                        </div>
-                      )}
+                      <div className="inline-actions">
+                        <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(task)} disabled={!task.task_id}>
+                          记笔记
+                        </button>
+                        <button className="btn btn-sm btn-ghost" onClick={() => onOpenTask?.(task)} disabled={!task.task_id}>
+                          打开任务
+                        </button>
+                      </div>
                     </div>
-                    <div className="inline-actions">
-                      <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(task)} disabled={!task.task_id}>
-                        记笔记
-                      </button>
-                      <button className="btn btn-sm btn-ghost" onClick={() => onOpenTask?.(task)} disabled={!task.task_id}>
-                        打开任务
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="inline-actions" style={{ marginTop: 'var(--space-sm)' }}>
                   <button className="btn btn-sm btn-ghost" onClick={() => handleCreateTaskFromMail(selectedThread)} disabled={isCreatingTask}>
                     {isCreatingTask ? '落任务中…' : '再落一项任务'}
