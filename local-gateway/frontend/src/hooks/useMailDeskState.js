@@ -252,7 +252,7 @@ export function useMailDeskState({
     setDashboard(data.summary || null);
   }, []);
 
-  const fetchThreads = useCallback(async (accountId = '', folder = '') => {
+  const fetchThreads = useCallback(async (accountId = '', folder = '', preferredThreadId = selectedThreadId) => {
     const params = new URLSearchParams();
     if (accountId) params.set('account_id', accountId);
     if (folder) params.set('folder', folder);
@@ -265,13 +265,13 @@ export function useMailDeskState({
     const query = params.toString();
     const data = await apiGet(`/api/mail/threads${query ? `?${query}` : ''}`);
     const items = normalizeList(data, ['threads']);
+    const resolvedThreadId = preferredThreadId && items.some(item => item.thread_id === preferredThreadId)
+      ? preferredThreadId
+      : (items[0]?.thread_id || '');
     setThreads(items);
-    setSelectedThreadId((current) => (
-      current && items.some(item => item.thread_id === current)
-        ? current
-        : (items[0]?.thread_id || '')
-    ));
-  }, [threadFilters]);
+    setSelectedThreadId(resolvedThreadId);
+    return { items, selectedThreadId: resolvedThreadId };
+  }, [selectedThreadId, threadFilters]);
 
   const fetchPollingStatus = useCallback(async () => {
     try {
@@ -338,23 +338,25 @@ export function useMailDeskState({
     }
   }, []);
 
-  const refreshAll = useCallback(async (accountId = selectedAccount, folder = selectedFolder) => {
-    await Promise.all([
+  const refreshAll = useCallback(async (accountId = selectedAccount, folder = selectedFolder, preferredThreadId = selectedThreadId) => {
+    const [, threadsInfo] = await Promise.all([
       fetchAccounts(),
       fetchDashboard(accountId),
-      fetchThreads(accountId, folder),
+      fetchThreads(accountId, folder, preferredThreadId),
       fetchSyncStatus(accountId),
       fetchPollingStatus(),
     ]);
-  }, [fetchAccounts, fetchDashboard, fetchThreads, fetchSyncStatus, fetchPollingStatus, selectedAccount, selectedFolder]);
+    return threadsInfo;
+  }, [fetchAccounts, fetchDashboard, fetchThreads, fetchSyncStatus, fetchPollingStatus, selectedAccount, selectedFolder, selectedThreadId]);
 
-  const refreshDeskSnapshot = useCallback(async (accountId = selectedAccount, folder = selectedFolder) => {
-    await Promise.all([
+  const refreshDeskSnapshot = useCallback(async (accountId = selectedAccount, folder = selectedFolder, preferredThreadId = selectedThreadId) => {
+    const [, threadsInfo] = await Promise.all([
       fetchDashboard(accountId),
-      fetchThreads(accountId, folder),
+      fetchThreads(accountId, folder, preferredThreadId),
       fetchSyncStatus(accountId),
     ]);
-  }, [fetchDashboard, fetchThreads, fetchSyncStatus, selectedAccount, selectedFolder]);
+    return threadsInfo;
+  }, [fetchDashboard, fetchThreads, fetchSyncStatus, selectedAccount, selectedFolder, selectedThreadId]);
 
   useEffect(() => {
     refreshAll();
@@ -548,8 +550,8 @@ export function useMailDeskState({
     try {
       const data = await request(() => apiPost(`/api/mail/accounts/${selectedAccount}/sync?folder_kind=inbox&limit=20`, {}));
       toast(`收件箱已同步，新增 ${data.new_count ?? 0} 封信`, 'success');
-      await refreshDeskSnapshot(selectedAccount, selectedFolder);
-      if (selectedThreadId) {
+      const threadsInfo = await refreshDeskSnapshot(selectedAccount, selectedFolder, selectedThreadId);
+      if (threadsInfo?.selectedThreadId && threadsInfo.selectedThreadId === selectedThreadId) {
         await fetchThreadDetail(selectedThreadId);
       }
     } catch (e) {
@@ -565,11 +567,11 @@ export function useMailDeskState({
       const data = await request(() => apiPost('/api/mail/polling/run-once', {}));
       const summary = data.polling?.last_summary || {};
       toast(`轮询已执行，新增 ${summary.new_count ?? 0} 封信`, 'success');
-      await Promise.all([
-        refreshDeskSnapshot(selectedAccount, selectedFolder),
+      const [threadsInfo] = await Promise.all([
+        refreshDeskSnapshot(selectedAccount, selectedFolder, selectedThreadId),
         fetchPollingStatus(),
       ]);
-      if (selectedThreadId) {
+      if (threadsInfo?.selectedThreadId && threadsInfo.selectedThreadId === selectedThreadId) {
         await fetchThreadDetail(selectedThreadId);
       }
     } catch (e) {
@@ -797,16 +799,13 @@ export function useMailDeskState({
         auto_mail_policy: nextPolicy,
       }));
       toast(`自动处理已切到“${getAutoMailPolicyLabel(nextPolicy)}”`, 'success');
-      await refreshAll(selectedAccount, selectedFolder);
-      if (selectedThreadId) {
-        await fetchThreadDetail(selectedThreadId);
-      }
+      await refreshAll(selectedAccount, selectedFolder, selectedThreadId);
     } catch (e) {
       toast(e.message || '更新自动处理策略失败', 'error');
     } finally {
       setPolicySaving(false);
     }
-  }, [activeAccount, fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [activeAccount, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const openPrevThread = useCallback(() => {
     if (selectedThreadIndex > 0) {
