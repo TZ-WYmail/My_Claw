@@ -277,97 +277,102 @@ export default function OpenLetterPanel({
               </div>
             )}
           </article>
-          {(threadDetail.agent_runs || []).length > 0 && (
-            <article className="dossier-card" style={{ transform: 'rotate(0.25deg)', borderColor: 'var(--accent)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                <div>
-                  <div className="section-kicker">AGENT LEDGER</div>
-                  <h3 className="dossier-title">自动处理台账</h3>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
-                    系统替你起草、跳过、等待确认或自动寄出的动作，都会在这里留下痕迹。
+          <article className="dossier-card" style={{ transform: 'rotate(0.25deg)', borderColor: 'var(--accent)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+              <div>
+                <div className="section-kicker">AGENT LEDGER</div>
+                <h3 className="dossier-title">自动处理台账</h3>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
+                  系统替你起草、跳过、等待确认或自动寄出的动作，都会在这里留下痕迹。
+                </div>
+              </div>
+              <span className="badge badge-ghost">{selectedAgentRuns.length} / {(threadDetail.agent_runs || []).length} 条记录</span>
+            </div>
+            <div className="mail-filter-toggles" style={{ marginTop: 'var(--space-md)' }}>
+              {['all', 'user_confirmation_required', 'draft_created', 'sent', 'failed', 'skipped_non_direct'].map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={`badge ${agentRunFilter === filter ? 'badge-warning' : 'badge-ghost'}`}
+                  onClick={() => setAgentRunFilter(filter)}
+                >
+                  {getAgentRunFilterLabel(filter)}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => fetchAgentRuns(selectedThread.thread_id)}
+                disabled={agentRunsLoading}
+              >
+                {agentRunsLoading ? '刷新中…' : '刷新台账'}
+              </button>
+            </div>
+            <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
+              {(threadDetail.agent_runs || []).length === 0 ? (
+                <div className="signal-row">
+                  <div>
+                    <div className="signal-row-title">当前还没有自动处理台账</div>
+                    <div className="signal-row-copy">这通常意味着后台轮询还没真正处理到这封信。你仍然可以手动刷新，确认是否已有新的代理动作落下。</div>
                   </div>
                 </div>
-                <span className="badge badge-ghost">{selectedAgentRuns.length} / {(threadDetail.agent_runs || []).length} 条记录</span>
-              </div>
-              <div className="mail-filter-toggles" style={{ marginTop: 'var(--space-md)' }}>
-                {['all', 'user_confirmation_required', 'draft_created', 'sent', 'failed', 'skipped_non_direct'].map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    className={`badge ${agentRunFilter === filter ? 'badge-warning' : 'badge-ghost'}`}
-                    onClick={() => setAgentRunFilter(filter)}
-                  >
-                    {getAgentRunFilterLabel(filter)}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => fetchAgentRuns(selectedThread.thread_id)}
-                  disabled={agentRunsLoading}
-                >
-                  {agentRunsLoading ? '刷新中…' : '刷新台账'}
-                </button>
-              </div>
-              <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-                {selectedAgentRuns.length === 0 ? (
-                  <div className="signal-row">
-                    <div>
-                      <div className="signal-row-title">当前筛选下没有记录</div>
-                      <div className="signal-row-copy">切换筛选标签，或刷新这条线程的自动处理台账。</div>
-                    </div>
+              ) : selectedAgentRuns.length === 0 ? (
+                <div className="signal-row">
+                  <div>
+                    <div className="signal-row-title">当前筛选下没有记录</div>
+                    <div className="signal-row-copy">切换筛选标签，或刷新这条线程的自动处理台账。</div>
                   </div>
-                ) : (
-                  selectedAgentRuns.map((run) => (
-                    <details key={run.run_id} className="mail-detail-block mail-detail-block-card">
-                      <summary>
-                        <span>{run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}</span>
-                        <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
-                      </summary>
-                      <div className="signal-list" style={{ marginTop: 'var(--space-sm)' }}>
+                </div>
+              ) : (
+                selectedAgentRuns.map((run) => (
+                  <details key={run.run_id} className="mail-detail-block mail-detail-block-card">
+                    <summary>
+                      <span>{run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}</span>
+                      <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
+                    </summary>
+                    <div className="signal-list" style={{ marginTop: 'var(--space-sm)' }}>
+                      <div className="signal-row">
+                        <div>
+                          <div className="signal-row-title">结果摘要</div>
+                          <div className="signal-row-copy">{run.result_summary || '系统已记录这一轮自动处理。'}</div>
+                        </div>
+                        <span className="badge badge-ghost">{formatDateTime(run.updated_at || run.created_at)}</span>
+                      </div>
+                      {!!run.details?.reason_code && (
                         <div className="signal-row">
                           <div>
-                            <div className="signal-row-title">结果摘要</div>
-                            <div className="signal-row-copy">{run.result_summary || '系统已记录这一轮自动处理。'}</div>
+                            <div className="signal-row-title">原因代码</div>
+                            <div className="signal-row-copy">{getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}</div>
                           </div>
-                          <span className="badge badge-ghost">{formatDateTime(run.updated_at || run.created_at)}</span>
+                          <span className="badge badge-ghost">{run.details.reason_code}</span>
                         </div>
-                        {!!run.details?.reason_code && (
-                          <div className="signal-row">
-                            <div>
-                              <div className="signal-row-title">原因代码</div>
-                              <div className="signal-row-copy">{getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}</div>
-                            </div>
-                            <span className="badge badge-ghost">{run.details.reason_code}</span>
-                          </div>
-                        )}
-                        {(run.details?.policy || run.details?.command) && (
-                          <div className="signal-row">
-                            <div>
-                              <div className="signal-row-title">策略与指令</div>
-                              <div className="signal-row-copy">
-                                {run.details?.policy ? `策略 ${getAutoMailPolicyLabel(run.details.policy)}` : '未记录策略'}
-                                {run.details?.command ? ` · ${getMailCommandLabel(run.details.command)}` : ' · 未识别邮件指令'}
-                              </div>
+                      )}
+                      {(run.details?.policy || run.details?.command) && (
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">策略与指令</div>
+                            <div className="signal-row-copy">
+                              {run.details?.policy ? `策略 ${getAutoMailPolicyLabel(run.details.policy)}` : '未记录策略'}
+                              {run.details?.command ? ` · ${getMailCommandLabel(run.details.command)}` : ' · 未识别邮件指令'}
                             </div>
                           </div>
-                        )}
-                        {!!run.details?.draft_id && (
-                          <div className="signal-row">
-                            <div>
-                              <div className="signal-row-title">关联草稿</div>
-                              <div className="signal-row-copy">这次自动处理写到了草稿 {run.details.draft_id}。</div>
-                            </div>
-                            <span className="badge badge-ghost">{run.details.draft_id}</span>
+                        </div>
+                      )}
+                      {!!run.details?.draft_id && (
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">关联草稿</div>
+                            <div className="signal-row-copy">这次自动处理写到了草稿 {run.details.draft_id}。</div>
                           </div>
-                        )}
-                      </div>
-                    </details>
-                  ))
-                )}
-              </div>
-            </article>
-          )}
+                          <span className="badge badge-ghost">{run.details.draft_id}</span>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                ))
+              )}
+            </div>
+          </article>
           {(threadDetail.task_summaries || []).length > 0 && (
             <article className="dossier-card" style={{ transform: 'rotate(-0.18deg)', borderColor: 'rgba(47, 111, 237, 0.28)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
