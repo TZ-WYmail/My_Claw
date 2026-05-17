@@ -28,6 +28,7 @@ export default function MailControlGrid({
   threadFilters,
   setThreadFilters,
   refreshDeskThreads,
+  deskRefreshing,
 }) {
   return (
     <section className="board-lane atlas-paper-stack" style={{ marginBottom: 'var(--space-xl)' }}>
@@ -74,7 +75,9 @@ export default function MailControlGrid({
               >
                 清空筛选
               </button>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={refreshDeskThreads} disabled={loading}>刷新案头</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={refreshDeskThreads} disabled={deskRefreshing}>
+                {deskRefreshing ? '案头刷新中…' : '刷新案头'}
+              </button>
             </div>
           </div>
         </article>

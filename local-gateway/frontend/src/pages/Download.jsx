@@ -168,6 +168,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         threadFilters={state.threadFilters}
         setThreadFilters={state.setThreadFilters}
         refreshDeskThreads={state.refreshDeskThreads}
+        deskRefreshing={state.deskRefreshing}
       />
 
       {state.activeAccount && (

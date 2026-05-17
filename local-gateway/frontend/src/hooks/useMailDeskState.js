@@ -30,6 +30,7 @@ export function useMailDeskState({
   const [policySaving, setPolicySaving] = useState(false);
   const [pollingSaving, setPollingSaving] = useState(false);
   const [pollingRunning, setPollingRunning] = useState(false);
+  const [deskRefreshing, setDeskRefreshing] = useState(false);
   const [threadRefreshing, setThreadRefreshing] = useState(false);
   const [accountTesting, setAccountTesting] = useState(false);
   const [accountTestResult, setAccountTestResult] = useState(null);
@@ -243,6 +244,14 @@ export function useMailDeskState({
     ]);
   }, [fetchAccounts, fetchDashboard, fetchThreads, fetchSyncStatus, fetchPollingStatus, selectedAccount, selectedFolder]);
 
+  const refreshDeskSnapshot = useCallback(async (accountId = selectedAccount, folder = selectedFolder) => {
+    await Promise.all([
+      fetchDashboard(accountId),
+      fetchThreads(accountId, folder),
+      fetchSyncStatus(accountId),
+    ]);
+  }, [fetchDashboard, fetchThreads, fetchSyncStatus, selectedAccount, selectedFolder]);
+
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
@@ -352,12 +361,12 @@ export function useMailDeskState({
       toast('信已经寄出', 'success');
       setComposerOpen(false);
       resetComposer();
-      await refreshAll(draftForm.account_id, selectedFolder);
+      await refreshDeskSnapshot(draftForm.account_id, selectedFolder);
       setSelectedThreadId(draft.thread_id);
     } catch (e2) {
       toast(e2.message || '寄信失败', 'error');
     }
-  }, [draftForm.account_id, draftForm.subject, draftForm.to, ensureDraftSaved, refreshAll, request, resetComposer, selectedFolder, toast]);
+  }, [draftForm.account_id, draftForm.subject, draftForm.to, ensureDraftSaved, refreshDeskSnapshot, request, resetComposer, selectedFolder, toast]);
 
   const handleSaveDraftOnly = useCallback(async () => {
     if (!draftForm.account_id) {
@@ -371,7 +380,7 @@ export function useMailDeskState({
     try {
       const draft = await ensureDraftSaved();
       toast(composerDraftId ? '草稿已经更新' : '草稿已经放回案头', 'success');
-      await refreshAll(draftForm.account_id, selectedFolder);
+      await refreshDeskSnapshot(draftForm.account_id, selectedFolder);
       if (draft.thread_id) {
         setSelectedThreadId(draft.thread_id);
         await fetchThreadDetail(draft.thread_id);
@@ -379,13 +388,13 @@ export function useMailDeskState({
     } catch (e) {
       toast(e.message || '保存草稿失败', 'error');
     }
-  }, [composerDraftId, draftForm.account_id, draftForm.subject, ensureDraftSaved, fetchThreadDetail, refreshAll, selectedFolder, toast]);
+  }, [composerDraftId, draftForm.account_id, draftForm.subject, ensureDraftSaved, fetchThreadDetail, refreshDeskSnapshot, selectedFolder, toast]);
 
   const handleArchive = useCallback(async (threadId) => {
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/archive`, {}));
       toast('这封信已收进归档夹', 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       if (selectedFolder !== 'archive' && selectedThreadId === threadId) {
         setSelectedThreadId('');
         setThreadDetail(null);
@@ -395,20 +404,20 @@ export function useMailDeskState({
     } catch (e) {
       toast(e.message || '归档失败', 'error');
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleMarkRead = useCallback(async (threadId) => {
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/mark-read`, {}));
       toast('已把这封信翻到已读一侧', 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       if (selectedThreadId === threadId) {
         await fetchThreadDetail(threadId);
       }
     } catch (e) {
       toast(e.message || '标记已读失败', 'error');
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleSyncInbox = useCallback(async () => {
     if (!selectedAccount) {
@@ -419,7 +428,7 @@ export function useMailDeskState({
     try {
       const data = await request(() => apiPost(`/api/mail/accounts/${selectedAccount}/sync?folder_kind=inbox&limit=20`, {}));
       toast(`收件箱已同步，新增 ${data.new_count ?? 0} 封信`, 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       if (selectedThreadId) {
         await fetchThreadDetail(selectedThreadId);
       }
@@ -428,7 +437,7 @@ export function useMailDeskState({
     } finally {
       setSyncing(false);
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleRunPollingOnce = useCallback(async () => {
     setPollingRunning(true);
@@ -436,7 +445,10 @@ export function useMailDeskState({
       const data = await request(() => apiPost('/api/mail/polling/run-once', {}));
       const summary = data.polling?.last_summary || {};
       toast(`轮询已执行，新增 ${summary.new_count ?? 0} 封信`, 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await Promise.all([
+        refreshDeskSnapshot(selectedAccount, selectedFolder),
+        fetchPollingStatus(),
+      ]);
       if (selectedThreadId) {
         await fetchThreadDetail(selectedThreadId);
       }
@@ -445,7 +457,7 @@ export function useMailDeskState({
     } finally {
       setPollingRunning(false);
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchPollingStatus, fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handlePollingConfigChange = useCallback(async (patch) => {
     setPollingSaving(true);
@@ -503,14 +515,14 @@ export function useMailDeskState({
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/decision`, { decision_status: decisionStatus }));
       toast(decisionStatus === 'snoozed' ? '这封信稍后再来叩门' : '这封信先从待裁决队列退下', 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       if (selectedThreadId === threadId) {
         await fetchThreadDetail(threadId);
       }
     } catch (e) {
       toast(e.message || '更新决策状态失败', 'error');
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleDiscussWithAi = useCallback((thread) => {
     const latestMessage = thread.thread_id === selectedThreadId
@@ -532,14 +544,14 @@ export function useMailDeskState({
         priority: thread.risk_level === 'high' ? 1 : 2,
       }));
       toast(`已落成任务：${data.task_name}`, 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       if (selectedThreadId === thread.thread_id) {
         await fetchThreadDetail(thread.thread_id);
       }
     } catch (e) {
       toast(e.message || '从邮件创建任务失败', 'error');
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleGenerateReplyDraft = useCallback(async (thread) => {
     try {
@@ -550,12 +562,12 @@ export function useMailDeskState({
       }
       setSelectedThreadId(thread.thread_id);
       toast(data.draft_source === 'ai' ? 'AI 已替你起草回信' : '已生成模板回信草稿', 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       await fetchThreadDetail(thread.thread_id);
     } catch (e) {
       toast(e.message || '生成回信草稿失败', 'error');
     }
-  }, [fetchThreadDetail, openDraftComposer, refreshAll, request, selectedAccount, selectedFolder, toast]);
+  }, [fetchThreadDetail, openDraftComposer, refreshDeskSnapshot, request, selectedAccount, selectedFolder, toast]);
 
   const handleReplyThread = useCallback((thread) => {
     if (!thread) {
@@ -585,12 +597,12 @@ export function useMailDeskState({
     try {
       await request(() => apiPost(`/api/mail/drafts/${draft.draft_id}/send`, {}));
       toast('这份草稿已经寄出', 'success');
-      await refreshAll(selectedAccount, selectedFolder);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       await fetchThreadDetail(selectedThread.thread_id);
     } catch (e) {
       toast(e.message || '发送草稿失败', 'error');
     }
-  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThread, toast]);
+  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThread, toast]);
 
   const handleRefreshSelectedThread = useCallback(async (threadId = selectedThreadId) => {
     if (!threadId) {
@@ -612,17 +624,16 @@ export function useMailDeskState({
   }, [fetchDashboard, fetchThreadDetail, fetchThreads, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const refreshDeskThreads = useCallback(async () => {
+    setDeskRefreshing(true);
     try {
-      await Promise.all([
-        fetchDashboard(selectedAccount),
-        fetchThreads(selectedAccount, selectedFolder),
-        fetchSyncStatus(selectedAccount),
-      ]);
+      await refreshDeskSnapshot(selectedAccount, selectedFolder);
       toast('案头线程已经刷新', 'success');
     } catch (e) {
       toast(e.message || '刷新案头失败', 'error');
+    } finally {
+      setDeskRefreshing(false);
     }
-  }, [fetchDashboard, fetchSyncStatus, fetchThreads, selectedAccount, selectedFolder, toast]);
+  }, [refreshDeskSnapshot, selectedAccount, selectedFolder, toast]);
 
   const handleResetComposerToLatestDraft = useCallback(async () => {
     const threadId = composerThreadId || selectedThreadId;
@@ -706,6 +717,7 @@ export function useMailDeskState({
     policySaving,
     pollingSaving,
     pollingRunning,
+    deskRefreshing,
     threadRefreshing,
     accountTesting,
     accountTestResult,
