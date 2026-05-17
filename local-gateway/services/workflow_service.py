@@ -13,9 +13,7 @@ from typing import Callable, Optional
 
 from config import BASE_DIR
 from services.security_service import (
-    parse_command_string,
-    run_safe_subprocess,
-    validate_local_command,
+    execute_validated_local_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -344,21 +342,10 @@ class WorkflowEngine:
 
             elif action_type == "exec_command":
                 command = config.get("command", "")
-                if not command:
-                    return {"status": "error", "message": "命令为空"}
-
-                ok, cmd_list, message = parse_command_string(command)
-                if not ok or not cmd_list:
-                    return {"status": "error", "message": message}
-
-                valid, reason = validate_local_command(cmd_list, raw_command=command)
-                if not valid:
-                    logger.warning("拒绝执行命令: %s (%s)", command[:200], reason)
-                    return {"status": "error", "message": reason}
-
-                # 限制超时时间（最大300秒）
                 timeout = min(config.get("timeout", 60), 300)
-                result = await run_safe_subprocess(cmd_list, timeout=timeout)
+                result = await execute_validated_local_command(command, timeout=timeout)
+                if result.get("blocked"):
+                    logger.warning("拒绝执行命令: %s (%s)", command[:200], result.get("stderr", "blocked"))
                 return {
                     "status": result["status"],
                     "stdout": result.get("stdout", ""),

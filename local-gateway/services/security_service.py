@@ -281,6 +281,56 @@ async def run_safe_subprocess(
     }
 
 
+async def execute_validated_local_command(
+    raw_command: str,
+    *,
+    timeout: int,
+    stdout_limit: int = 8000,
+    stderr_limit: int = 4000,
+) -> dict:
+    """统一执行受白名单保护的本地命令。"""
+    if not raw_command or not raw_command.strip():
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": "命令为空",
+            "exit_code": 1,
+            "blocked": False,
+        }
+
+    ok, cmd_list, message = parse_command_string(raw_command)
+    if not ok or not cmd_list:
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": message,
+            "exit_code": 1,
+            "blocked": False,
+        }
+
+    valid, reason = validate_local_command(cmd_list, raw_command=raw_command)
+    if not valid:
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": reason,
+            "exit_code": -1,
+            "blocked": True,
+        }
+
+    result = await run_safe_subprocess(
+        cmd_list,
+        timeout=timeout,
+        stdout_limit=stdout_limit,
+        stderr_limit=stderr_limit,
+    )
+    return {
+        **result,
+        "blocked": False,
+        "command": cmd_list,
+    }
+
+
 def escape_html(text: str) -> str:
     """XSS 防护：HTML 实体编码（含单引号）"""
     if not isinstance(text, str):

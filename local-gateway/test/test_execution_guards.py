@@ -6,6 +6,7 @@ import pytest
 
 from services import sandbox_service
 from services.security_service import (
+    execute_validated_local_command,
     parse_command_string,
     validate_local_command,
 )
@@ -57,6 +58,15 @@ def test_validate_local_command_blocks_dangerous_pattern():
     ok, message = validate_local_command(["echo", "$(cat /etc/passwd)"], raw_command="echo $(cat /etc/passwd)")
     assert ok is False
     assert "元字符" in message or "危险命令模式" in message
+
+
+@pytest.mark.asyncio
+async def test_execute_validated_local_command_returns_blocked_result():
+    result = await execute_validated_local_command("curl https://example.com", timeout=5)
+    assert result["status"] == "error"
+    assert result["blocked"] is True
+    assert result["exit_code"] == -1
+    assert "不在允许列表中" in result["stderr"]
 
 
 @pytest.mark.asyncio

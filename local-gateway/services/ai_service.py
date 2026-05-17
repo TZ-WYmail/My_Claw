@@ -15,10 +15,9 @@ import httpx
 
 from config import ai_config
 from services.security_service import (
-    parse_command_string,
+    execute_validated_local_command,
     run_safe_subprocess,
     SHELL_DANGEROUS_PATTERNS,
-    validate_local_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -884,26 +883,28 @@ async def _execute_shell(args: dict) -> dict:
 
     logger.info(f"Shell Exec: {description or command[:80]}...")
 
-    if not command or not command.strip():
-        return {"status": "error", "stdout": "", "stderr": "命令为空", "exit_code": 1}
-
-    ok, cmd_list, message = parse_command_string(command)
-    if not ok or not cmd_list:
-        return {"status": "error", "stdout": "", "stderr": message, "exit_code": 1}
-
-    valid, reason = validate_local_command(cmd_list, raw_command=command)
-    if not valid:
-        logger.warning("Shell blocked command: %s (%s)", command[:200], reason)
+    result = await execute_validated_local_command(
+        command,
+        timeout=CODE_INTERPRETER_TIMEOUT,
+        stderr_limit=8000,
+    )
+    if result.get("blocked"):
+        logger.warning("Shell blocked command: %s (%s)", command[:200], result.get("stderr", "blocked"))
         return {
             "status": "error",
             "stdout": "",
-            "stderr": f"⚠️ {reason}。如需执行其他命令，请使用 Docker 沙盒工具。",
+            "stderr": f"⚠️ {result.get('stderr', '命令被拦截')}。如需执行其他命令，请使用 Docker 沙盒工具。",
             "exit_code": -1,
             "blocked": True,
         }
-
     logger.warning(f"Shell executing: {command[:200]}")
-    return await run_safe_subprocess(cmd_list, timeout=CODE_INTERPRETER_TIMEOUT, stderr_limit=8000)
+    return {
+        "status": result["status"],
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", ""),
+        "exit_code": result.get("exit_code", 1),
+        "blocked": False,
+    }
 
 
 async def test_connection(api_base: str = None, api_key: str = None, model: str = None) -> dict:
