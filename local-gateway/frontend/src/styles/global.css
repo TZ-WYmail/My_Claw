@@ -1699,6 +1699,55 @@ textarea { resize: vertical; min-height: 80px; }
   display: none;
 }
 
+.mail-send-review {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 250, 242, 0.78);
+  border: 1px solid rgba(103, 78, 40, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+}
+
+.mail-send-review-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.02rem;
+  color: var(--text-primary);
+}
+
+.mail-send-review-copy {
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.mail-send-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mail-send-review-card {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.4);
+  border: 1px solid rgba(67, 42, 28, 0.08);
+}
+
+.mail-send-review-label {
+  font-size: 0.74rem;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.mail-send-review-value {
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
 .war-room-hero {
   background:
     radial-gradient(circle at 14% 18%, rgba(198, 83, 61, 0.22), transparent 24%),

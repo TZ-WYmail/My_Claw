@@ -347,7 +347,7 @@ export default function OpenLetterPanel({
               <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
                 <button className="btn btn-sm btn-primary" onClick={() => onOpenDraftComposer(draft, selectedThread)}>继续编辑</button>
                 <button className="btn btn-sm btn-ghost" onClick={() => onSendDraft(draft)}>
-                  发送这版
+                  {draft.status === 'failed' ? '重新寄出这版' : '发送这版'}
                 </button>
               </div>
             </article>

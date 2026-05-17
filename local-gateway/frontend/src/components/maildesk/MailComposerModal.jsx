@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from 'react';
+
 export default function MailComposerModal({
   open,
   onClose,
@@ -14,6 +16,26 @@ export default function MailComposerModal({
   onResetToLatestDraft,
   onSaveDraftOnly,
 }) {
+  const [sendReviewOpen, setSendReviewOpen] = useState(false);
+
+  const recipientSummary = useMemo(() => {
+    return {
+      to: draftForm.to.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+      cc: draftForm.cc.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+      bcc: draftForm.bcc.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+    };
+  }, [draftForm.bcc, draftForm.cc, draftForm.to]);
+
+  useEffect(() => {
+    if (!open) {
+      setSendReviewOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setSendReviewOpen(false);
+  }, [composerDraftId, composerThreadId]);
+
   if (!open) {
     return null;
   }
@@ -110,6 +132,45 @@ export default function MailComposerModal({
             <textarea value={draftForm.signature} onChange={(e) => setDraftForm(prev => ({ ...prev, signature: e.target.value }))} style={{ minHeight: 90 }} />
           </div>
 
+          {sendReviewOpen && (
+            <section className="mail-send-review">
+              <div className="section-kicker">SEND REVIEW</div>
+              <h4 className="mail-send-review-title">{activeDraft?.status === 'failed' ? '重新寄出前确认' : '寄出前确认'}</h4>
+              <div className="mail-send-review-copy">
+                信一旦寄出，就会离开案头。现在先确认对象、主题和语气没有走偏，再把它送出去。
+              </div>
+              <div className="mail-send-review-grid">
+                <div className="mail-send-review-card">
+                  <div className="mail-send-review-label">收件人</div>
+                  <div className="mail-send-review-value">
+                    {recipientSummary.to.length > 0 ? recipientSummary.to.join(', ') : '尚未填写'}
+                  </div>
+                </div>
+                <div className="mail-send-review-card">
+                  <div className="mail-send-review-label">抄送 / 密送</div>
+                  <div className="mail-send-review-value">
+                    {[recipientSummary.cc.join(', '), recipientSummary.bcc.join(', ')].filter(Boolean).join(' / ') || '无'}
+                  </div>
+                </div>
+                <div className="mail-send-review-card">
+                  <div className="mail-send-review-label">主题</div>
+                  <div className="mail-send-review-value">{draftForm.subject.trim() || '尚未填写'}</div>
+                </div>
+                <div className="mail-send-review-card">
+                  <div className="mail-send-review-label">语气</div>
+                  <div className="mail-send-review-value">
+                    {toneOptions.find((option) => option.value === draftForm.tone_mode)?.label || draftForm.tone_mode || '未选择'}
+                  </div>
+                </div>
+              </div>
+              {activeDraft?.status === 'failed' && (
+                <div className="mail-inline-alert mail-inline-alert-error">
+                  这是一次失败后的重试寄送。若仍失败，优先检查账户链路、收件地址与 SMTP 配置。
+                </div>
+              )}
+            </section>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)' }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>收起信纸</button>
             <button
@@ -121,7 +182,23 @@ export default function MailComposerModal({
               {composerResetting ? '回退中…' : '回到最新草稿'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={onSaveDraftOnly} disabled={loading}>只保存草稿</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>寄出这封信</button>
+            {sendReviewOpen ? (
+              <>
+                <button type="button" className="btn btn-ghost" onClick={() => setSendReviewOpen(false)} disabled={loading}>返回继续修改</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading ? '寄送中…' : activeDraft?.status === 'failed' ? '确认重新寄出' : '确认寄出'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setSendReviewOpen(true)}
+                disabled={loading}
+              >
+                {activeDraft?.status === 'failed' ? '准备重新寄出' : '准备寄出'}
+              </button>
+            )}
           </div>
         </form>
       </div>
