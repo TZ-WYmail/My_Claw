@@ -5,6 +5,7 @@ export default function MailComposerModal({
   composerDraftId,
   composerThreadId,
   composerResetting,
+  activeDraft,
   loading,
   draftForm,
   setDraftForm,
@@ -32,11 +33,23 @@ export default function MailComposerModal({
           <div className="mail-composer-state">
             <span className="badge badge-ghost">{composerDraftId ? '正在编辑现有草稿' : '新草稿'}</span>
             <span className="badge badge-ghost">{composerThreadId ? '已挂在线程内' : '独立发信'}</span>
+            {activeDraft?.ai_generated && <span className="badge badge-warning">AI 起草</span>}
+            {activeDraft?.user_edited_after_ai && <span className="badge badge-ghost">你后来改过</span>}
             {composerResetting && <span className="badge badge-warning">正在回退草稿</span>}
           </div>
           {composerDraftId && (
             <div className="mail-inline-alert mail-inline-alert-success">
               这是一份已经落库的草稿。如果别处又改过它，可以随时回退到服务器上的最新版本。
+            </div>
+          )}
+          {activeDraft?.status === 'failed' && (
+            <div className="mail-inline-alert mail-inline-alert-error">
+              这份草稿上一次发送失败了。先核对收件人与正文，再重新寄出会更稳妥。
+            </div>
+          )}
+          {!!activeDraft?.scheduled_send_at && (
+            <div className="mail-inline-alert mail-inline-alert-success">
+              这份草稿记录了计划寄出时间：{activeDraft.scheduled_send_at}
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 'var(--space-md)' }}>

@@ -123,6 +123,20 @@ export function getAgentRunFilterLabel(filter) {
   return '全部记录';
 }
 
+export function getDraftStatusLabel(status) {
+  if (status === 'queued') return '待寄出';
+  if (status === 'failed') return '发送失败';
+  if (status === 'sent') return '已寄出';
+  return '草稿';
+}
+
+export function getDraftStatusBadge(status) {
+  if (status === 'failed') return 'badge-error';
+  if (status === 'queued') return 'badge-warning';
+  if (status === 'sent') return 'badge-completed';
+  return 'badge-pending';
+}
+
 const MAIL_ALLOWED_TAGS = new Set([
   'a', 'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's',
   'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'hr',

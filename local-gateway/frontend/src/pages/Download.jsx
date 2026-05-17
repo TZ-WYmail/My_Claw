@@ -270,6 +270,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         composerDraftId={state.composerDraftId}
         composerThreadId={state.composerThreadId}
         composerResetting={state.composerResetting}
+        activeDraft={state.activeDraft}
         loading={state.loading}
         draftForm={state.draftForm}
         setDraftForm={state.setDraftForm}

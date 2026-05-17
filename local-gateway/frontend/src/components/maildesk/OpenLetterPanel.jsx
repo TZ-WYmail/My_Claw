@@ -7,6 +7,8 @@ import {
   getAutoMailPolicyLabel,
   getAutoPolicyNarrative,
   getDecisionStatusLabel,
+  getDraftStatusBadge,
+  getDraftStatusLabel,
   getInboxLabel,
   getMailCommandLabel,
   getReplyLevelLabel,
@@ -323,8 +325,22 @@ export default function OpenLetterPanel({
                   <div className="section-kicker">草稿席</div>
                   <h3 className="dossier-title">{draft.subject}</h3>
                 </div>
-                <span className="badge badge-pending">{draft.status === 'queued' ? '待寄出' : '草稿'}</span>
+                <span className={`badge ${getDraftStatusBadge(draft.status)}`}>{getDraftStatusLabel(draft.status)}</span>
               </div>
+              <div className="mission-chip-row" style={{ marginTop: 'var(--space-sm)' }}>
+                <span className="badge badge-ghost">{draft.ai_generated ? 'AI 起草' : '手动草稿'}</span>
+                <span className={`badge ${draft.user_edited_after_ai ? 'badge-warning' : 'badge-ghost'}`}>
+                  {draft.user_edited_after_ai ? '你后来改过' : '保持原始版本'}
+                </span>
+                {!!draft.scheduled_send_at && (
+                  <span className="badge badge-ghost">计划寄出 {formatDateTime(draft.scheduled_send_at)}</span>
+                )}
+              </div>
+              {draft.status === 'failed' && (
+                <div className="mail-inline-alert mail-inline-alert-error" style={{ marginTop: 'var(--space-md)' }}>
+                  这份草稿上一次发送没有成功。你可以先继续编辑，确认收件人与内容后重新寄出。
+                </div>
+              )}
               <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.65 }}>
                 {draft.body_html || '这份草稿还没有正文。'}
               </div>
