@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiGet, apiPost, apiPut, useApi } from './useApi';
+import { useApi } from './useApi';
+import { useMailDeskAccountActions } from './useMailDeskAccountActions';
 import { useMailDeskComposer } from './useMailDeskComposer';
 import { useMailDeskData } from './useMailDeskData';
 import { useMailDeskPollingActions } from './useMailDeskPollingActions';
 import { useMailDeskThreadActions } from './useMailDeskThreadActions';
 import {
   buildMailtoReplyLink,
-  getAutoMailPolicyLabel,
   getMailKindLabel,
   getReplyLevelLabel,
 } from '../components/maildesk/maildeskShared.jsx';
@@ -19,13 +19,9 @@ export function useMailDeskState({
 }) {
   const { loading, request } = useApi();
 
-  const [syncing, setSyncing] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [selectedFolder, setSelectedFolder] = useState('');
   const [selectedThreadId, setSelectedThreadId] = useState('');
-  const [policySaving, setPolicySaving] = useState(false);
-  const [accountTesting, setAccountTesting] = useState(false);
-  const [accountTestResult, setAccountTestResult] = useState(null);
   const [taskComposerThreadId, setTaskComposerThreadId] = useState('');
   const [agentRunFilter, setAgentRunFilter] = useState('all');
   const [pollingState, setPollingState] = useState({
@@ -176,27 +172,6 @@ export function useMailDeskState({
     [threadDetail],
   );
 
-  const openPortalPage = useCallback((thread) => {
-    if (!thread?.portal_url) {
-      toast('这封信还没有可打开的处理页链接', 'error');
-      return;
-    }
-    window.open(thread.portal_url, '_blank', 'noopener,noreferrer');
-  }, [toast]);
-
-  const copyPortalLink = useCallback(async (thread) => {
-    if (!thread?.portal_url) {
-      toast('这封信还没有可复制的处理页链接', 'error');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(thread.portal_url);
-      toast('处理页链接已复制', 'success');
-    } catch {
-      toast('复制链接失败', 'error');
-    }
-  }, [toast]);
-
   const createTaskDraftFromThread = useCallback((thread) => {
     const sourceDetail = thread?.thread_id && thread?.thread_id === selectedThreadId ? threadDetail : null;
     const latestInbound = (sourceDetail?.messages || []).filter((item) => item.direction === 'inbound').slice(-1)[0];
@@ -256,45 +231,6 @@ export function useMailDeskState({
     }
   }, [quickAction, clearQuickAction, refreshAll]);
 
-  const handleSyncInbox = useCallback(async () => {
-    if (!selectedAccount) {
-      toast('请先选择一个书信账户', 'warning');
-      return;
-    }
-    setSyncing(true);
-    try {
-      const data = await request(() => apiPost(`/api/mail/accounts/${selectedAccount}/sync?folder_kind=inbox&limit=20`, {}));
-      toast(`收件箱已同步，新增 ${data.new_count ?? 0} 封信`, 'success');
-      const threadsInfo = await refreshDeskSnapshot(selectedAccount, selectedFolder, selectedThreadId);
-      if (threadsInfo?.selectedThreadId && threadsInfo.selectedThreadId === selectedThreadId) {
-        await fetchThreadDetail(selectedThreadId);
-      }
-    } catch (e) {
-      toast(e.message || '同步收件箱失败', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
-
-  const handleAccountTest = useCallback(async () => {
-    if (!activeAccount?.account_id) {
-      toast('请先选择一个书信账户', 'warning');
-      return;
-    }
-    setAccountTesting(true);
-    setAccountTestResult(null);
-    try {
-      const result = await request(() => apiPost(`/api/mail/accounts/${activeAccount.account_id}/test`, {}));
-      setAccountTestResult(result);
-      toast(result.status === 'success' ? '账户链路检定通过' : '账户链路检定失败', result.status === 'success' ? 'success' : 'error');
-    } catch (e) {
-      setAccountTestResult({ status: 'error', message: e.message || '链路检定失败' });
-      toast(e.message || '账户链路检定失败', 'error');
-    } finally {
-      setAccountTesting(false);
-    }
-  }, [activeAccount, request, toast]);
-
   const handleDiscussWithAi = useCallback((thread) => {
     const latestMessage = thread.thread_id === selectedThreadId
       ? (threadDetail?.messages || []).slice(-1)[0]
@@ -308,24 +244,6 @@ export function useMailDeskState({
     });
   }, [onOpenAi, selectedThreadId, threadDetail]);
 
-  const handlePolicyChange = useCallback(async (nextPolicy) => {
-    if (!activeAccount?.account_id || nextPolicy === activeAccount.auto_mail_policy) {
-      return;
-    }
-    setPolicySaving(true);
-    try {
-      await request(() => apiPut(`/api/mail/accounts/${activeAccount.account_id}`, {
-        auto_mail_policy: nextPolicy,
-      }));
-      toast(`自动处理已切到“${getAutoMailPolicyLabel(nextPolicy)}”`, 'success');
-      await refreshAll(selectedAccount, selectedFolder, selectedThreadId);
-    } catch (e) {
-      toast(e.message || '更新自动处理策略失败', 'error');
-    } finally {
-      setPolicySaving(false);
-    }
-  }, [activeAccount, refreshAll, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
-
   const openPrevThread = useCallback(() => {
     if (selectedThreadIndex > 0) {
       setSelectedThreadId(threads[selectedThreadIndex - 1].thread_id);
@@ -337,6 +255,28 @@ export function useMailDeskState({
       setSelectedThreadId(threads[selectedThreadIndex + 1].thread_id);
     }
   }, [selectedThreadIndex, threads]);
+
+  const {
+    syncing,
+    policySaving,
+    accountTesting,
+    accountTestResult,
+    openPortalPage,
+    copyPortalLink,
+    handleSyncInbox,
+    handleAccountTest,
+    handlePolicyChange,
+  } = useMailDeskAccountActions({
+    request,
+    toast,
+    activeAccount,
+    selectedAccount,
+    selectedFolder,
+    selectedThreadId,
+    refreshAll,
+    refreshDeskSnapshot,
+    fetchThreadDetail,
+  });
 
   const {
     composerOpen,
