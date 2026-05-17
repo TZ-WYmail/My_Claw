@@ -39,6 +39,12 @@ export function useMailDeskState({
   const [composerResetting, setComposerResetting] = useState(false);
   const [composerSaving, setComposerSaving] = useState(false);
   const [composerSending, setComposerSending] = useState(false);
+  const [archivingThreadId, setArchivingThreadId] = useState('');
+  const [markingReadThreadId, setMarkingReadThreadId] = useState('');
+  const [decisionUpdating, setDecisionUpdating] = useState({ threadId: '', status: '' });
+  const [replyDraftGeneratingThreadId, setReplyDraftGeneratingThreadId] = useState('');
+  const [taskCreatingThreadId, setTaskCreatingThreadId] = useState('');
+  const [draftSendingId, setDraftSendingId] = useState('');
   const [agentRunsLoading, setAgentRunsLoading] = useState(false);
   const [agentRunFilter, setAgentRunFilter] = useState('all');
   const [pollingFeedback, setPollingFeedback] = useState(null);
@@ -399,6 +405,7 @@ export function useMailDeskState({
   }, [composerDraftId, draftForm.account_id, draftForm.subject, ensureDraftSaved, fetchThreadDetail, refreshDeskSnapshot, selectedFolder, toast]);
 
   const handleArchive = useCallback(async (threadId) => {
+    setArchivingThreadId(threadId);
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/archive`, {}));
       toast('这封信已收进归档夹', 'success');
@@ -411,10 +418,13 @@ export function useMailDeskState({
       }
     } catch (e) {
       toast(e.message || '归档失败', 'error');
+    } finally {
+      setArchivingThreadId('');
     }
   }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleMarkRead = useCallback(async (threadId) => {
+    setMarkingReadThreadId(threadId);
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/mark-read`, {}));
       toast('已把这封信翻到已读一侧', 'success');
@@ -424,6 +434,8 @@ export function useMailDeskState({
       }
     } catch (e) {
       toast(e.message || '标记已读失败', 'error');
+    } finally {
+      setMarkingReadThreadId('');
     }
   }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
@@ -520,6 +532,7 @@ export function useMailDeskState({
   }, [activeAccount, request, toast]);
 
   const handleDecisionStatus = useCallback(async (threadId, decisionStatus) => {
+    setDecisionUpdating({ threadId, status: decisionStatus });
     try {
       await request(() => apiPost(`/api/mail/threads/${threadId}/decision`, { decision_status: decisionStatus }));
       toast(decisionStatus === 'snoozed' ? '这封信稍后再来叩门' : '这封信先从待裁决队列退下', 'success');
@@ -529,6 +542,8 @@ export function useMailDeskState({
       }
     } catch (e) {
       toast(e.message || '更新决策状态失败', 'error');
+    } finally {
+      setDecisionUpdating({ threadId: '', status: '' });
     }
   }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
@@ -546,6 +561,7 @@ export function useMailDeskState({
   }, [onOpenAi, selectedThreadId, threadDetail]);
 
   const handleCreateTaskFromMail = useCallback(async (thread) => {
+    setTaskCreatingThreadId(thread.thread_id);
     try {
       const data = await request(() => apiPost(`/api/mail/threads/${thread.thread_id}/create-task`, {
         task_name: `邮件跟进：${thread.subject}`,
@@ -558,10 +574,13 @@ export function useMailDeskState({
       }
     } catch (e) {
       toast(e.message || '从邮件创建任务失败', 'error');
+    } finally {
+      setTaskCreatingThreadId('');
     }
   }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThreadId, toast]);
 
   const handleGenerateReplyDraft = useCallback(async (thread) => {
+    setReplyDraftGeneratingThreadId(thread.thread_id);
     try {
       const data = await request(() => apiPost(`/api/mail/threads/${thread.thread_id}/generate-reply-draft`, {}));
       const latestDraft = (data.drafts || [])[0];
@@ -574,6 +593,8 @@ export function useMailDeskState({
       await fetchThreadDetail(thread.thread_id);
     } catch (e) {
       toast(e.message || '生成回信草稿失败', 'error');
+    } finally {
+      setReplyDraftGeneratingThreadId('');
     }
   }, [fetchThreadDetail, openDraftComposer, refreshDeskSnapshot, request, selectedAccount, selectedFolder, toast]);
 
@@ -602,6 +623,7 @@ export function useMailDeskState({
     if (!draft?.draft_id || !selectedThread?.thread_id) {
       return;
     }
+    setDraftSendingId(draft.draft_id);
     try {
       await request(() => apiPost(`/api/mail/drafts/${draft.draft_id}/send`, {}));
       toast('这份草稿已经寄出', 'success');
@@ -609,6 +631,8 @@ export function useMailDeskState({
       await fetchThreadDetail(selectedThread.thread_id);
     } catch (e) {
       toast(e.message || '发送草稿失败', 'error');
+    } finally {
+      setDraftSendingId('');
     }
   }, [fetchThreadDetail, refreshDeskSnapshot, request, selectedAccount, selectedFolder, selectedThread, toast]);
 
@@ -734,6 +758,12 @@ export function useMailDeskState({
     composerResetting,
     composerSaving,
     composerSending,
+    archivingThreadId,
+    markingReadThreadId,
+    decisionUpdating,
+    replyDraftGeneratingThreadId,
+    taskCreatingThreadId,
+    draftSendingId,
     agentRunsLoading,
     agentRunFilter,
     setAgentRunFilter,

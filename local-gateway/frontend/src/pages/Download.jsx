@@ -243,6 +243,12 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
             activeDraft={state.activeDraft}
             latestAgentRun={state.latestAgentRun}
             threadDetail={state.threadDetail}
+            archivingThreadId={state.archivingThreadId}
+            markingReadThreadId={state.markingReadThreadId}
+            decisionUpdating={state.decisionUpdating}
+            replyDraftGeneratingThreadId={state.replyDraftGeneratingThreadId}
+            taskCreatingThreadId={state.taskCreatingThreadId}
+            draftSendingId={state.draftSendingId}
             selectedAgentRuns={state.selectedAgentRuns}
             agentRunFilter={state.agentRunFilter}
             agentRunsLoading={state.agentRunsLoading}

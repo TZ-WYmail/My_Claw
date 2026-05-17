@@ -25,6 +25,12 @@ export default function OpenLetterPanel({
   activeDraft,
   latestAgentRun,
   threadDetail,
+  archivingThreadId,
+  markingReadThreadId,
+  decisionUpdating,
+  replyDraftGeneratingThreadId,
+  taskCreatingThreadId,
+  draftSendingId,
   selectedAgentRuns,
   agentRunFilter,
   agentRunsLoading,
@@ -43,6 +49,13 @@ export default function OpenLetterPanel({
   onOpenDraftComposer,
   onSendDraft,
 }) {
+  const selectedThreadId = selectedThread?.thread_id || '';
+  const isArchivingSelected = archivingThreadId && archivingThreadId === selectedThreadId;
+  const isMarkingReadSelected = markingReadThreadId && markingReadThreadId === selectedThreadId;
+  const isGeneratingReplyDraft = replyDraftGeneratingThreadId && replyDraftGeneratingThreadId === selectedThreadId;
+  const isCreatingTask = taskCreatingThreadId && taskCreatingThreadId === selectedThreadId;
+  const isDecisionPending = (status) => decisionUpdating.threadId === selectedThreadId && decisionUpdating.status === status;
+
   return (
     <section className="board-lane atlas-ledger-lane mail-spread-lane mail-letter-lane">
       <div className="board-lane-header mail-lane-header">
@@ -136,16 +149,40 @@ export default function OpenLetterPanel({
               <button className="btn btn-sm btn-ghost" onClick={() => handleRefreshSelectedThread(selectedThread.thread_id)} disabled={threadRefreshing}>
                 {threadRefreshing ? '刷新中…' : '刷新这封信'}
               </button>
-              {!!selectedThread.unread_count && <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(selectedThread.thread_id)}>标记已读</button>}
-              {selectedThread.latest_folder_kind !== 'archive' && <button className="btn btn-sm btn-ghost" onClick={() => handleArchive(selectedThread.thread_id)}>归档</button>}
-              {selectedThread.decision_status !== 'pending' && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'pending')}>恢复待决定</button>}
-              {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'snoozed')}>稍后再问</button>}
-              {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'cleared')}>暂时处理完</button>}
+              {!!selectedThread.unread_count && (
+                <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(selectedThread.thread_id)} disabled={isMarkingReadSelected}>
+                  {isMarkingReadSelected ? '标记中…' : '标记已读'}
+                </button>
+              )}
+              {selectedThread.latest_folder_kind !== 'archive' && (
+                <button className="btn btn-sm btn-ghost" onClick={() => handleArchive(selectedThread.thread_id)} disabled={isArchivingSelected}>
+                  {isArchivingSelected ? '归档中…' : '归档'}
+                </button>
+              )}
+              {selectedThread.decision_status !== 'pending' && (
+                <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'pending')} disabled={isDecisionPending('pending')}>
+                  {isDecisionPending('pending') ? '恢复中…' : '恢复待决定'}
+                </button>
+              )}
+              {selectedThread.waiting_user_decision && (
+                <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'snoozed')} disabled={isDecisionPending('snoozed')}>
+                  {isDecisionPending('snoozed') ? '稍候中…' : '稍后再问'}
+                </button>
+              )}
+              {selectedThread.waiting_user_decision && (
+                <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'cleared')} disabled={isDecisionPending('cleared')}>
+                  {isDecisionPending('cleared') ? '收束中…' : '暂时处理完'}
+                </button>
+              )}
               <button className="btn btn-sm btn-primary" onClick={() => handleReplyThread(selectedThread)}>
                 {activeDraft ? '继续写草稿' : '回复这封信'}
               </button>
-              <button className="btn btn-sm btn-ghost" onClick={() => handleGenerateReplyDraft(selectedThread)}>一键起草</button>
-              <button className="btn btn-sm btn-ghost" onClick={() => handleCreateTaskFromMail(selectedThread)}>转成任务</button>
+              <button className="btn btn-sm btn-ghost" onClick={() => handleGenerateReplyDraft(selectedThread)} disabled={isGeneratingReplyDraft}>
+                {isGeneratingReplyDraft ? '起草中…' : '一键起草'}
+              </button>
+              <button className="btn btn-sm btn-ghost" onClick={() => handleCreateTaskFromMail(selectedThread)} disabled={isCreatingTask}>
+                {isCreatingTask ? '落任务中…' : '转成任务'}
+              </button>
               <button className="btn btn-sm btn-ghost" onClick={() => handleDiscussWithAi(selectedThread)}>和 AI 商量</button>
             </div>
           </div>
@@ -352,8 +389,8 @@ export default function OpenLetterPanel({
               </div>
               <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
                 <button className="btn btn-sm btn-primary" onClick={() => onOpenDraftComposer(draft, selectedThread)}>继续编辑</button>
-                <button className="btn btn-sm btn-ghost" onClick={() => onSendDraft(draft)}>
-                  {draft.status === 'failed' ? '重新寄出这版' : '发送这版'}
+                <button className="btn btn-sm btn-ghost" onClick={() => onSendDraft(draft)} disabled={draftSendingId === draft.draft_id}>
+                  {draftSendingId === draft.draft_id ? '寄送中…' : draft.status === 'failed' ? '重新寄出这版' : '发送这版'}
                 </button>
               </div>
             </article>
