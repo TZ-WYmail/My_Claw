@@ -1482,6 +1482,30 @@ textarea { resize: vertical; min-height: 80px; }
   margin: -4px 0 var(--space-md);
 }
 
+.mail-thread-snapshot {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 var(--space-md);
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.08)),
+    rgba(47, 111, 237, 0.045);
+  border: 1px solid rgba(67, 42, 28, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.36);
+}
+
+.mail-thread-snapshot-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.mail-thread-snapshot-title {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 .mail-letter-note {
   padding: 10px 12px;
   border-left: 3px solid rgba(176, 139, 110, 0.46);

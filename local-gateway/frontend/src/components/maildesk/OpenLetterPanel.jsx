@@ -108,6 +108,8 @@ export default function OpenLetterPanel({
   const isGeneratingReplyDraft = replyDraftGeneratingThreadId && replyDraftGeneratingThreadId === selectedThreadId;
   const isCreatingTask = taskCreatingThreadId && taskCreatingThreadId === selectedThreadId;
   const isDecisionPending = (status) => decisionUpdating.threadId === selectedThreadId && decisionUpdating.status === status;
+  const taskCount = (threadDetail?.task_summaries || []).length;
+  const agentRunCount = (threadDetail?.agent_runs || []).length;
 
   return (
     <section className="board-lane atlas-ledger-lane mail-spread-lane mail-letter-lane">
@@ -137,6 +139,39 @@ export default function OpenLetterPanel({
           </div>
         </div>
       </div>
+      {selectedThread && (
+        <div className="mail-thread-snapshot">
+          <div className="mail-thread-snapshot-copy">
+            <div className="section-kicker">THREAD SNAPSHOT</div>
+            <div className="mail-thread-snapshot-title">这条线程现在挂着哪些现实状态</div>
+          </div>
+          <div className="mission-chip-row">
+            <span className={`badge ${selectedThread.unread_count ? 'badge-error' : 'badge-ghost'}`}>
+              {selectedThread.unread_count ? `${selectedThread.unread_count} 封未读` : '未读已清空'}
+            </span>
+            <span className={`badge ${selectedThread.needs_reply ? 'badge-warning' : 'badge-ghost'}`}>
+              {selectedThread.needs_reply ? '仍待回信' : '当前不急着回'}
+            </span>
+            <span className={`badge ${selectedThread.waiting_user_decision ? 'badge-pending' : 'badge-ghost'}`}>
+              {selectedThread.waiting_user_decision ? getDecisionStatusLabel(selectedThread.decision_status) : '不占裁决栈'}
+            </span>
+            <span className={`badge ${selectedThread.has_pending_draft ? 'badge-warning' : 'badge-ghost'}`}>
+              {selectedThread.has_pending_draft ? '案头有待发草稿' : '当前没有挂起草稿'}
+            </span>
+            {!!selectedThread.latest_draft_scheduled_send_at && (
+              <span className={`badge ${selectedThread.latest_draft_status === 'failed' ? 'badge-error' : 'badge-ghost'}`}>
+                {selectedThread.latest_draft_status === 'failed' ? '定时草稿曾失败' : '挂着定时寄出'}
+              </span>
+            )}
+            <span className={`badge ${taskCount > 0 ? 'badge-completed' : 'badge-ghost'}`}>
+              {taskCount > 0 ? `牵出 ${taskCount} 项任务` : '尚未牵出任务'}
+            </span>
+            <span className={`badge ${agentRunCount > 0 ? 'badge-completed' : 'badge-ghost'}`}>
+              {agentRunCount > 0 ? `${agentRunCount} 条代理台账` : '尚无代理台账'}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="mail-letter-annotations">
         {!selectedThread && selectedFolder !== 'archive' && (
           <div className="mail-letter-note">
