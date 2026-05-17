@@ -1,4 +1,5 @@
 import services.mail_service as mail_service
+from services.mail import facade as mail_facade
 
 
 def test_mail_service_exposes_compatibility_surface():
@@ -39,3 +40,43 @@ def test_mail_service_exposes_compatibility_surface():
 
     for symbol in expected_symbols:
         assert hasattr(mail_service, symbol), symbol
+
+
+def test_mail_facade_declares_explicit_exports():
+    expected_exports = {
+        "create_mail_account",
+        "update_mail_account",
+        "delete_mail_account",
+        "list_mail_accounts",
+        "get_mail_account",
+        "list_mail_folders",
+        "test_mail_account_connection",
+        "create_mail_draft",
+        "update_mail_draft",
+        "send_mail_draft",
+        "ingest_mail_message",
+        "list_mail_threads",
+        "get_mail_thread",
+        "get_mail_dashboard",
+        "mark_thread_read",
+        "move_thread_to_folder",
+        "set_thread_decision_status",
+        "create_task_from_mail_thread",
+        "generate_reply_draft_for_thread",
+        "auto_handle_incoming_mail",
+        "list_mail_agent_runs",
+        "get_mail_polling_status",
+        "update_mail_polling_config",
+        "start_mail_polling_scheduler",
+        "stop_mail_polling_scheduler",
+        "run_mail_polling_once",
+        "mail_polling_runtime",
+        "MailPollingRuntime",
+        "init_mail_db",
+        "sync_mail_account",
+        "get_mail_sync_status",
+        "verify_mail_portal_token",
+        "build_mail_portal_links",
+    }
+
+    assert expected_exports.issubset(set(mail_facade.__all__))
