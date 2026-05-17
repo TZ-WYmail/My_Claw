@@ -76,6 +76,13 @@ function getAutoMailPolicyLabel(policy) {
   return '起草待确认';
 }
 
+function getMailCommandLabel(command) {
+  if (command === 'create_task') return '识别为转任务意图';
+  if (command === 'draft_reply') return '识别为先起草回信';
+  if (command === 'archive') return '识别为归档处理';
+  return '未识别到邮件指令';
+}
+
 function getAgentRunStatusLabel(status) {
   if (status === 'draft_created') return '已起草';
   if (status === 'user_confirmation_required') return '待你确认';
@@ -608,6 +615,14 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   const selectedMailtoHref = useMemo(
     () => buildMailtoReplyLink(selectedThread, threadDetail, activeDraft),
     [activeDraft, selectedThread, threadDetail],
+  );
+  const selectedThreadAccount = useMemo(
+    () => accounts.find((item) => item.account_id === selectedThread?.account_id) || null,
+    [accounts, selectedThread],
+  );
+  const latestAgentRun = useMemo(
+    () => (threadDetail?.agent_runs || [])[0] || null,
+    [threadDetail],
   );
 
   const parseRecipientLine = (value) => {
@@ -1653,6 +1668,12 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                   {selectedThread.has_pending_draft ? '案头还有一份待发草稿。' : '当前没有挂起草稿。'}
                 </div>
               )}
+              {selectedThreadAccount && (
+                <div className="mail-letter-note">
+                  当前账户策略是“{getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy)}”。
+                  {getAutoPolicyNarrative(selectedThreadAccount.auto_mail_policy)}
+                </div>
+              )}
             </div>
             {selectedThread && (
               <div className="mail-letter-toolbar">
@@ -1718,6 +1739,76 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
               </div>
             ) : (
               <div className="board-card-grid mail-letter-stack" style={{ gridTemplateColumns: '1fr' }}>
+                <article className="dossier-card" style={{ transform: 'rotate(-0.15deg)', borderColor: 'rgba(103, 78, 40, 0.22)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                    <div>
+                      <div className="section-kicker">AUTOMATION COUNSEL</div>
+                      <h3 className="dossier-title">自动处理说明</h3>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
+                        这里解释系统为什么把它判成待回复、待决定，或者为什么自动流程没有继续往下走。
+                      </div>
+                    </div>
+                    <span className={`badge ${selectedThread.waiting_user_decision ? 'badge-warning' : 'badge-ghost'}`}>
+                      {selectedThread.waiting_user_decision ? '仍待你裁决' : '当前不占裁决栈'}
+                    </span>
+                  </div>
+                  <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
+                    <div className="signal-row">
+                      <div>
+                        <div className="signal-row-title">线程判断</div>
+                        <div className="signal-row-copy">{selectedThread.analysis_reason || '当前还没有分析说明。'}</div>
+                      </div>
+                      <span className={`badge ${getRiskBadgeClass(selectedThread.risk_level)}`}>{getReplyLevelLabel(selectedThread.reply_level)}</span>
+                    </div>
+                    <div className="signal-row">
+                      <div>
+                        <div className="signal-row-title">自动策略</div>
+                        <div className="signal-row-copy">
+                          {selectedThreadAccount
+                            ? `${getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy)} · ${getAutoPolicyNarrative(selectedThreadAccount.auto_mail_policy)}`
+                            : '当前还没找到这条线程对应的账户策略。'}
+                        </div>
+                      </div>
+                      <span className="badge badge-ghost">{selectedThreadAccount ? getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy) : '未识别'}</span>
+                    </div>
+                    {latestAgentRun && (
+                      <>
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">最近一次代理判断</div>
+                            <div className="signal-row-copy">{latestAgentRun.result_summary || '已记录自动处理结果。'}</div>
+                            {!!latestAgentRun.details?.reason_code && (
+                              <div className="signal-row-copy" style={{ marginTop: 6 }}>
+                                {getAgentRunReasonLabel(latestAgentRun.details.reason_code) || latestAgentRun.details.reason_code}
+                              </div>
+                            )}
+                          </div>
+                          <span className={`badge ${getAgentRunStatusBadge(latestAgentRun.status)}`}>{getAgentRunStatusLabel(latestAgentRun.status)}</span>
+                        </div>
+                        <div className="signal-row">
+                          <div>
+                            <div className="signal-row-title">代理命令解释</div>
+                            <div className="signal-row-copy">{getMailCommandLabel(latestAgentRun.details?.command)}</div>
+                          </div>
+                          <span className="badge badge-ghost">{formatDateTime(latestAgentRun.updated_at || latestAgentRun.created_at)}</span>
+                        </div>
+                      </>
+                    )}
+                    {!latestAgentRun && (
+                      <div className="signal-row">
+                        <div>
+                          <div className="signal-row-title">尚未留下自动处理台账</div>
+                          <div className="signal-row-copy">这通常意味着后台轮询还没处理到这封新来信，或者当前线程还没有触发自动处理链路。</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {selectedThreadAccount?.auto_mail_policy === 'auto_send' && (
+                    <div className="mail-inline-alert mail-inline-alert-error" style={{ marginTop: 'var(--space-md)' }}>
+                      当前账户处于“自动寄出”策略。只要线程被判断为直接协商来信且自动起草成功，系统可能直接把回信发出。
+                    </div>
+                  )}
+                </article>
                 {(threadDetail.agent_runs || []).length > 0 && (
                   <article className="dossier-card" style={{ transform: 'rotate(0.25deg)', borderColor: 'var(--accent)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
