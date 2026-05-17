@@ -22,6 +22,7 @@ export default function OpenLetterPanel({
   selectedThreadAccount,
   selectedMailtoHref,
   threadRefreshing,
+  threadDetailLoading,
   activeDraft,
   latestAgentRun,
   threadDetail,
@@ -189,11 +190,17 @@ export default function OpenLetterPanel({
         </div>
       )}
 
-      {!selectedThread || !threadDetail ? (
+      {!selectedThread ? (
         <div className="empty-state">
           <div className="empty-state-icon">🕯️</div>
           <div className="empty-state-text">先从左侧选一封信</div>
           <div className="empty-state-hint">最值得先翻开的，通常是那条还亮着未读或待回标记的线程。</div>
+        </div>
+      ) : threadDetailLoading || !threadDetail ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">📨</div>
+          <div className="empty-state-text">正在展开这封信</div>
+          <div className="empty-state-hint">旧纸页已经收起，新的上下文与自动处理台账正在落到桌面上。</div>
         </div>
       ) : (
         <div className="board-card-grid mail-letter-stack" style={{ gridTemplateColumns: '1fr' }}>

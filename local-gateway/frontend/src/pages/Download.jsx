@@ -240,6 +240,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
             selectedThreadAccount={state.selectedThreadAccount}
             selectedMailtoHref={state.selectedMailtoHref}
             threadRefreshing={state.threadRefreshing}
+            threadDetailLoading={state.threadDetailLoading}
             activeDraft={state.activeDraft}
             latestAgentRun={state.latestAgentRun}
             threadDetail={state.threadDetail}

@@ -26,6 +26,7 @@ export function useMailDeskState({
   const [selectedFolder, setSelectedFolder] = useState('');
   const [selectedThreadId, setSelectedThreadId] = useState('');
   const [threadDetail, setThreadDetail] = useState(null);
+  const [threadDetailLoading, setThreadDetailLoading] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [policySaving, setPolicySaving] = useState(false);
   const [pollingSaving, setPollingSaving] = useState(false);
@@ -303,10 +304,17 @@ export function useMailDeskState({
   const fetchThreadDetail = useCallback(async (threadId) => {
     if (!threadId) {
       setThreadDetail(null);
+      setThreadDetailLoading(false);
       return;
     }
-    const data = await apiGet(`/api/mail/threads/${threadId}`);
-    setThreadDetail(data);
+    setThreadDetailLoading(true);
+    setThreadDetail((prev) => (prev?.thread?.thread_id === threadId ? prev : null));
+    try {
+      const data = await apiGet(`/api/mail/threads/${threadId}`);
+      setThreadDetail(data);
+    } finally {
+      setThreadDetailLoading(false);
+    }
   }, []);
 
   const fetchAgentRuns = useCallback(async (threadId, limit = 20) => {
@@ -361,6 +369,10 @@ export function useMailDeskState({
   useEffect(() => {
     fetchThreadDetail(selectedThreadId);
   }, [fetchThreadDetail, selectedThreadId]);
+
+  useEffect(() => {
+    setAgentRunFilter('all');
+  }, [selectedThreadId]);
 
   useEffect(() => {
     if (activeAccount) {
@@ -827,6 +839,7 @@ export function useMailDeskState({
     selectedThreadId,
     setSelectedThreadId,
     threadDetail,
+    threadDetailLoading,
     composerOpen,
     setComposerOpen,
     policySaving,
