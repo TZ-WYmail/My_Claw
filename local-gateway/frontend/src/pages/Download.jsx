@@ -2,6 +2,31 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi, apiGet, apiPost, apiPut } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { normalizeList } from '../utils/normalize';
+import MailComposerModal from '../components/maildesk/MailComposerModal';
+import OpenLetterPanel from '../components/maildesk/OpenLetterPanel';
+import {
+  ArchiveThreadRow,
+  buildMailtoReplyLink,
+  createComposerStateFromDraft,
+  DecisionQueueCard,
+  formatDateTime,
+  getAgentRunFilterLabel,
+  getAgentRunReasonLabel,
+  getAgentRunStatusBadge,
+  getAgentRunStatusLabel,
+  getAutoMailPolicyLabel,
+  getAutoPolicyNarrative,
+  getDecisionStatusLabel,
+  getExecutionBadgeClass,
+  getExecutionStatusLabel,
+  getInboxLabel,
+  getMailCommandLabel,
+  getMailKindLabel,
+  getReplyLevelLabel,
+  getRiskBadgeClass,
+  MessagePaper,
+  ThreadCard,
+} from '../components/maildesk/maildeskShared.jsx';
 
 const FOLDER_OPTIONS = [
   { value: '', label: '全部信箱' },
@@ -29,489 +54,6 @@ const POLLING_FOLDER_OPTIONS = [
   { value: 'drafts', label: '草稿' },
   { value: 'archive', label: '归档' },
 ];
-
-function getInboxLabel(folder) {
-  if (folder === 'archive') return '已归档';
-  if (folder === 'sent') return '已发出';
-  if (folder === 'drafts') return '草稿';
-  return '收件箱';
-}
-
-function formatDateTime(value) {
-  if (!value) return '未记录';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function getReplyLevelLabel(level) {
-  if (level === 'must_reply') return '必须回信';
-  if (level === 'suggest_reply') return '建议回复';
-  return '仅供阅读';
-}
-
-function getDecisionStatusLabel(status) {
-  if (status === 'snoozed') return '稍后再问';
-  if (status === 'cleared') return '暂时处理完';
-  return '待你决定';
-}
-
-function getMailKindLabel(kind) {
-  if (kind === 'planning') return '规划相关';
-  if (kind === 'reply') return '往返信件';
-  if (kind === 'marketing') return '营销订阅';
-  if (kind === 'outbound') return '已发信';
-  return '信息信件';
-}
-
-function getRiskBadgeClass(level) {
-  if (level === 'high') return 'badge-error';
-  if (level === 'low') return 'badge-completed';
-  return 'badge-warning';
-}
-
-function getAutoMailPolicyLabel(policy) {
-  if (policy === 'draft_only') return '只起草';
-  if (policy === 'auto_send') return '自动寄出';
-  return '起草待确认';
-}
-
-function getMailCommandLabel(command) {
-  if (command === 'create_task') return '识别为转任务意图';
-  if (command === 'draft_reply') return '识别为先起草回信';
-  if (command === 'archive') return '识别为归档处理';
-  return '未识别到邮件指令';
-}
-
-function getAgentRunStatusLabel(status) {
-  if (status === 'draft_created') return '已起草';
-  if (status === 'user_confirmation_required') return '待你确认';
-  if (status === 'sent') return '已自动寄出';
-  if (status === 'failed') return '执行失败';
-  if (status === 'skipped_non_direct') return '跳过非直接来信';
-  if (status === 'skipped') return '已跳过';
-  return status || '未记录';
-}
-
-function getAgentRunStatusBadge(status) {
-  if (status === 'sent') return 'badge-completed';
-  if (status === 'failed') return 'badge-error';
-  if (status === 'skipped_non_direct' || status === 'skipped') return 'badge-ghost';
-  return 'badge-warning';
-}
-
-function getAgentRunReasonLabel(reasonCode) {
-  if (reasonCode === 'non_direct_thread') return '判定为非直接协商来信';
-  if (reasonCode === 'draft_generation_failed') return '起草阶段失败';
-  if (reasonCode === 'policy_draft_only') return '策略要求只起草';
-  if (reasonCode === 'policy_requires_confirmation') return '策略要求等待确认';
-  if (reasonCode === 'policy_auto_send') return '策略允许自动寄出';
-  if (reasonCode === 'send_failed') return '发信阶段失败';
-  return '';
-}
-
-function getAutoPolicyNarrative(policy) {
-  if (policy === 'draft_only') return '来信到了先落草稿，不打扰你做最终决定。';
-  if (policy === 'auto_send') return '来信一旦命中自动处理链路，代理会直接替你把回信寄出去。';
-  return '来信先被起草，再回到你的案头，等你拍板。';
-}
-
-function getExecutionBadgeClass(status) {
-  if (status === 'success') return 'badge-completed';
-  if (status === 'error') return 'badge-error';
-  return 'badge-ghost';
-}
-
-function getExecutionStatusLabel(status) {
-  if (status === 'success') return '成功';
-  if (status === 'error') return '失败';
-  if (status === 'skipped') return '跳过';
-  return status || '未记录';
-}
-
-function getAgentRunFilterLabel(filter) {
-  if (filter === 'user_confirmation_required') return '待确认';
-  if (filter === 'draft_created') return '已起草';
-  if (filter === 'sent') return '已寄出';
-  if (filter === 'failed') return '失败';
-  if (filter === 'skipped') return '已跳过';
-  if (filter === 'skipped_non_direct') return '非直接来信';
-  return '全部记录';
-}
-
-const MAIL_ALLOWED_TAGS = new Set([
-  'a', 'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's',
-  'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'hr',
-  'table', 'thead', 'tbody', 'tr', 'th', 'td',
-]);
-
-const MAIL_UNWRAP_ONLY_TAGS = new Set([
-  'html', 'body', 'head', 'section', 'article', 'main', 'header', 'footer',
-]);
-
-const MAIL_DROP_TAGS = new Set([
-  'script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button',
-  'textarea', 'select', 'option', 'svg', 'math', 'canvas', 'video', 'audio',
-  'source', 'picture', 'img', 'link', 'meta', 'base',
-]);
-
-function sanitizeMailHref(rawHref) {
-  if (!rawHref) return '';
-  const href = rawHref.trim();
-  if (!href) return '';
-  if (
-    href.startsWith('/') ||
-    href.startsWith('./') ||
-    href.startsWith('../') ||
-    href.startsWith('#') ||
-    href.startsWith('?')
-  ) {
-    return href;
-  }
-  try {
-    const parsed = new URL(href, window.location.origin);
-    if (['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol.toLowerCase())) {
-      return parsed.href;
-    }
-  } catch {
-    return '';
-  }
-  return '';
-}
-
-function sanitizeMailHtml(rawHtml) {
-  if (!rawHtml || typeof window === 'undefined') return '';
-  const parser = new window.DOMParser();
-  const doc = parser.parseFromString(rawHtml, 'text/html');
-
-  const unwrapElement = (node) => {
-    const parent = node.parentNode;
-    if (!parent) return;
-    while (node.firstChild) {
-      parent.insertBefore(node.firstChild, node);
-    }
-    parent.removeChild(node);
-  };
-
-  Array.from(doc.body.querySelectorAll('*')).forEach((node) => {
-    const tag = node.tagName.toLowerCase();
-    if (MAIL_DROP_TAGS.has(tag)) {
-      node.remove();
-      return;
-    }
-    if (MAIL_UNWRAP_ONLY_TAGS.has(tag)) {
-      unwrapElement(node);
-      return;
-    }
-    if (!MAIL_ALLOWED_TAGS.has(tag)) {
-      unwrapElement(node);
-      return;
-    }
-
-    Array.from(node.attributes).forEach((attr) => {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on') || name === 'style' || name === 'class' || name === 'id') {
-        node.removeAttribute(attr.name);
-        return;
-      }
-      if (tag === 'a' && name === 'href') {
-        const safeHref = sanitizeMailHref(attr.value);
-        if (safeHref) {
-          node.setAttribute('href', safeHref);
-        } else {
-          node.removeAttribute(attr.name);
-        }
-        return;
-      }
-      if (!['href', 'title', 'colspan', 'rowspan'].includes(name)) {
-        node.removeAttribute(attr.name);
-      }
-    });
-
-    if (tag === 'a') {
-      if (!node.getAttribute('href')) {
-        unwrapElement(node);
-        return;
-      }
-      node.setAttribute('target', '_blank');
-      node.setAttribute('rel', 'noopener noreferrer nofollow');
-    }
-  });
-
-  return doc.body.innerHTML.trim();
-}
-
-function normalizePlainLink(rawValue) {
-  const match = rawValue.match(/^(.*?)([),.;!?]+)?$/);
-  const core = (match?.[1] || rawValue).trim();
-  const suffix = match?.[2] || '';
-  if (!core) return null;
-
-  if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(core)) {
-    return { href: `mailto:${core}`, label: core, suffix };
-  }
-
-  if (/^www\./i.test(core)) {
-    return { href: `https://${core}`, label: core, suffix };
-  }
-
-  const href = sanitizeMailHref(core);
-  if (!href) return null;
-  return { href, label: core, suffix };
-}
-
-function renderPlainTextWithLinks(text) {
-  const source = text || '这封信还没有正文。';
-  const lines = source.split(/\r?\n/);
-  const pattern = /((?:https?:\/\/|mailto:|tel:)[^\s<]+|www\.[^\s<]+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
-
-  return lines.map((line, lineIndex) => {
-    const nodes = [];
-    let cursor = 0;
-    let match;
-    pattern.lastIndex = 0;
-    while ((match = pattern.exec(line)) !== null) {
-      const [token] = match;
-      const start = match.index;
-      if (start > cursor) {
-        nodes.push(line.slice(cursor, start));
-      }
-      const normalized = normalizePlainLink(token);
-      if (normalized) {
-        nodes.push(
-          <a key={`${lineIndex}-${start}`} href={normalized.href} target="_blank" rel="noopener noreferrer nofollow">
-            {normalized.label}
-          </a>,
-        );
-        if (normalized.suffix) {
-          nodes.push(normalized.suffix);
-        }
-      } else {
-        nodes.push(token);
-      }
-      cursor = start + token.length;
-    }
-    if (cursor < line.length) {
-      nodes.push(line.slice(cursor));
-    }
-    return (
-      <span key={`line-${lineIndex}`}>
-        {nodes}
-        {lineIndex < lines.length - 1 && <br />}
-      </span>
-    );
-  });
-}
-
-function createComposerStateFromDraft(draft, thread, activeAccount) {
-  return {
-    account_id: draft?.account_id || thread?.account_id || activeAccount?.account_id || '',
-    to: (draft?.to || []).map(item => item.email).join(', '),
-    cc: (draft?.cc || []).map(item => item.email).join(', '),
-    bcc: (draft?.bcc || []).map(item => item.email).join(', '),
-    subject: draft?.subject || thread?.subject || '',
-    body_html: (draft?.body_html || '').replace(/<br\s*\/?>/gi, '\n'),
-    tone_mode: draft?.tone_mode || activeAccount?.tone_mode || 'warm',
-    signature: draft?.signature || activeAccount?.signature_text || '',
-  };
-}
-
-function buildMailtoReplyLink(thread, detail, draft) {
-  const threadSubject = draft?.subject || thread?.subject || '';
-  const subject = threadSubject ? (threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`) : '';
-  const recipients = [];
-  const pushRecipient = (item) => {
-    const email = `${item?.email || ''}`.trim();
-    if (!email || recipients.includes(email)) return;
-    recipients.push(email);
-  };
-
-  (draft?.to || []).forEach(pushRecipient);
-  if (recipients.length === 0) {
-    const latestInbound = (detail?.messages || []).filter((item) => item.direction === 'inbound').slice(-1)[0];
-    (latestInbound?.reply_to || []).forEach(pushRecipient);
-    if (recipients.length === 0 && latestInbound?.from_email) {
-      pushRecipient({ email: latestInbound.from_email });
-    }
-  }
-
-  if (recipients.length === 0) {
-    return '';
-  }
-
-  const params = new URLSearchParams();
-  if (subject) {
-    params.set('subject', subject);
-  }
-  return `mailto:${recipients.join(',')}?${params.toString()}`;
-}
-
-function DecisionQueueCard({ thread, onOpen, onDiscuss, onCreateTask }) {
-  return (
-    <article className="dossier-card" style={{ transform: 'rotate(-0.35deg)', borderColor: 'var(--warning)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-        <div>
-          <div className="section-kicker">PENDING DECISION</div>
-          <h3 className="dossier-title" style={{ marginBottom: 6 }}>{thread.subject}</h3>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{thread.analysis_reason || '这封信仍在等待你的判断。'}</div>
-        </div>
-        <span className={`badge ${getRiskBadgeClass(thread.risk_level)}`}>{getReplyLevelLabel(thread.reply_level)}</span>
-      </div>
-      <div className="mission-chip-row" style={{ marginTop: 'var(--space-md)' }}>
-        <span className="badge badge-ghost">{getMailKindLabel(thread.mail_kind)}</span>
-        {(thread.action_suggestions || []).slice(0, 3).map((item) => (
-          <span key={item} className="badge badge-pending">{item}</span>
-        ))}
-      </div>
-      <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpen(thread.thread_id)}>翻开这封信</button>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => onCreateTask(thread)}>转成任务</button>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => onDiscuss(thread)}>和 AI 商量</button>
-      </div>
-    </article>
-  );
-}
-
-function ThreadCard({ thread, active, onOpen }) {
-  const participants = thread.participants || [];
-  const lead = participants[0]?.name || participants[0]?.email || '未命名来信';
-  return (
-    <button
-      type="button"
-      className="dossier-card"
-      onClick={() => onOpen(thread.thread_id)}
-      style={{
-        textAlign: 'left',
-        width: '100%',
-        transform: active ? 'rotate(-0.3deg) translateY(-2px)' : 'rotate(0.6deg)',
-        borderColor: active ? 'var(--accent)' : undefined,
-        boxShadow: active ? 'var(--shadow-md)' : undefined,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="section-kicker">{thread.needs_reply ? '待回信' : '信件线程'}</div>
-          <h3 className="dossier-title" style={{ marginBottom: 6 }}>{thread.subject}</h3>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{lead}</div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          {!!thread.unread_count && <span className="badge badge-error">{thread.unread_count} 未读</span>}
-          {thread.has_draft && <span className="badge badge-pending">有草稿</span>}
-          {thread.waiting_user_decision && <span className={`badge ${getRiskBadgeClass(thread.risk_level)}`}>{getReplyLevelLabel(thread.reply_level)}</span>}
-        </div>
-      </div>
-
-      <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '10px 0 14px' }}>
-        {thread.snippet || '这封信还没有留下摘要。'}
-      </div>
-
-      {thread.analysis_reason && (
-        <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: 12 }}>
-          {thread.analysis_reason}
-        </div>
-      )}
-
-      <div className="dossier-meta-grid">
-        <div className="dossier-meta-box">
-          <div className="dossier-meta-label">信箱</div>
-          <div>{getInboxLabel(thread.latest_folder_kind)}</div>
-        </div>
-        <div className="dossier-meta-box">
-          <div className="dossier-meta-label">最近来往</div>
-          <div>{formatDateTime(thread.latest_message_at)}</div>
-        </div>
-        <div className="dossier-meta-box">
-          <div className="dossier-meta-label">参谋判断</div>
-          <div>{getMailKindLabel(thread.mail_kind)}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 'var(--space-md)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-        点开这封信后，再决定是回信、转任务，还是交给邮件处理页继续。
-      </div>
-    </button>
-  );
-}
-
-function ArchiveThreadRow({ thread, active, onOpen }) {
-  const participants = thread.participants || [];
-  const lead = participants[0]?.name || participants[0]?.email || '未命名来信';
-  return (
-    <button
-      type="button"
-      className="signal-row"
-      onClick={() => onOpen(thread.thread_id)}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        border: active ? '1px solid var(--accent)' : undefined,
-        background: active ? 'rgba(158, 132, 94, 0.08)' : undefined,
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div className="signal-row-title" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span>{thread.subject}</span>
-          <span className="badge badge-ghost">已归档</span>
-        </div>
-        <div className="signal-row-copy">
-          {formatDateTime(thread.latest_message_at)} · {lead}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function MessagePaper({ message }) {
-  const sanitizedHtml = useMemo(() => sanitizeMailHtml(message.html_body), [message.html_body]);
-  const plainBody = message.text_body || (!sanitizedHtml ? message.html_body : '') || '';
-  const attachments = message.attachments || [];
-
-  return (
-    <article className="dossier-card mail-message-paper" style={{ transform: `rotate(${message.direction === 'inbound' ? '-0.5deg' : '0.4deg'})` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-        <div>
-          <div className="section-kicker">{message.direction === 'inbound' ? '来信' : '寄出'}</div>
-          <h3 className="dossier-title" style={{ marginBottom: 6 }}>
-            {message.from_name || message.from_email || '未命名发件人'}
-          </h3>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            {message.from_email || '无邮箱地址'}
-          </div>
-        </div>
-        <span className={`badge ${message.direction === 'inbound' ? 'badge-warning' : 'badge-completed'}`}>
-          {message.direction === 'inbound' ? '收到' : '已寄出'}
-        </span>
-      </div>
-      <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '8px 0 12px' }}>
-        {formatDateTime(message.received_at || message.sent_at || message.created_at)}
-      </div>
-      <div className="mail-message-body">
-        {sanitizedHtml ? (
-          <div className="mail-rich-body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
-        ) : (
-          <div className="mail-plain-body">
-            {renderPlainTextWithLinks(plainBody)}
-          </div>
-        )}
-      </div>
-      {attachments.length > 0 && (
-        <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-          {attachments.map((attachment) => (
-            <div key={attachment.attachment_id} className="signal-row">
-              <div>
-                <div className="signal-row-title">{attachment.filename || '未命名附件'}</div>
-                <div className="signal-row-copy">
-                  {attachment.mime_type} · {attachment.size_bytes || 0} B{attachment.is_inline ? ' · 内嵌资源' : ''}
-                </div>
-              </div>
-              <span className="badge badge-ghost">附件</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </article>
-  );
-}
 
 export default function Download({ quickAction = null, clearQuickAction = null, onOpenNotifyNetwork = null, onOpenAi = null }) {
   const toast = useToast();
@@ -1050,6 +592,41 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
       toast(e.message || '生成回信草稿失败', 'error');
     }
   };
+
+  const handleReplyThread = useCallback((thread) => {
+    if (!thread) {
+      return;
+    }
+    if (activeDraft) {
+      openDraftComposer(activeDraft, thread);
+      return;
+    }
+    resetComposer();
+    setComposerThreadId(thread.thread_id);
+    setComposerOpen(true);
+    const latestInbound = (threadDetail?.messages || []).filter(item => item.direction === 'inbound').slice(-1)[0];
+    setDraftForm(prev => ({
+      ...prev,
+      account_id: thread.account_id,
+      subject: thread.subject.startsWith('Re:') ? thread.subject : `Re: ${thread.subject}`,
+      to: latestInbound?.from_email || '',
+      signature: activeAccount?.signature_text || prev.signature,
+    }));
+  }, [activeAccount, activeDraft, openDraftComposer, resetComposer, threadDetail]);
+
+  const handleSendDraftFromPanel = useCallback(async (draft) => {
+    if (!draft?.draft_id || !selectedThread?.thread_id) {
+      return;
+    }
+    try {
+      await request(() => apiPost(`/api/mail/drafts/${draft.draft_id}/send`, {}));
+      toast('这份草稿已经寄出', 'success');
+      await refreshAll(selectedAccount, selectedFolder);
+      await fetchThreadDetail(selectedThread.thread_id);
+    } catch (e) {
+      toast(e.message || '发送草稿失败', 'error');
+    }
+  }, [fetchThreadDetail, refreshAll, request, selectedAccount, selectedFolder, selectedThread, toast]);
 
   const handleRefreshSelectedThread = useCallback(async (threadId = selectedThreadId) => {
     if (!threadId) {
@@ -1610,410 +1187,51 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         </div>
 
         <div className="war-room-stack">
-          <section className="board-lane atlas-ledger-lane mail-spread-lane mail-letter-lane">
-            <div className="board-lane-header mail-lane-header">
-              <div className="mail-lane-head-copy">
-                <div className="section-kicker">OPEN LETTER</div>
-                <h3 className="board-lane-title">{selectedThread?.subject || '当前没有展开的信'}</h3>
-                <div className="board-lane-copy">
-                  {selectedThread
-                    ? (selectedThread.latest_folder_kind === 'archive'
-                      ? '这是一条已经归档的往来记录。这里更适合翻阅、回看和确认历史，而不是继续把它摆在当前工作流正中央。'
-                      : `最近收在 ${getInboxLabel(selectedThread.latest_folder_kind)}，${selectedThread.needs_reply ? '仍在等待你的回信。' : '这条往返已经暂时安静下来。'}`)
-                    : '当你翻开一条线程，它会在这里展开成一叠真正可以阅读的往返信件。'}
-                </div>
-              </div>
-              <div className="mail-lane-status">
-                <div className="mail-lane-status-label">展开状态</div>
-                <div className="mail-lane-status-value">
-                  {selectedThread ? formatDateTime(selectedThread.latest_message_at) : '等待翻开'}
-                </div>
-                <div className="mail-lane-status-copy">
-                  {selectedThread
-                    ? (selectedThread.latest_folder_kind === 'archive'
-                      ? '这是一条已归档往来，适合回看与确认历史。'
-                      : (selectedThread.needs_reply ? '这封信仍在等待你的下一步回应。' : '这条往返已暂时安静，但仍可继续处理。'))
-                    : '先从左侧翻开一封信，右页才会真正亮起来。'}
-                </div>
-              </div>
-            </div>
-            <div className="mail-letter-annotations">
-              {!selectedThread && selectedFolder !== 'archive' && (
-                <div className="mail-letter-note">
-                  默认只展示仍在流动的活跃线程。已归档的信不会继续占住案头，要看它们请切到归档箱。
-                </div>
-              )}
-              {selectedThread?.portal_url && (
-                <div className="mail-letter-note">
-                  这封信也有一张可从邮件里直接点开的处理页。桌面端和邮件端现在走的是同一条入口，不再是两套说法。
-                </div>
-              )}
-              {!!selectedThread?.decision_status && (
-                <div className="mail-letter-note">
-                  当前处理状态是“{getDecisionStatusLabel(selectedThread.decision_status)}”。
-                  {selectedThread.waiting_user_decision ? ' 它仍停在你的裁决栈里。' : ' 现在不占用待决定队列，但你随时可以把它重新放回案头。'}
-                </div>
-              )}
-              {!!selectedThread?.linked_task_count && (
-                <div className="mail-letter-note">
-                  这封信已经牵出 {selectedThread.linked_task_count} 项任务，纸页之外，事情已经开始移动。
-                </div>
-              )}
-              {selectedThread?.last_actor && (
-                <div className="mail-letter-note">
-                  当前往返停在
-                  {selectedThread.last_actor === 'counterparty' ? '对方' : selectedThread.last_actor === 'self' ? '我方' : '空白'}
-                  一侧；
-                  {selectedThread.has_new_inbound ? '有新的入站来信尚未闭环。' : '最近一轮往返已经暂时闭合。'}
-                  {selectedThread.has_pending_draft ? '案头还有一份待发草稿。' : '当前没有挂起草稿。'}
-                </div>
-              )}
-              {selectedThreadAccount && (
-                <div className="mail-letter-note">
-                  当前账户策略是“{getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy)}”。
-                  {getAutoPolicyNarrative(selectedThreadAccount.auto_mail_policy)}
-                </div>
-              )}
-            </div>
-            {selectedThread && (
-              <div className="mail-letter-toolbar">
-                <div>
-                  <div className="section-kicker">MAIL-FIRST ENTRY</div>
-                  <div className="inline-actions" style={{ marginTop: 8 }}>
-                    <button className="btn btn-sm btn-primary" onClick={() => openPortalPage(selectedThread)}>打开处理页</button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => copyPortalLink(selectedThread)}>复制处理页链接</button>
-                    {selectedMailtoHref && (
-                      <a className="btn btn-sm btn-ghost" href={selectedMailtoHref}>
-                        在邮箱里继续回
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="section-kicker">DESKTOP ACTIONS</div>
-                  <div className="inline-actions" style={{ marginTop: 8 }}>
-                    <button className="btn btn-sm btn-ghost" onClick={() => handleRefreshSelectedThread(selectedThread.thread_id)} disabled={threadRefreshing}>
-                      {threadRefreshing ? '刷新中…' : '刷新这封信'}
-                    </button>
-                    {!!selectedThread.unread_count && <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(selectedThread.thread_id)}>标记已读</button>}
-                    {selectedThread.latest_folder_kind !== 'archive' && <button className="btn btn-sm btn-ghost" onClick={() => handleArchive(selectedThread.thread_id)}>归档</button>}
-                    {selectedThread.decision_status !== 'pending' && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'pending')}>恢复待决定</button>}
-                    {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'snoozed')}>稍后再问</button>}
-                    {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'cleared')}>暂时处理完</button>}
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        if (activeDraft) {
-                          openDraftComposer(activeDraft, selectedThread);
-                          return;
-                        }
-                        resetComposer();
-                        setComposerThreadId(selectedThread.thread_id);
-                        setComposerOpen(true);
-                        const latestInbound = (threadDetail?.messages || []).filter(item => item.direction === 'inbound').slice(-1)[0];
-                        setDraftForm(prev => ({
-                          ...prev,
-                          account_id: selectedThread.account_id,
-                          subject: selectedThread.subject.startsWith('Re:') ? selectedThread.subject : `Re: ${selectedThread.subject}`,
-                          to: latestInbound?.from_email || '',
-                          signature: activeAccount?.signature_text || prev.signature,
-                        }));
-                      }}
-                    >
-                      {activeDraft ? '继续写草稿' : '回复这封信'}
-                    </button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => handleGenerateReplyDraft(selectedThread)}>一键起草</button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => handleCreateTaskFromMail(selectedThread)}>转成任务</button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => handleDiscussWithAi(selectedThread)}>和 AI 商量</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!selectedThread || !threadDetail ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">🕯️</div>
-                <div className="empty-state-text">先从左侧选一封信</div>
-                <div className="empty-state-hint">最值得先翻开的，通常是那条还亮着未读或待回标记的线程。</div>
-              </div>
-            ) : (
-              <div className="board-card-grid mail-letter-stack" style={{ gridTemplateColumns: '1fr' }}>
-                <article className="dossier-card" style={{ transform: 'rotate(-0.15deg)', borderColor: 'rgba(103, 78, 40, 0.22)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                    <div>
-                      <div className="section-kicker">AUTOMATION COUNSEL</div>
-                      <h3 className="dossier-title">自动处理说明</h3>
-                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
-                        这里解释系统为什么把它判成待回复、待决定，或者为什么自动流程没有继续往下走。
-                      </div>
-                    </div>
-                    <span className={`badge ${selectedThread.waiting_user_decision ? 'badge-warning' : 'badge-ghost'}`}>
-                      {selectedThread.waiting_user_decision ? '仍待你裁决' : '当前不占裁决栈'}
-                    </span>
-                  </div>
-                  <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-                    <div className="signal-row">
-                      <div>
-                        <div className="signal-row-title">线程判断</div>
-                        <div className="signal-row-copy">{selectedThread.analysis_reason || '当前还没有分析说明。'}</div>
-                      </div>
-                      <span className={`badge ${getRiskBadgeClass(selectedThread.risk_level)}`}>{getReplyLevelLabel(selectedThread.reply_level)}</span>
-                    </div>
-                    <div className="signal-row">
-                      <div>
-                        <div className="signal-row-title">自动策略</div>
-                        <div className="signal-row-copy">
-                          {selectedThreadAccount
-                            ? `${getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy)} · ${getAutoPolicyNarrative(selectedThreadAccount.auto_mail_policy)}`
-                            : '当前还没找到这条线程对应的账户策略。'}
-                        </div>
-                      </div>
-                      <span className="badge badge-ghost">{selectedThreadAccount ? getAutoMailPolicyLabel(selectedThreadAccount.auto_mail_policy) : '未识别'}</span>
-                    </div>
-                    {latestAgentRun && (
-                      <>
-                        <div className="signal-row">
-                          <div>
-                            <div className="signal-row-title">最近一次代理判断</div>
-                            <div className="signal-row-copy">{latestAgentRun.result_summary || '已记录自动处理结果。'}</div>
-                            {!!latestAgentRun.details?.reason_code && (
-                              <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                                {getAgentRunReasonLabel(latestAgentRun.details.reason_code) || latestAgentRun.details.reason_code}
-                              </div>
-                            )}
-                          </div>
-                          <span className={`badge ${getAgentRunStatusBadge(latestAgentRun.status)}`}>{getAgentRunStatusLabel(latestAgentRun.status)}</span>
-                        </div>
-                        <div className="signal-row">
-                          <div>
-                            <div className="signal-row-title">代理命令解释</div>
-                            <div className="signal-row-copy">{getMailCommandLabel(latestAgentRun.details?.command)}</div>
-                          </div>
-                          <span className="badge badge-ghost">{formatDateTime(latestAgentRun.updated_at || latestAgentRun.created_at)}</span>
-                        </div>
-                      </>
-                    )}
-                    {!latestAgentRun && (
-                      <div className="signal-row">
-                        <div>
-                          <div className="signal-row-title">尚未留下自动处理台账</div>
-                          <div className="signal-row-copy">这通常意味着后台轮询还没处理到这封新来信，或者当前线程还没有触发自动处理链路。</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {selectedThreadAccount?.auto_mail_policy === 'auto_send' && (
-                    <div className="mail-inline-alert mail-inline-alert-error" style={{ marginTop: 'var(--space-md)' }}>
-                      当前账户处于“自动寄出”策略。只要线程被判断为直接协商来信且自动起草成功，系统可能直接把回信发出。
-                    </div>
-                  )}
-                </article>
-                {(threadDetail.agent_runs || []).length > 0 && (
-                  <article className="dossier-card" style={{ transform: 'rotate(0.25deg)', borderColor: 'var(--accent)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                      <div>
-                        <div className="section-kicker">AGENT LEDGER</div>
-                        <h3 className="dossier-title">自动处理台账</h3>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
-                          系统替你起草、跳过、等待确认或自动寄出的动作，都会在这里留下痕迹。
-                        </div>
-                      </div>
-                      <span className="badge badge-ghost">{selectedAgentRuns.length} / {(threadDetail.agent_runs || []).length} 条记录</span>
-                    </div>
-                    <div className="mail-filter-toggles" style={{ marginTop: 'var(--space-md)' }}>
-                      {['all', 'user_confirmation_required', 'draft_created', 'sent', 'failed', 'skipped_non_direct'].map((filter) => (
-                        <button
-                          key={filter}
-                          type="button"
-                          className={`badge ${agentRunFilter === filter ? 'badge-warning' : 'badge-ghost'}`}
-                          onClick={() => setAgentRunFilter(filter)}
-                        >
-                          {getAgentRunFilterLabel(filter)}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => fetchAgentRuns(selectedThread.thread_id)}
-                        disabled={agentRunsLoading}
-                      >
-                        {agentRunsLoading ? '刷新中…' : '刷新台账'}
-                      </button>
-                    </div>
-                    <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
-                      {selectedAgentRuns.length === 0 ? (
-                        <div className="signal-row">
-                          <div>
-                            <div className="signal-row-title">当前筛选下没有记录</div>
-                            <div className="signal-row-copy">切换筛选标签，或刷新这条线程的自动处理台账。</div>
-                          </div>
-                        </div>
-                      ) : (
-                        selectedAgentRuns.map((run) => (
-                          <div key={run.run_id} className="signal-row" style={{ alignItems: 'flex-start' }}>
-                            <div>
-                              <div className="signal-row-title">
-                                {run.action_kind === 'auto_reply' ? '自动回信代理' : run.action_kind}
-                              </div>
-                              <div className="signal-row-copy">
-                                {run.result_summary || '系统已记录这一轮自动处理。'}
-                              </div>
-                              {!!run.details?.reason_code && (
-                                <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                                  {getAgentRunReasonLabel(run.details.reason_code) || run.details.reason_code}
-                                  {run.details?.policy ? ` · 策略 ${getAutoMailPolicyLabel(run.details.policy)}` : ''}
-                                </div>
-                              )}
-                              <div className="signal-row-copy" style={{ marginTop: 6 }}>
-                                {formatDateTime(run.updated_at || run.created_at)}
-                              </div>
-                            </div>
-                            <span className={`badge ${getAgentRunStatusBadge(run.status)}`}>{getAgentRunStatusLabel(run.status)}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </article>
-                )}
-                {(threadDetail.messages || []).map(message => (
-                  <MessagePaper key={message.message_id} message={message} />
-                ))}
-                {(threadDetail.drafts || []).filter(draft => draft.status !== 'sent').map(draft => (
-                  <article key={draft.draft_id} className="dossier-card" style={{ transform: 'rotate(-0.2deg)', borderColor: 'var(--warning)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-                      <div>
-                        <div className="section-kicker">草稿席</div>
-                        <h3 className="dossier-title">{draft.subject}</h3>
-                      </div>
-                      <span className="badge badge-pending">{draft.status === 'queued' ? '待寄出' : '草稿'}</span>
-                    </div>
-                    <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                      {draft.body_html || '这份草稿还没有正文。'}
-                    </div>
-                    <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
-                      <button className="btn btn-sm btn-primary" onClick={() => openDraftComposer(draft, selectedThread)}>继续编辑</button>
-                      <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={async () => {
-                          try {
-                            await request(() => apiPost(`/api/mail/drafts/${draft.draft_id}/send`, {}));
-                            toast('这份草稿已经寄出', 'success');
-                            await refreshAll(selectedAccount, selectedFolder);
-                            await fetchThreadDetail(selectedThread.thread_id);
-                          } catch (e) {
-                            toast(e.message || '发送草稿失败', 'error');
-                          }
-                        }}
-                      >
-                        发送这版
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+          <OpenLetterPanel
+            selectedFolder={selectedFolder}
+            selectedThread={selectedThread}
+            selectedThreadAccount={selectedThreadAccount}
+            selectedMailtoHref={selectedMailtoHref}
+            threadRefreshing={threadRefreshing}
+            activeDraft={activeDraft}
+            latestAgentRun={latestAgentRun}
+            threadDetail={threadDetail}
+            selectedAgentRuns={selectedAgentRuns}
+            agentRunFilter={agentRunFilter}
+            agentRunsLoading={agentRunsLoading}
+            openPortalPage={openPortalPage}
+            copyPortalLink={copyPortalLink}
+            handleRefreshSelectedThread={handleRefreshSelectedThread}
+            handleMarkRead={handleMarkRead}
+            handleArchive={handleArchive}
+            handleDecisionStatus={handleDecisionStatus}
+            handleReplyThread={handleReplyThread}
+            handleGenerateReplyDraft={handleGenerateReplyDraft}
+            handleCreateTaskFromMail={handleCreateTaskFromMail}
+            handleDiscussWithAi={handleDiscussWithAi}
+            fetchAgentRuns={fetchAgentRuns}
+            setAgentRunFilter={setAgentRunFilter}
+            onOpenDraftComposer={openDraftComposer}
+            onSendDraft={handleSendDraftFromPanel}
+          />
         </div>
       </div>
 
-      {composerOpen && (
-        <div className="modal-overlay" onClick={() => setComposerOpen(false)}>
-          <div className="modal atlas-paper-stack" style={{ width: 'min(840px, 92vw)', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div className="board-lane-header" style={{ marginBottom: 'var(--space-lg)' }}>
-              <div>
-                <div className="section-kicker">WRITING DESK</div>
-                <h3 className="board-lane-title">写一封信</h3>
-                <div className="board-lane-copy">先把事实写清楚，再决定是让它温和，还是让它保留一点夜色与纸页的气息。</div>
-              </div>
-            </div>
-
-            <form onSubmit={handleComposeSubmit} className="command-form">
-              <div className="mail-composer-state">
-                <span className="badge badge-ghost">{composerDraftId ? '正在编辑现有草稿' : '新草稿'}</span>
-                <span className="badge badge-ghost">{composerThreadId ? '已挂在线程内' : '独立发信'}</span>
-                {composerResetting && <span className="badge badge-warning">正在回退草稿</span>}
-              </div>
-              {composerDraftId && (
-                <div className="mail-inline-alert mail-inline-alert-success">
-                  这是一份已经落库的草稿。如果别处又改过它，可以随时回退到服务器上的最新版本。
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 'var(--space-md)' }}>
-                <div className="form-group">
-                  <label>发信账户</label>
-                  <select value={draftForm.account_id} onChange={(e) => setDraftForm(prev => ({ ...prev, account_id: e.target.value }))}>
-                    <option value="">请选择账户</option>
-                    {accounts.map(account => (
-                      <option key={account.account_id} value={account.account_id}>{account.display_name} · {account.email_address}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>语气</label>
-                  <select value={draftForm.tone_mode} onChange={(e) => setDraftForm(prev => ({ ...prev, tone_mode: e.target.value }))}>
-                    {TONE_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>收件人</label>
-                <input value={draftForm.to} onChange={(e) => setDraftForm(prev => ({ ...prev, to: e.target.value }))} placeholder="reader@example.com, friend@example.com" />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-                <div className="form-group">
-                  <label>抄送</label>
-                  <input value={draftForm.cc} onChange={(e) => setDraftForm(prev => ({ ...prev, cc: e.target.value }))} placeholder="cc@example.com" />
-                </div>
-                <div className="form-group">
-                  <label>密送</label>
-                  <input value={draftForm.bcc} onChange={(e) => setDraftForm(prev => ({ ...prev, bcc: e.target.value }))} placeholder="bcc@example.com" />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>主题</label>
-                <input value={draftForm.subject} onChange={(e) => setDraftForm(prev => ({ ...prev, subject: e.target.value }))} placeholder="写给黄昏前的答复" />
-              </div>
-
-              <div className="form-group">
-                <label>正文</label>
-                <textarea
-                  value={draftForm.body_html}
-                  onChange={(e) => setDraftForm(prev => ({ ...prev, body_html: e.target.value }))}
-                  placeholder={draftForm.tone_mode === 'romantic'
-                    ? '先把要说清楚的事情落在纸上，再让语气慢一点，轻一点。'
-                    : '请清晰写出事实、请求与下一步。'}
-                  style={{ minHeight: 220 }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>署名</label>
-                <textarea value={draftForm.signature} onChange={(e) => setDraftForm(prev => ({ ...prev, signature: e.target.value }))} style={{ minHeight: 90 }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)' }}>
-                <button type="button" className="btn btn-ghost" onClick={() => setComposerOpen(false)}>收起信纸</button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={handleResetComposerToLatestDraft}
-                  disabled={!composerDraftId || composerResetting || loading}
-                >
-                  {composerResetting ? '回退中…' : '回到最新草稿'}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={handleSaveDraftOnly} disabled={loading}>只保存草稿</button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>寄出这封信</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <MailComposerModal
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        onSubmit={handleComposeSubmit}
+        composerDraftId={composerDraftId}
+        composerThreadId={composerThreadId}
+        composerResetting={composerResetting}
+        loading={loading}
+        draftForm={draftForm}
+        setDraftForm={setDraftForm}
+        accounts={accounts}
+        toneOptions={TONE_OPTIONS}
+        onResetToLatestDraft={handleResetComposerToLatestDraft}
+        onSaveDraftOnly={handleSaveDraftOnly}
+      />
 
     </div>
   );
