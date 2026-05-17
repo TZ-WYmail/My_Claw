@@ -15,6 +15,7 @@ import {
   getRiskBadgeClass,
   MessagePaper,
 } from './maildeskShared.jsx';
+import { badgeClass, priorityMeta, statusLabel } from '../../utils/format';
 
 export default function OpenLetterPanel({
   selectedFolder,
@@ -50,6 +51,7 @@ export default function OpenLetterPanel({
   onOpenDraftComposer,
   onSendDraft,
   onOpenTask,
+  onCreateNoteFromTask,
 }) {
   const selectedThreadId = selectedThread?.thread_id || '';
   const isArchivingSelected = archivingThreadId && archivingThreadId === selectedThreadId;
@@ -385,8 +387,12 @@ export default function OpenLetterPanel({
                       <div className="signal-row-title">{task.task_name || task.task_id}</div>
                       <div className="signal-row-copy">
                         {task.due_time ? `截止 ${formatDateTime(task.due_time)}` : '未写截止时间'}
-                        {typeof task.priority === 'number' ? ` · 优先级 ${task.priority}` : ''}
-                        {task.status ? ` · ${task.status}` : ''}
+                      </div>
+                      <div className="mission-chip-row" style={{ marginTop: 6 }}>
+                        {task.status && <span className={`badge badge-${badgeClass(task.status)}`}>{statusLabel(task.status)}</span>}
+                        {typeof task.priority === 'number' && (
+                          <span className={`badge badge-${priorityMeta(task.priority).tone}`}>{priorityMeta(task.priority).label}</span>
+                        )}
                       </div>
                       {!!task.description && (
                         <div className="signal-row-copy" style={{ marginTop: 4 }}>
@@ -395,6 +401,9 @@ export default function OpenLetterPanel({
                       )}
                     </div>
                     <div className="inline-actions">
+                      <button className="btn btn-sm btn-ghost" onClick={() => onCreateNoteFromTask?.(task)} disabled={!task.task_id}>
+                        记笔记
+                      </button>
                       <button className="btn btn-sm btn-ghost" onClick={() => onOpenTask?.(task)} disabled={!task.task_id}>
                         打开任务
                       </button>

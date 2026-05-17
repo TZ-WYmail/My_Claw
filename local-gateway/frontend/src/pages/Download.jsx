@@ -38,7 +38,14 @@ const POLLING_FOLDER_OPTIONS = [
   { value: 'archive', label: '归档' },
 ];
 
-export default function Download({ quickAction = null, clearQuickAction = null, onOpenNotifyNetwork = null, onOpenAi = null, onOpenTask = null }) {
+export default function Download({
+  quickAction = null,
+  clearQuickAction = null,
+  onOpenNotifyNetwork = null,
+  onOpenAi = null,
+  onOpenTask = null,
+  onCreateNoteFromTask = null,
+}) {
   const toast = useToast();
   const state = useMailDeskState({
     quickAction,
@@ -268,6 +275,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
             onOpenDraftComposer={state.openDraftComposer}
             onSendDraft={state.handleSendDraftFromPanel}
             onOpenTask={onOpenTask}
+            onCreateNoteFromTask={onCreateNoteFromTask}
           />
         </div>
       </div>

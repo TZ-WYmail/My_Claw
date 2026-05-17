@@ -133,6 +133,7 @@ function AppShell() {
           onOpenNotifyNetwork={() => navigate('settings', { type: 'open_notify_network' })}
           onOpenAi={openAiIntent}
           onOpenTask={openTaskDetail}
+          onCreateNoteFromTask={openCreateNoteFromTask}
         />
       );
       case 'sandbox': return <Sandbox />;
