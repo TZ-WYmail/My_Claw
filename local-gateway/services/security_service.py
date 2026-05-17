@@ -4,10 +4,13 @@
 """
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import logging
 import re
+import shlex
 import socket
+from asyncio.subprocess import Process
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -21,6 +24,35 @@ _FILENAME_SAFE_RE = re.compile(r'^[^\\/:*?"<>|]+$')
 # 允许的 UPDATE 列名白名单（防止 SQL 注入）
 _DOWNLOAD_HISTORY_COLUMNS = {"filename", "category", "file_path", "file_size",
                               "security_scan", "status", "job_id"}
+
+_ALLOWED_LOCAL_COMMANDS = {
+    "cat", "head", "tail", "less", "more", "nl", "wc", "sort", "uniq",
+    "ls", "ll", "dir", "pwd", "tree", "find",
+    "date", "uptime", "whoami", "uname", "hostname", "env", "printenv",
+    "echo", "grep", "awk", "sed", "cut", "tr", "rev",
+    "tar", "gzip", "gunzip", "zip", "unzip", "bzip2", "xz",
+    "git", "python3", "python", "pip3", "pip", "node", "npm",
+    "ping", "dig", "nslookup", "netstat", "ss",
+    "which", "whereis", "file", "stat", "du", "df", "free", "top", "ps",
+    "make", "cmake", "gcc", "g++", "javac", "java", "go", "rustc",
+}
+SHELL_DANGEROUS_PATTERNS = [
+    r"rm -rf /",
+    r"rm -rf ~",
+    r"rm -rf /\*",
+    r"mkfs",
+    r"dd if=/dev/zero",
+    r":\(\)\{:\|:&\};:",
+    r"fork bomb",
+    r"> /etc/passwd",
+    r"> /etc/shadow",
+    r"chmod 777 /",
+    r"chmod -R 777 /",
+    r"wget\b.*\|\s*(bash|sh)\b",
+    r"curl\b.*\|\s*(bash|sh)\b",
+    r"\$\(",
+    r"`",
+]
 
 
 def sanitize_filename(filename: str | None, default: str = "unnamed") -> str:
@@ -154,6 +186,99 @@ def validate_command_tokens(command: list[str]) -> tuple[bool, str]:
                 return False, f"参数包含 shell 元字符: {repr(ch)}"
 
     return True, "OK"
+
+
+def parse_command_string(command: str) -> tuple[bool, list[str] | None, str]:
+    """解析命令字符串为安全的参数列表。"""
+    if not command or not command.strip():
+        return False, None, "命令为空"
+    try:
+        cmd_list = shlex.split(command)
+    except ValueError as exc:
+        return False, None, f"命令解析失败: {exc}"
+    if not cmd_list:
+        return False, None, "命令为空"
+    return True, cmd_list, "OK"
+
+
+def validate_local_command(command: list[str], raw_command: str | None = None) -> tuple[bool, str]:
+    """校验本地只读命令是否允许执行。"""
+    if not command:
+        return False, "命令不能为空"
+
+    cmd_name = Path(command[0]).name.lower()
+    if cmd_name not in _ALLOWED_LOCAL_COMMANDS:
+        return False, f"命令 '{cmd_name}' 不在允许列表中"
+
+    shell_metacharacters = {";", "&", "|", "$", "`", "(", ")", "{", "}",
+                            "<", ">", "*", "?", "~", "\\", "\n"}
+    for arg in command[1:]:
+        for ch in shell_metacharacters:
+            if ch in arg:
+                return False, f"参数包含 shell 元字符: {repr(ch)}"
+
+    candidate = (raw_command or " ".join(command)).lower()
+    for pattern in SHELL_DANGEROUS_PATTERNS:
+        if re.search(pattern, candidate):
+            return False, "检测到危险命令模式"
+
+    return True, "OK"
+
+
+async def run_safe_subprocess(
+    command: list[str],
+    *,
+    timeout: int,
+    stdout_limit: int = 8000,
+    stderr_limit: int = 4000,
+) -> dict:
+    """以统一策略执行本地子进程。"""
+    try:
+        proc: Process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": f"执行超时（{timeout}秒）",
+                "exit_code": -1,
+            }
+    except FileNotFoundError:
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": f"命令未找到: {command[0]}",
+            "exit_code": 127,
+        }
+    except Exception as exc:
+        logger.exception("执行本地命令失败")
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": str(exc),
+            "exit_code": 1,
+        }
+
+    stdout_str = stdout.decode("utf-8", errors="replace")
+    stderr_str = stderr.decode("utf-8", errors="replace")
+
+    if len(stdout_str) > stdout_limit:
+        stdout_str = stdout_str[:stdout_limit] + f"\n... (输出截断，共 {len(stdout_str)} 字符)"
+    if len(stderr_str) > stderr_limit:
+        stderr_str = stderr_str[:stderr_limit] + f"\n... (输出截断，共 {len(stderr_str)} 字符)"
+
+    return {
+        "status": "success" if proc.returncode == 0 else "error",
+        "stdout": stdout_str,
+        "stderr": stderr_str,
+        "exit_code": proc.returncode,
+    }
 
 
 def escape_html(text: str) -> str:

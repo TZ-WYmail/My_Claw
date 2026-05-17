@@ -12,6 +12,11 @@ from datetime import datetime, timedelta
 from typing import Callable, Optional
 
 from config import BASE_DIR
+from services.security_service import (
+    parse_command_string,
+    run_safe_subprocess,
+    validate_local_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -338,60 +343,29 @@ class WorkflowEngine:
                 return {"status": "success", "message": f"延迟 {seconds} 秒"}
 
             elif action_type == "exec_command":
-                import subprocess
-                import shlex
                 command = config.get("command", "")
                 if not command:
                     return {"status": "error", "message": "命令为空"}
 
-                # 安全限制：禁止shell=True，使用参数列表
-                # 解析命令为列表，避免shell注入
-                try:
-                    cmd_list = shlex.split(command)
-                except ValueError as e:
-                    return {"status": "error", "message": f"命令解析失败: {e}"}
+                ok, cmd_list, message = parse_command_string(command)
+                if not ok or not cmd_list:
+                    return {"status": "error", "message": message}
 
-                if not cmd_list:
-                    return {"status": "error", "message": "命令为空"}
-
-                # 命令白名单检查（只允许只读/安全命令）
-                # 注意：禁止 rm/cp/mv/docker/kubectl 等可破坏系统或提权的命令
-                ALLOWED_COMMANDS = {
-                    'echo', 'cat', 'ls', 'pwd', 'whoami', 'date', 'uname',
-                    'head', 'tail', 'grep', 'find', 'wc', 'sort', 'uniq',
-                    'python3', 'python', 'node', 'npm', 'git', 'make',
-                    'tar', 'zip', 'unzip',
-                }
-
-                base_cmd = cmd_list[0].split('/')[-1]  # 处理路径如 /usr/bin/python3
-                if base_cmd not in ALLOWED_COMMANDS:
-                    logger.warning(f"拒绝执行非白名单命令: {base_cmd}")
-                    return {"status": "error", "message": f"命令 '{base_cmd}' 不在允许列表中"}
+                valid, reason = validate_local_command(cmd_list, raw_command=command)
+                if not valid:
+                    logger.warning("拒绝执行命令: %s (%s)", command[:200], reason)
+                    return {"status": "error", "message": reason}
 
                 # 限制超时时间（最大300秒）
                 timeout = min(config.get("timeout", 60), 300)
-
-                try:
-                    result = subprocess.run(
-                        cmd_list,
-                        shell=False,  # 禁用shell，防止命令注入
-                        capture_output=True,
-                        text=True,
-                        timeout=timeout,
-                    )
-                    return {
-                        "status": "success" if result.returncode == 0 else "error",
-                        "stdout": result.stdout[:8000],  # 限制输出长度
-                        "stderr": result.stderr[:4000],
-                        "returncode": result.returncode,
-                    }
-                except subprocess.TimeoutExpired:
-                    return {"status": "error", "message": f"命令执行超时（>{timeout}秒）"}
-                except FileNotFoundError:
-                    return {"status": "error", "message": f"命令未找到: {cmd_list[0]}"}
-                except Exception as e:
-                    logger.exception("命令执行失败")
-                    return {"status": "error", "message": f"执行失败: {str(e)}"}
+                result = await run_safe_subprocess(cmd_list, timeout=timeout)
+                return {
+                    "status": result["status"],
+                    "stdout": result.get("stdout", ""),
+                    "stderr": result.get("stderr", ""),
+                    "returncode": result.get("exit_code", 1),
+                    **({"message": result["stderr"]} if result["status"] == "error" and result.get("stderr") else {}),
+                }
 
             elif action_type == "send_notification":
                 # 简单记录通知

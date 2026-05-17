@@ -8,29 +8,23 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import subprocess
 import tempfile
 from typing import Any, Optional
 
 import httpx
 
-from config import AI_API_BASE, AI_API_KEY, AI_MODEL, GATEWAY_BASE_URL
 from config import ai_config
+from services.security_service import (
+    parse_command_string,
+    run_safe_subprocess,
+    SHELL_DANGEROUS_PATTERNS,
+    validate_local_command,
+)
 
 logger = logging.getLogger(__name__)
 
 # Code Interpreter 最大执行时间（秒）
 CODE_INTERPRETER_TIMEOUT = 120
-
-# Shell 命令安全配置
-SHELL_DANGEROUS_PATTERNS = [
-    "rm -rf /", "rm -rf ~", "sudo rm", "mkfs", "dd if=", "> /dev/sd",
-    "chmod 777 /", ":(){:|:&};:", "fork bomb",
-    "curl", "wget", "nc ", "ncat", "/dev/tcp", "/dev/udp",
-    "ssh ", "scp ", "rsync", "passwd", "shadow",
-    "crontab", "systemctl", "service ", "insmod", "modprobe",
-    "> /etc/", "echo root", "chown root",
-]
 
 # Python 危险模块黑名单（code_interpreter 用）
 PYTHON_DANGEROUS_IMPORTS = {
@@ -864,7 +858,6 @@ async def _execute_shell(args: dict) -> dict:
     在本地执行命令，带严格安全检查。
     使用白名单机制，只允许特定安全命令。
     """
-    import shlex
     command = args.get("command", "")
     description = args.get("description", "")
 
@@ -873,114 +866,23 @@ async def _execute_shell(args: dict) -> dict:
     if not command or not command.strip():
         return {"status": "error", "stdout": "", "stderr": "命令为空", "exit_code": 1}
 
-    # 解析命令为参数列表，避免shell注入
-    try:
-        cmd_list = shlex.split(command)
-    except ValueError as e:
-        return {"status": "error", "stdout": "", "stderr": f"命令解析失败: {e}", "exit_code": 1}
+    ok, cmd_list, message = parse_command_string(command)
+    if not ok or not cmd_list:
+        return {"status": "error", "stdout": "", "stderr": message, "exit_code": 1}
 
-    if not cmd_list:
-        return {"status": "error", "stdout": "", "stderr": "命令为空", "exit_code": 1}
-
-    # 严格白名单：只允许这些命令
-    # 安全原则：禁止任何可修改系统、提权、或访问敏感资源的命令
-    ALLOWED_SHELL_COMMANDS = {
-        # 文件查看（只读）
-        'cat', 'head', 'tail', 'less', 'more', 'nl', 'wc', 'sort', 'uniq',
-        # 目录列表（只读）
-        'ls', 'll', 'dir', 'pwd', 'tree', 'find',
-        # 系统信息（只读）
-        'date', 'uptime', 'whoami', 'uname', 'hostname', 'env', 'printenv',
-        # 文本处理
-        'echo', 'grep', 'awk', 'sed', 'cut', 'tr', 'rev',
-        # 压缩（只读解压）
-        'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'bzip2', 'xz',
-        # 开发工具
-        'git', 'python3', 'python', 'pip3', 'pip', 'node', 'npm',
-        # 网络诊断（只读）
-        'ping', 'dig', 'nslookup', 'netstat', 'ss',
-        # 其他安全命令
-        'which', 'whereis', 'file', 'stat', 'du', 'df', 'free', 'top', 'ps',
-        'make', 'cmake', 'gcc', 'g++', 'javac', 'java', 'go', 'rustc',
-    }
-
-    base_cmd = cmd_list[0].split('/')[-1]  # 处理 /usr/bin/python3 这样的情况
-
-    if base_cmd not in ALLOWED_SHELL_COMMANDS:
-        logger.warning(f"Shell blocked non-whitelisted command: {base_cmd}")
+    valid, reason = validate_local_command(cmd_list, raw_command=command)
+    if not valid:
+        logger.warning("Shell blocked command: %s (%s)", command[:200], reason)
         return {
             "status": "error",
             "stdout": "",
-            "stderr": f"⚠️ 命令 '{base_cmd}' 不在允许列表中。如需执行其他命令，请使用 Docker 沙盒工具。",
+            "stderr": f"⚠️ {reason}。如需执行其他命令，请使用 Docker 沙盒工具。",
             "exit_code": -1,
             "blocked": True,
         }
 
-    # 黑名单二次检查（防止常见危险操作）
-    cmd_lower = command.lower()
-    DANGEROUS_PATTERNS = [
-        'rm -rf /', 'rm -rf ~', 'rm -rf /*', 'mkfs', 'dd if=/dev/zero',
-        ':(){:|:&};:', 'fork bomb',
-        '> /etc/passwd', '> /etc/shadow',
-        'chmod 777 /', 'chmod -R 777 /',
-        'wget .*| *bash', 'curl .*| *sh', 'curl .*| *bash',
-        r'\$\(', '`',  # 命令替换 $() 和反引号
-    ]
-    for pattern in DANGEROUS_PATTERNS:
-        import re
-        if re.search(pattern.replace('.*', '.*'), cmd_lower):
-            logger.warning(f"Shell blocked dangerous pattern: {command[:100]}")
-            return {
-                "status": "error",
-                "stdout": "",
-                "stderr": "⚠️ 检测到危险命令模式，已拦截。",
-                "exit_code": -1,
-                "blocked": True,
-            }
-
     logger.warning(f"Shell executing: {command[:200]}")
-
-    try:
-        # 使用 create_subprocess_exec 而不是 shell，更安全
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_list,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=CODE_INTERPRETER_TIMEOUT
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            return {
-                "status": "error",
-                "stdout": "",
-                "stderr": f"执行超时（{CODE_INTERPRETER_TIMEOUT}秒）",
-                "exit_code": -1,
-            }
-
-        stdout_str = stdout.decode("utf-8", errors="replace")
-        stderr_str = stderr.decode("utf-8", errors="replace")
-
-        # 截断过长输出
-        max_len = 8000
-        if len(stdout_str) > max_len:
-            stdout_str = stdout_str[:max_len] + f"\n... (输出截断，共 {len(stdout_str)} 字符)"
-        if len(stderr_str) > max_len:
-            stderr_str = stderr_str[:max_len] + f"\n... (输出截断，共 {len(stderr_str)} 字符)"
-
-        return {
-            "status": "success" if proc.returncode == 0 else "error",
-            "stdout": stdout_str,
-            "stderr": stderr_str,
-            "exit_code": proc.returncode,
-        }
-
-    except Exception as e:
-        logger.exception("Shell 执行异常")
-        return {"status": "error", "stdout": "", "stderr": str(e), "exit_code": 1}
+    return await run_safe_subprocess(cmd_list, timeout=CODE_INTERPRETER_TIMEOUT, stderr_limit=8000)
 
 
 async def test_connection(api_base: str = None, api_key: str = None, model: str = None) -> dict:

@@ -220,13 +220,21 @@ def _copy_output_files(container, output_files: list[str]) -> list[str]:
     copied = []
     for container_path in output_files:
         try:
-            bits, stat = container.get_archive(container_path)
+            bits, _stat = container.get_archive(container_path)
             filename = Path(container_path).name
             dest = DOWNLOADS_DIR / "misc" / filename
             dest.parent.mkdir(parents=True, exist_ok=True)
-            with open(dest, "wb") as f:
-                for chunk in bits:
-                    f.write(chunk)
+            archive_stream = io.BytesIO(b"".join(bits))
+            archive_stream.seek(0)
+            with tarfile.open(fileobj=archive_stream, mode="r:*") as tar:
+                member = next((item for item in tar.getmembers() if item.isfile()), None)
+                if not member:
+                    raise FileNotFoundError(f"tar 中未找到文件: {container_path}")
+                extracted = tar.extractfile(member)
+                if extracted is None:
+                    raise FileNotFoundError(f"无法提取文件: {container_path}")
+                with open(dest, "wb") as handle:
+                    handle.write(extracted.read())
             copied.append(str(dest))
         except Exception as e:
             logger.warning(f"复制输出文件失败 {container_path}: {e}")
