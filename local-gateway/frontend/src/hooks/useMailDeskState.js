@@ -37,6 +37,8 @@ export function useMailDeskState({
   const [composerDraftId, setComposerDraftId] = useState('');
   const [composerThreadId, setComposerThreadId] = useState('');
   const [composerResetting, setComposerResetting] = useState(false);
+  const [composerSaving, setComposerSaving] = useState(false);
+  const [composerSending, setComposerSending] = useState(false);
   const [agentRunsLoading, setAgentRunsLoading] = useState(false);
   const [agentRunFilter, setAgentRunFilter] = useState('all');
   const [pollingFeedback, setPollingFeedback] = useState(null);
@@ -355,6 +357,7 @@ export function useMailDeskState({
       toast('请填写至少一个收件人', 'warning');
       return;
     }
+    setComposerSending(true);
     try {
       const draft = await ensureDraftSaved();
       await request(() => apiPost(`/api/mail/drafts/${draft.draft_id}/send`, {}));
@@ -365,6 +368,8 @@ export function useMailDeskState({
       setSelectedThreadId(draft.thread_id);
     } catch (e2) {
       toast(e2.message || '寄信失败', 'error');
+    } finally {
+      setComposerSending(false);
     }
   }, [draftForm.account_id, draftForm.subject, draftForm.to, ensureDraftSaved, refreshDeskSnapshot, request, resetComposer, selectedFolder, toast]);
 
@@ -377,6 +382,7 @@ export function useMailDeskState({
       toast('请填写主题', 'warning');
       return;
     }
+    setComposerSaving(true);
     try {
       const draft = await ensureDraftSaved();
       toast(composerDraftId ? '草稿已经更新' : '草稿已经放回案头', 'success');
@@ -387,6 +393,8 @@ export function useMailDeskState({
       }
     } catch (e) {
       toast(e.message || '保存草稿失败', 'error');
+    } finally {
+      setComposerSaving(false);
     }
   }, [composerDraftId, draftForm.account_id, draftForm.subject, ensureDraftSaved, fetchThreadDetail, refreshDeskSnapshot, selectedFolder, toast]);
 
@@ -724,6 +732,8 @@ export function useMailDeskState({
     composerDraftId,
     composerThreadId,
     composerResetting,
+    composerSaving,
+    composerSending,
     agentRunsLoading,
     agentRunFilter,
     setAgentRunFilter,

@@ -8,7 +8,8 @@ export default function MailComposerModal({
   composerThreadId,
   composerResetting,
   activeDraft,
-  loading,
+  composerSaving,
+  composerSending,
   draftForm,
   setDraftForm,
   accounts,
@@ -17,6 +18,7 @@ export default function MailComposerModal({
   onSaveDraftOnly,
 }) {
   const [sendReviewOpen, setSendReviewOpen] = useState(false);
+  const composerBusy = composerSaving || composerSending;
 
   const recipientSummary = useMemo(() => {
     return {
@@ -190,16 +192,18 @@ export default function MailComposerModal({
               type="button"
               className="btn btn-ghost"
               onClick={onResetToLatestDraft}
-              disabled={!composerDraftId || composerResetting || loading}
+              disabled={!composerDraftId || composerResetting || composerBusy}
             >
               {composerResetting ? '回退中…' : '回到最新草稿'}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={onSaveDraftOnly} disabled={loading}>只保存草稿</button>
+            <button type="button" className="btn btn-ghost" onClick={onSaveDraftOnly} disabled={composerBusy}>
+              {composerSaving ? '保存中…' : '只保存草稿'}
+            </button>
             {sendReviewOpen ? (
               <>
-                <button type="button" className="btn btn-ghost" onClick={() => setSendReviewOpen(false)} disabled={loading}>返回继续修改</button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? '寄送中…' : activeDraft?.status === 'failed' ? '确认重新寄出' : '确认寄出'}
+                <button type="button" className="btn btn-ghost" onClick={() => setSendReviewOpen(false)} disabled={composerBusy}>返回继续修改</button>
+                <button type="submit" className="btn btn-primary" disabled={composerBusy}>
+                  {composerSending ? '寄送中…' : activeDraft?.status === 'failed' ? '确认重新寄出' : '确认寄出'}
                 </button>
               </>
             ) : (
@@ -207,7 +211,7 @@ export default function MailComposerModal({
                 type="button"
                 className="btn btn-primary"
                 onClick={() => setSendReviewOpen(true)}
-                disabled={loading}
+                disabled={composerBusy}
               >
                 {activeDraft?.status === 'failed' ? '准备重新寄出' : '准备寄出'}
               </button>

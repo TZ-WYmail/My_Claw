@@ -99,16 +99,16 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
             <option key={option.value || 'all'} value={option.value}>{option.label}</option>
           ))}
         </select>
-        <button className="btn btn-ghost" onClick={state.handleSyncInbox} disabled={!state.selectedAccount || state.syncing || state.loading}>
+        <button className="btn btn-ghost" onClick={state.handleSyncInbox} disabled={!state.selectedAccount || state.syncing}>
           {state.syncing ? '正在拉信…' : '同步收件箱'}
         </button>
-        <button className="btn btn-ghost" onClick={state.handleRunPollingOnce} disabled={state.pollingRunning || state.loading}>
+        <button className="btn btn-ghost" onClick={state.handleRunPollingOnce} disabled={state.pollingRunning}>
           {state.pollingRunning ? '轮询执行中…' : '执行后台轮询'}
         </button>
         <select
           value={state.activeAccount?.auto_mail_policy || 'draft_and_notify'}
           onChange={(e) => state.handlePolicyChange(e.target.value)}
-          disabled={!state.activeAccount || state.policySaving || state.loading}
+          disabled={!state.activeAccount || state.policySaving}
           style={{ maxWidth: 200 }}
         >
           {AUTO_MAIL_POLICY_OPTIONS.map((option) => (
@@ -117,7 +117,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         </select>
         <div className="board-toolbar-spacer" />
         <button className="btn btn-ghost" onClick={() => onOpenNotifyNetwork?.()}>账户接线</button>
-        <button className="btn btn-ghost" onClick={state.handleAccountTest} disabled={!state.activeAccount || state.accountTesting || state.loading}>
+        <button className="btn btn-ghost" onClick={state.handleAccountTest} disabled={!state.activeAccount || state.accountTesting}>
           {state.accountTesting ? '检定中…' : '账户检定'}
         </button>
         <button className="btn btn-primary" onClick={state.openBlankComposer}>写一封信</button>
@@ -155,7 +155,6 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         accounts={state.accounts}
         handleAccountTest={state.handleAccountTest}
         handlePollingConfigChange={state.handlePollingConfigChange}
-        loading={state.loading}
         pollingFeedback={state.pollingFeedback}
         pollingResults={state.pollingResults}
         pollingSaving={state.pollingSaving}
@@ -273,7 +272,8 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         composerThreadId={state.composerThreadId}
         composerResetting={state.composerResetting}
         activeDraft={state.activeDraft}
-        loading={state.loading}
+        composerSaving={state.composerSaving}
+        composerSending={state.composerSending}
         draftForm={state.draftForm}
         setDraftForm={state.setDraftForm}
         accounts={state.accounts}

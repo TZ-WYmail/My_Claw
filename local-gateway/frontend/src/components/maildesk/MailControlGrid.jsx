@@ -15,7 +15,6 @@ export default function MailControlGrid({
   accounts,
   handleAccountTest,
   handlePollingConfigChange,
-  loading,
   pollingFeedback,
   pollingResults,
   pollingSaving,
@@ -92,7 +91,7 @@ export default function MailControlGrid({
               <input
                 type="checkbox"
                 checked={!!pollingState.enabled}
-                disabled={pollingSaving || loading}
+                disabled={pollingSaving}
                 onChange={(e) => handlePollingConfigChange({ enabled: e.target.checked })}
               />
             </label>
@@ -100,7 +99,7 @@ export default function MailControlGrid({
               <label>轮询信箱</label>
               <select
                 value={pollingState.folder_kind || 'inbox'}
-                disabled={pollingSaving || loading}
+                disabled={pollingSaving}
                 onChange={(e) => handlePollingConfigChange({ folder_kind: e.target.value })}
               >
                 {pollingFolderOptions.map((option) => (
@@ -115,7 +114,7 @@ export default function MailControlGrid({
                 min={60}
                 max={86400}
                 value={pollingState.interval_seconds || 300}
-                disabled={pollingSaving || loading}
+                disabled={pollingSaving}
                 onChange={(e) => setPollingState(prev => ({ ...prev, interval_seconds: e.target.value }))}
                 onBlur={() => handlePollingConfigChange({ interval_seconds: Math.max(60, Number(pollingState.interval_seconds) || 300) })}
               />
@@ -127,7 +126,7 @@ export default function MailControlGrid({
                 min={1}
                 max={100}
                 value={pollingState.limit || 20}
-                disabled={pollingSaving || loading}
+                disabled={pollingSaving}
                 onChange={(e) => setPollingState(prev => ({ ...prev, limit: e.target.value }))}
                 onBlur={() => handlePollingConfigChange({ limit: Math.min(100, Math.max(1, Number(pollingState.limit) || 20)) })}
               />
@@ -268,7 +267,7 @@ export default function MailControlGrid({
           )}
           <div className="inline-actions" style={{ marginTop: 'var(--space-md)' }}>
             <button className="btn btn-sm btn-ghost" onClick={requestOpenNotifyNetwork}>去接线页</button>
-            <button className="btn btn-sm btn-ghost" onClick={handleAccountTest} disabled={!activeAccount || accountTesting || loading}>
+            <button className="btn btn-sm btn-ghost" onClick={handleAccountTest} disabled={!activeAccount || accountTesting}>
               {accountTesting ? '检定中…' : '重新检定'}
             </button>
           </div>
