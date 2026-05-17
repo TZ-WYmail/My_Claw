@@ -1637,6 +1637,12 @@ textarea { resize: vertical; min-height: 80px; }
   border: 1px solid rgba(206,58,44,0.2);
 }
 
+.mail-inline-alert-success {
+  background: rgba(52,93,76,0.12);
+  color: var(--success);
+  border: 1px solid rgba(52,93,76,0.18);
+}
+
 .mail-polling-summary {
   display: grid;
   gap: 10px;

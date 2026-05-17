@@ -290,6 +290,19 @@ function renderPlainTextWithLinks(text) {
   });
 }
 
+function createComposerStateFromDraft(draft, thread, activeAccount) {
+  return {
+    account_id: draft?.account_id || thread?.account_id || activeAccount?.account_id || '',
+    to: (draft?.to || []).map(item => item.email).join(', '),
+    cc: (draft?.cc || []).map(item => item.email).join(', '),
+    bcc: (draft?.bcc || []).map(item => item.email).join(', '),
+    subject: draft?.subject || thread?.subject || '',
+    body_html: (draft?.body_html || '').replace(/<br\s*\/?>/gi, '\n'),
+    tone_mode: draft?.tone_mode || activeAccount?.tone_mode || 'warm',
+    signature: draft?.signature || activeAccount?.signature_text || '',
+  };
+}
+
 function DecisionQueueCard({ thread, onOpen, onDiscuss, onCreateTask }) {
   return (
     <article className="dossier-card" style={{ transform: 'rotate(-0.35deg)', borderColor: 'var(--warning)' }}>
@@ -474,12 +487,15 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
   const [policySaving, setPolicySaving] = useState(false);
   const [pollingSaving, setPollingSaving] = useState(false);
   const [pollingRunning, setPollingRunning] = useState(false);
+  const [threadRefreshing, setThreadRefreshing] = useState(false);
   const [accountTesting, setAccountTesting] = useState(false);
   const [accountTestResult, setAccountTestResult] = useState(null);
   const [composerDraftId, setComposerDraftId] = useState('');
   const [composerThreadId, setComposerThreadId] = useState('');
+  const [composerResetting, setComposerResetting] = useState(false);
   const [agentRunsLoading, setAgentRunsLoading] = useState(false);
   const [agentRunFilter, setAgentRunFilter] = useState('all');
+  const [pollingFeedback, setPollingFeedback] = useState(null);
   const [pollingState, setPollingState] = useState({
     enabled: false,
     interval_seconds: 300,
@@ -552,6 +568,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
     [threads, selectedThreadId],
   );
   const railThread = threads[selectedThreadIndex >= 0 ? selectedThreadIndex : 0] || null;
+  const selectedThread = threadDetail?.thread || threads.find(item => item.thread_id === selectedThreadId) || null;
 
   const parseRecipientLine = (value) => {
     return value
@@ -715,21 +732,16 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
     }));
   }, [activeAccount]);
 
-  const openDraftComposer = useCallback((draft, thread = null) => {
+  const hydrateComposerFromDraft = useCallback((draft, thread = null) => {
     setComposerDraftId(draft?.draft_id || '');
     setComposerThreadId(draft?.thread_id || thread?.thread_id || '');
-    setDraftForm({
-      account_id: draft?.account_id || thread?.account_id || activeAccount?.account_id || '',
-      to: (draft?.to || []).map(item => item.email).join(', '),
-      cc: (draft?.cc || []).map(item => item.email).join(', '),
-      bcc: (draft?.bcc || []).map(item => item.email).join(', '),
-      subject: draft?.subject || thread?.subject || '',
-      body_html: (draft?.body_html || '').replace(/<br\s*\/?>/gi, '\n'),
-      tone_mode: draft?.tone_mode || activeAccount?.tone_mode || 'warm',
-      signature: draft?.signature || activeAccount?.signature_text || '',
-    });
-    setComposerOpen(true);
+    setDraftForm(createComposerStateFromDraft(draft, thread, activeAccount));
   }, [activeAccount]);
+
+  const openDraftComposer = useCallback((draft, thread = null) => {
+    hydrateComposerFromDraft(draft, thread);
+    setComposerOpen(true);
+  }, [hydrateComposerFromDraft]);
 
   const createDraftPayload = useCallback(() => ({
     account_id: draftForm.account_id,
@@ -886,8 +898,20 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
         limit: Number(nextState.limit),
       }));
       setPollingState((prev) => ({ ...prev, ...(result.polling || {}) }));
+      setPollingFeedback({
+        tone: 'success',
+        message: patch.enabled !== undefined
+          ? (nextState.enabled ? '后台轮询已开启，配置已写回执行器' : '后台轮询已关闭，配置已写回执行器')
+          : '轮询配置已保存，后续执行会采用这一版参数',
+        savedAt: new Date().toISOString(),
+      });
       toast(nextState.enabled ? '后台轮询已经接通' : '后台轮询已经停下', 'success');
     } catch (e) {
+      setPollingFeedback({
+        tone: 'error',
+        message: e.message || '更新轮询配置失败',
+        savedAt: '',
+      });
       toast(e.message || '更新轮询配置失败', 'error');
       await fetchPollingStatus();
     } finally {
@@ -972,6 +996,50 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
     }
   };
 
+  const handleRefreshSelectedThread = useCallback(async (threadId = selectedThreadId) => {
+    if (!threadId) {
+      return;
+    }
+    setThreadRefreshing(true);
+    try {
+      await Promise.all([
+        fetchDashboard(selectedAccount),
+        fetchThreads(selectedAccount, selectedFolder),
+        fetchThreadDetail(threadId),
+      ]);
+      toast('这封信的当前内容已经刷新', 'success');
+    } catch (e) {
+      toast(e.message || '刷新当前线程失败', 'error');
+    } finally {
+      setThreadRefreshing(false);
+    }
+  }, [fetchDashboard, fetchThreadDetail, fetchThreads, selectedAccount, selectedFolder, selectedThreadId, toast]);
+
+  const handleResetComposerToLatestDraft = useCallback(async () => {
+    const threadId = composerThreadId || selectedThreadId;
+    if (!composerDraftId || !threadId) {
+      toast('当前没有可回退的已保存草稿', 'warning');
+      return;
+    }
+    setComposerResetting(true);
+    try {
+      const data = await request(() => apiGet(`/api/mail/threads/${threadId}`));
+      const latestDraft = (data.drafts || []).find((draft) => draft.status !== 'sent' && draft.draft_id === composerDraftId)
+        || (data.drafts || []).find((draft) => draft.status !== 'sent');
+      if (!latestDraft) {
+        toast('服务器上已经没有这份待发草稿了', 'warning');
+        return;
+      }
+      setThreadDetail((prev) => (prev?.thread?.thread_id === threadId ? data : prev));
+      hydrateComposerFromDraft(latestDraft, data.thread || selectedThread);
+      toast('已回到服务器上的最新草稿版本', 'success');
+    } catch (e) {
+      toast(e.message || '重置草稿失败', 'error');
+    } finally {
+      setComposerResetting(false);
+    }
+  }, [composerDraftId, composerThreadId, hydrateComposerFromDraft, request, selectedThread, selectedThreadId, toast]);
+
   const handlePolicyChange = async (nextPolicy) => {
     if (!activeAccount?.account_id || nextPolicy === activeAccount.auto_mail_policy) {
       return;
@@ -992,8 +1060,6 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
       setPolicySaving(false);
     }
   };
-
-  const selectedThread = threadDetail?.thread || threads.find(item => item.thread_id === selectedThreadId) || null;
 
   const openPrevThread = () => {
     if (selectedThreadIndex > 0) {
@@ -1202,7 +1268,14 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
               <span className={`badge ${pollingState.enabled ? 'badge-completed' : 'badge-ghost'}`}>{pollingState.enabled ? '后台轮询已开启' : '后台轮询已关闭'}</span>
               <span className={`badge ${pollingState.is_running ? 'badge-warning' : 'badge-ghost'}`}>{pollingState.is_running ? '正在执行' : '当前空闲'}</span>
               <span className="badge badge-ghost">最近成功 {pollingState.last_success_at ? formatDateTime(pollingState.last_success_at) : '未记录'}</span>
+              {pollingSaving && <span className="badge badge-warning">正在保存配置</span>}
             </div>
+            {!pollingSaving && pollingFeedback && (
+              <div className={`mail-inline-alert ${pollingFeedback.tone === 'error' ? 'mail-inline-alert-error' : 'mail-inline-alert-success'}`}>
+                {pollingFeedback.message}
+                {pollingFeedback.savedAt ? ` · ${formatDateTime(pollingFeedback.savedAt)}` : ''}
+              </div>
+            )}
             {!!pollingState.last_error && (
               <div className="mail-inline-alert mail-inline-alert-error">{pollingState.last_error}</div>
             )}
@@ -1326,6 +1399,12 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                 </div>
               </div>
             </div>
+            {syncStatus?.status === 'error' && (
+              <div className="mail-inline-alert mail-inline-alert-error">
+                最近一次拉信失败于 {formatDateTime(syncStatus.finished_at || syncStatus.started_at || syncStatus.created_at)}。
+                {syncStatus.error_message ? ` ${syncStatus.error_message}` : ' 请先检查账户链路或立即重试同步。'}
+              </div>
+            )}
             {!!syncStatus?.error_message && (
               <div className="mail-inline-alert mail-inline-alert-error">{syncStatus.error_message}</div>
             )}
@@ -1542,6 +1621,9 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                 <div>
                   <div className="section-kicker">DESKTOP ACTIONS</div>
                   <div className="inline-actions" style={{ marginTop: 8 }}>
+                    <button className="btn btn-sm btn-ghost" onClick={() => handleRefreshSelectedThread(selectedThread.thread_id)} disabled={threadRefreshing}>
+                      {threadRefreshing ? '刷新中…' : '刷新这封信'}
+                    </button>
                     {!!selectedThread.unread_count && <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(selectedThread.thread_id)}>标记已读</button>}
                     {selectedThread.latest_folder_kind !== 'archive' && <button className="btn btn-sm btn-ghost" onClick={() => handleArchive(selectedThread.thread_id)}>归档</button>}
                     {selectedThread.waiting_user_decision && <button className="btn btn-sm btn-ghost" onClick={() => handleDecisionStatus(selectedThread.thread_id, 'snoozed')}>稍后再问</button>}
@@ -1584,7 +1666,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
               </div>
             ) : (
               <div className="board-card-grid mail-letter-stack" style={{ gridTemplateColumns: '1fr' }}>
-                {selectedAgentRuns.length > 0 && (
+                {(threadDetail.agent_runs || []).length > 0 && (
                   <article className="dossier-card" style={{ transform: 'rotate(0.25deg)', borderColor: 'var(--accent)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
                       <div>
@@ -1594,7 +1676,7 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
                           系统替你起草、跳过、等待确认或自动寄出的动作，都会在这里留下痕迹。
                         </div>
                       </div>
-                      <span className="badge badge-ghost">{selectedAgentRuns.length} 条记录</span>
+                      <span className="badge badge-ghost">{selectedAgentRuns.length} / {(threadDetail.agent_runs || []).length} 条记录</span>
                     </div>
                     <div className="mail-filter-toggles" style={{ marginTop: 'var(--space-md)' }}>
                       {['all', 'user_confirmation_required', 'draft_created', 'sent', 'failed', 'skipped_non_direct'].map((filter) => (
@@ -1707,7 +1789,13 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
               <div className="mail-composer-state">
                 <span className="badge badge-ghost">{composerDraftId ? '正在编辑现有草稿' : '新草稿'}</span>
                 <span className="badge badge-ghost">{composerThreadId ? '已挂在线程内' : '独立发信'}</span>
+                {composerResetting && <span className="badge badge-warning">正在回退草稿</span>}
               </div>
+              {composerDraftId && (
+                <div className="mail-inline-alert mail-inline-alert-success">
+                  这是一份已经落库的草稿。如果别处又改过它，可以随时回退到服务器上的最新版本。
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 'var(--space-md)' }}>
                 <div className="form-group">
                   <label>发信账户</label>
@@ -1768,6 +1856,14 @@ export default function Download({ quickAction = null, clearQuickAction = null, 
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)' }}>
                 <button type="button" className="btn btn-ghost" onClick={() => setComposerOpen(false)}>收起信纸</button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleResetComposerToLatestDraft}
+                  disabled={!composerDraftId || composerResetting || loading}
+                >
+                  {composerResetting ? '回退中…' : '回到最新草稿'}
+                </button>
                 <button type="button" className="btn btn-ghost" onClick={handleSaveDraftOnly} disabled={loading}>只保存草稿</button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>寄出这封信</button>
               </div>
