@@ -132,6 +132,7 @@ function AppShell() {
           clearQuickAction={() => setQuickAction(null)}
           onOpenNotifyNetwork={() => navigate('settings', { type: 'open_notify_network' })}
           onOpenAi={openAiIntent}
+          onOpenTask={openTaskDetail}
         />
       );
       case 'sandbox': return <Sandbox />;

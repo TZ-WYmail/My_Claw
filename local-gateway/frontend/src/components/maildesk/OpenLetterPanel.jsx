@@ -49,6 +49,7 @@ export default function OpenLetterPanel({
   setAgentRunFilter,
   onOpenDraftComposer,
   onSendDraft,
+  onOpenTask,
 }) {
   const selectedThreadId = selectedThread?.thread_id || '';
   const isArchivingSelected = archivingThreadId && archivingThreadId === selectedThreadId;
@@ -362,6 +363,44 @@ export default function OpenLetterPanel({
                     </details>
                   ))
                 )}
+              </div>
+            </article>
+          )}
+          {(threadDetail.task_summaries || []).length > 0 && (
+            <article className="dossier-card" style={{ transform: 'rotate(-0.18deg)', borderColor: 'rgba(47, 111, 237, 0.28)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="section-kicker">TASK FALLOUT</div>
+                  <h3 className="dossier-title">由这封信牵出的任务</h3>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
+                    邮件不该只停留在阅读层。已经落进任务系统的事项，会在这里留下下一步抓手。
+                  </div>
+                </div>
+                <span className="badge badge-ghost">{threadDetail.task_summaries.length} 项</span>
+              </div>
+              <div className="signal-list" style={{ marginTop: 'var(--space-md)' }}>
+                {threadDetail.task_summaries.map((task) => (
+                  <div key={task.link_id || task.task_id} className="signal-row">
+                    <div>
+                      <div className="signal-row-title">{task.task_name || task.task_id}</div>
+                      <div className="signal-row-copy">
+                        {task.due_time ? `截止 ${formatDateTime(task.due_time)}` : '未写截止时间'}
+                        {typeof task.priority === 'number' ? ` · 优先级 ${task.priority}` : ''}
+                        {task.status ? ` · ${task.status}` : ''}
+                      </div>
+                      {!!task.description && (
+                        <div className="signal-row-copy" style={{ marginTop: 4 }}>
+                          {task.description.length > 120 ? `${task.description.slice(0, 120)}...` : task.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="inline-actions">
+                      <button className="btn btn-sm btn-ghost" onClick={() => onOpenTask?.(task)} disabled={!task.task_id}>
+                        打开任务
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </article>
           )}

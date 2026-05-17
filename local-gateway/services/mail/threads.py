@@ -622,6 +622,40 @@ async def get_mail_thread(thread_id: str) -> Optional[dict]:
         )
         task_links = [dict(row) for row in await cursor.fetchall()]
 
+        task_summaries = []
+        if task_links:
+            task_ids = [link["task_id"] for link in task_links]
+            placeholders = ",".join("?" for _ in task_ids)
+            cursor = await db.execute(
+                f"""
+                SELECT task_id, task_name, due_time, start_time, end_time, status, priority, description
+                FROM tasks
+                WHERE task_id IN ({placeholders})
+                """,
+                task_ids,
+            )
+            tasks_by_id = {
+                row["task_id"]: {
+                    "task_id": row["task_id"],
+                    "task_name": row["task_name"],
+                    "due_time": row["due_time"],
+                    "start_time": row["start_time"],
+                    "end_time": row["end_time"],
+                    "status": row["status"],
+                    "priority": row["priority"],
+                    "description": row["description"] or "",
+                }
+                for row in await cursor.fetchall()
+            }
+            task_summaries = [
+                {
+                    **link,
+                    **tasks_by_id.get(link["task_id"], {}),
+                }
+                for link in task_links
+                if tasks_by_id.get(link["task_id"])
+            ]
+
         cursor = await db.execute(
             """
             SELECT run_id, message_id, thread_id, account_id, action_kind, status,
@@ -640,6 +674,7 @@ async def get_mail_thread(thread_id: str) -> Optional[dict]:
         "messages": messages,
         "drafts": drafts,
         "task_links": task_links,
+        "task_summaries": task_summaries,
         "agent_runs": agent_runs,
     }
 
