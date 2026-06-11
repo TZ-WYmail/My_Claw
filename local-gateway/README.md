@@ -16,14 +16,14 @@
 ## 快速启动
 
 ```bash
-# 1. 激活环境
+# 1. 创建或更新环境（首次推荐）
+cd local-gateway
+conda env create -f environment.yml || conda env update -f environment.yml --prune
+
+# 2. 激活环境
 conda activate claude
 
-# 2. 安装依赖（首次）
-cd local-gateway
-pip install -r requirements.txt
-
-# 3. 确保 Docker 已启动（沙盒功能依赖）
+# 3. 确保 Docker 已启动（仅沙盒功能依赖）
 docker info
 
 # 4. 启动网关
@@ -31,9 +31,59 @@ python main.py
 # 服务运行在 http://localhost:8900
 # 浏览器打开 http://localhost:8900 进入图形界面
 
-# 5. 内网穿透（让 GLM 云端可以访问你的本地服务）
+# 5. 运行后端测试（可选）
+python -m pytest test/ -v
+
+# 6. 内网穿透（让 GLM 云端可以访问你的本地服务）
 ngrok http 8900
 ```
+
+## WSL / Ubuntu 优先工作流
+
+如果你后续要部署到 Ubuntu 服务器，建议平时也在 WSL 的 Ubuntu 文件系统中运行，而不是直接在 `/mnt/e/...` 这类 Windows 挂载目录上开发。
+
+推荐目录：
+
+```bash
+~/projects/My_Claw/local-gateway
+```
+
+首次从 Windows 副本同步到 WSL：
+
+```bash
+cd /mnt/e/Project/My_Claw/local-gateway
+bash scripts/wsl-sync-from-windows.sh /mnt/e/Project/My_Claw ~/projects/My_Claw
+cd ~/projects/My_Claw/local-gateway
+chmod +x scripts/wsl-setup.sh scripts/wsl-run-backend.sh scripts/wsl-test.sh scripts/wsl-sync-from-windows.sh
+./scripts/wsl-setup.sh
+```
+
+日常运行：
+
+```bash
+cd ~/projects/My_Claw/local-gateway
+./scripts/wsl-run-backend.sh
+```
+
+运行测试：
+
+```bash
+cd ~/projects/My_Claw/local-gateway
+./scripts/wsl-test.sh
+```
+
+说明：
+
+- 这套流程默认使用 WSL 里的 `~/miniconda3` 和 `claude` 环境名；如果你的 conda 路径不同，可先设置 `WSL_CONDA_HOME`，如果想换环境名可设置 `WSL_CONDA_ENV`。
+- 这套流程在 Ubuntu 侧依然保持 Python 依赖由 `requirements-dev.txt` 驱动，只是交给 conda 管理解释器和环境隔离。
+- 脚本会优先完成后端环境；如果 WSL 里还没有原生 `node`，会跳过前端安装并给出提示。
+- 如果你继续在 Windows 侧改代码，可以重复执行 `scripts/wsl-sync-from-windows.sh` 把副本同步到 WSL。
+
+### Windows 编码说明
+
+- `pytest.ini` 已保持 ASCII，避免在默认 GBK 代码页下被 `pytest` 读取时报错。
+- 其余源码和文档统一按 UTF-8 处理；如果你在 PowerShell 中看到中文乱码，先执行 `.\scripts\windows-utf8.ps1`，再运行 `python`、`pip`、`pytest`。
+- 如果只想临时手动设置，等价命令是：`chcp 65001`、`$env:PYTHONUTF8=1`、`$env:PYTHONIOENCODING='utf-8'`。
 
 ## 项目结构
 
