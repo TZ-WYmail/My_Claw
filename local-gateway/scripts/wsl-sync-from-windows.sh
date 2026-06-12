@@ -13,6 +13,9 @@ mkdir -p "$(dirname "${TARGET_DIR}")"
 
 if command -v rsync >/dev/null 2>&1; then
   rsync -a --delete \
+    --exclude '.git' \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
     --exclude '.venv' \
     --exclude 'frontend/node_modules' \
     --exclude 'local-gateway/.venv' \
