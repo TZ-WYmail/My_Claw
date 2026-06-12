@@ -112,7 +112,7 @@ def _search_files_sync(keyword: str, category: str) -> dict:
 
 async def _search_tasks(keyword: str, page: int, page_size: int) -> dict:
     """搜索任务"""
-    from services.task_service import get_all_tasks
+    from services.task_query_service import get_all_tasks
     result = await get_all_tasks(keyword=keyword, page=page, page_size=page_size)
     return {"items": result.get("tasks", []), "total": result.get("total", 0)}
 

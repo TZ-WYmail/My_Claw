@@ -12,7 +12,8 @@ from typing import Optional
 import httpx
 
 from config import ai_config
-from services import task_service
+from services import task_command_service
+from services import task_query_service
 from services import pomodoro_service
 from services import calendar_sync_service
 
@@ -217,9 +218,9 @@ def _normalize_tasks(tasks: list[dict]) -> list[dict]:
     normalized = []
     for task in tasks:
         due_raw = (task.get("due_time") or "").strip()
-        due_norm = task_service._normalize_time(due_raw) if due_raw else ""
+        due_norm = task_command_service._normalize_time(due_raw) if due_raw else ""
         earliest_start_raw = (task.get("earliest_start") or "").strip()
-        earliest_start_norm = task_service._normalize_time(earliest_start_raw) if earliest_start_raw else ""
+        earliest_start_norm = task_command_service._normalize_time(earliest_start_raw) if earliest_start_raw else ""
         estimated_minutes = task.get("estimated_minutes")
         if not estimated_minutes:
             name = (task.get("task_name") or "").lower()
@@ -502,7 +503,7 @@ def _build_variant_plan(
 
     def ensure_day(day: str) -> dict:
         if day not in daily_plan:
-            weekday = task_service._date_to_weekday(day)
+            weekday = task_command_service._date_to_weekday(day)
             is_weekend = datetime.strptime(day, "%Y-%m-%d").weekday() >= 5
             daily_capacity = capacity["weekend_daily_hours"] if is_weekend else capacity["default_daily_hours"]
             calendar_hours = calendar_load.get(day, 0)
@@ -669,7 +670,7 @@ def _build_variant_plan(
     daily_timeline = []
     for day in sorted(daily_plan.keys()):
         info = daily_plan[day]
-        weekday = info.get("weekday") or task_service._date_to_weekday(day)
+        weekday = info.get("weekday") or task_command_service._date_to_weekday(day)
         task_labels = []
         for item in info.get("tasks", []):
             slot_label = f" / {item.get('time_slot')}" if item.get("time_slot") else ""
@@ -1107,7 +1108,7 @@ def _apply_reorder_suggestions(
 
 async def preview_task_plan(tasks: list[dict], constraints: dict | None = None) -> dict:
     normalized_tasks = _normalize_tasks(tasks)
-    analyzed = await task_service.analyze_tasks(normalized_tasks)
+    analyzed = await task_command_service.analyze_tasks(normalized_tasks)
     capacity = _capacity_template(constraints)
     variant_defs = _variant_definitions(capacity)
 
@@ -1201,7 +1202,7 @@ async def confirm_task_plan(preview_id: str, selected_variant: str = "balanced",
         for task in tasks if task.get("time_valid")
     ]
 
-    created = await task_service.batch_add_tasks(create_payload)
+    created = await task_command_service.batch_add_tasks(create_payload)
     return {
         "status": created.get("status", "success"),
         "preview_id": preview_id,
@@ -1424,7 +1425,7 @@ async def estimate_task_time(task_name: str, description: str = None, category: 
 async def _get_historical_task_data(task_name: str, category: str = None) -> list[dict]:
     """获取历史相似任务数据"""
     # 从数据库查询已完成的任务
-    result = await task_service.get_all_tasks(
+    result = await task_query_service.get_all_tasks(
         status_filter="completed",
         keyword=task_name.split()[0] if task_name else "",
         page=1,
@@ -1448,7 +1449,7 @@ async def get_smart_suggestions(user_context: dict = None) -> dict:
     基于当前任务状态提供智能建议
     """
     # 获取当前任务状态
-    weekly_plan = await task_service.get_weekly_plan()
+    weekly_plan = await task_query_service.get_weekly_plan()
     pending_tasks = [t for t in weekly_plan.get("tasks", []) if t["status"] == "待执行"]
 
     # 获取番茄钟统计
@@ -1528,7 +1529,7 @@ async def analyze_task_patterns() -> dict:
     分析用户任务完成模式，提供效率洞察
     """
     # 获取所有任务
-    all_tasks = await task_service.get_all_tasks(
+    all_tasks = await task_query_service.get_all_tasks(
         status_filter="completed",
         page=1,
         page_size=100,

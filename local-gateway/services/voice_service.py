@@ -7,6 +7,8 @@ from __future__ import annotations
 import base64
 import logging
 import tempfile
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +20,97 @@ logger = logging.getLogger(__name__)
 # 语音文件存储目录
 VOICE_DIR = BASE_DIR / "data" / "voice"
 VOICE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+async def process_voice(audio_base64: str, source: str = "unknown") -> dict:
+    """
+    Process base64-encoded audio into transcription and an optional created task.
+    """
+    from services import task_command_service
+
+    if not audio_base64:
+        return {"status": "error", "message": "缺少音频数据"}
+
+    payload = audio_base64
+    if "," in payload and payload.split(",", 1)[0].startswith("data:"):
+        payload = payload.split(",", 1)[1]
+
+    try:
+        audio_bytes = base64.b64decode(payload, validate=False)
+    except Exception as exc:
+        return {"status": "error", "message": f"音频解码失败: {exc}"}
+
+    filename = f"{source}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.webm"
+    memo = await save_voice_memo(audio_bytes, filename=filename, transcribe=False)
+    if memo.get("status") != "success":
+        return memo
+
+    transcription = await transcribe_audio(memo["file_path"])
+    if transcription.get("status") != "success":
+        return {
+            "status": "error",
+            "message": transcription.get("message", "语音识别失败"),
+        }
+
+    text = (transcription.get("text") or "").strip()
+    if not text:
+        return {
+            "status": "success",
+            "text": "",
+            "task_created": False,
+            "message": "未识别到任务创建意图",
+        }
+
+    task_info_result = await create_task_from_voice(text)
+    if task_info_result.get("status") != "success":
+        return {
+            "status": "error",
+            "text": text,
+            "message": task_info_result.get("message", "任务提取失败"),
+        }
+
+    task_info = task_info_result.get("task_info", {}) or {}
+    task_name = (task_info.get("task_name") or "").strip()
+    due_time = task_info.get("due_time")
+
+    if not task_name or not due_time:
+        return {
+            "status": "success",
+            "text": text,
+            "task_created": False,
+            "task_info": task_info,
+            "message": "未识别到完整任务信息",
+        }
+
+    created = await task_command_service.add_task(
+        task_name=task_name,
+        due_time=due_time,
+        recurrence="once",
+        priority=int(task_info.get("priority", 2)),
+        description=task_info.get("description"),
+        tags=task_info.get("tags") or [],
+    )
+    if created.get("status") != "success":
+        return {
+            "status": "error",
+            "text": text,
+            "message": created.get("message", "任务创建失败"),
+        }
+
+    return {
+        "status": "success",
+        "text": text,
+        "task_created": True,
+        "task": {
+            "task_id": created.get("task_id"),
+            "task_name": task_name,
+            "due_time": due_time,
+            "priority": int(task_info.get("priority", 2)),
+            "tags": task_info.get("tags") or [],
+            "description": task_info.get("description"),
+        },
+        "task_info": task_info,
+    }
 
 
 async def save_voice_memo(

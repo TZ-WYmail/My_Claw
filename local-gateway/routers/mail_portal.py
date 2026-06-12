@@ -7,6 +7,15 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from application.mail_actions import (
+    archive_thread_action,
+    create_task_from_thread_action,
+    generate_reply_draft_action,
+    get_mail_thread_or_error,
+    portal_save_draft_action,
+    send_draft_action,
+    set_thread_decision_action,
+)
 from routers.mail_portal_render import (
     render_mail_portal_page,
     render_portal_result_page,
@@ -31,8 +40,8 @@ async def mail_portal(
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
 
-    detail = await mail_service.get_mail_thread(thread_id)
-    if not detail:
+    detail = await get_mail_thread_or_error(thread_id)
+    if detail.get("status") != "success":
         return HTMLResponse("<h3>这封信不存在</h3>", status_code=404)
     return render_mail_portal_page(thread_id=thread_id, token=token, detail=detail, notice=notice, tone=tone)
 
@@ -48,8 +57,8 @@ async def portal_save_draft(
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
 
-    detail = await mail_service.get_mail_thread(thread_id)
-    if not detail:
+    detail = await get_mail_thread_or_error(thread_id)
+    if detail.get("status") != "success":
         return HTMLResponse("<h3>这封信不存在</h3>", status_code=404)
 
     if not draft_id:
@@ -57,7 +66,7 @@ async def portal_save_draft(
         draft_id = (latest_draft or {}).get("draft_id", "")
 
     if not draft_id:
-        generated = await mail_service.generate_reply_draft_for_thread(thread_id)
+        generated = await generate_reply_draft_action(thread_id)
         if generated.get("status") != "success":
             return render_portal_result_page("保存失败", generated.get("message", "未能生成可编辑草稿"), thread_id, token)
         draft_id = generated.get("draft_id", "")
@@ -68,11 +77,11 @@ async def portal_save_draft(
     current_draft = next((draft for draft in detail.get("drafts", []) if draft.get("draft_id") == draft_id), None)
     normalized_subject = subject.strip() or ((current_draft or {}).get("subject") or thread_id)
     body_html = escape(body or "").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
-    result = await mail_service.update_mail_draft(
-        draft_id,
+    result = await portal_save_draft_action(
+        thread_id=thread_id,
+        draft_id=draft_id,
         subject=normalized_subject,
         body_html=body_html,
-        user_edited_after_ai=True,
     )
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "草稿保存失败"), tone="error")
@@ -83,7 +92,7 @@ async def portal_save_draft(
 async def portal_generate_reply_draft(thread_id: str, token: str = Query(...)):
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
-    result = await mail_service.generate_reply_draft_for_thread(thread_id)
+    result = await generate_reply_draft_action(thread_id)
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "未能生成回信草稿"), tone="error")
     source = "AI" if result.get("draft_source") == "ai" else "模板"
@@ -94,7 +103,7 @@ async def portal_generate_reply_draft(thread_id: str, token: str = Query(...)):
 async def portal_create_task(thread_id: str, token: str = Query(...)):
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
-    result = await mail_service.create_task_from_mail_thread(thread_id)
+    result = await create_task_from_thread_action(thread_id)
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "未能从邮件创建任务"), tone="error")
     return _portal_redirect(thread_id, token, f"已创建任务：{result.get('task_name', '邮件跟进任务')}")
@@ -104,7 +113,7 @@ async def portal_create_task(thread_id: str, token: str = Query(...)):
 async def portal_archive_thread(thread_id: str, token: str = Query(...)):
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
-    result = await mail_service.move_thread_to_folder(thread_id, "archive")
+    result = await archive_thread_action(thread_id)
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "未能归档这封信"), tone="error")
     return _portal_redirect(thread_id, token, "这封信已经安静收进归档夹。")
@@ -121,19 +130,19 @@ async def portal_quick_action(
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
 
     if action == "task":
-        result = await mail_service.create_task_from_mail_thread(thread_id)
+        result = await create_task_from_thread_action(thread_id)
         if result.get("status") != "success":
             return _portal_redirect(thread_id, token, result.get("message", "未能从邮件创建任务"), tone="error")
         return _portal_redirect(thread_id, token, f"已创建任务：{result.get('task_name', '邮件跟进任务')}")
 
     if action == "archive":
-        result = await mail_service.move_thread_to_folder(thread_id, "archive")
+        result = await archive_thread_action(thread_id)
         if result.get("status") != "success":
             return _portal_redirect(thread_id, token, result.get("message", "未能归档这封信"), tone="error")
         return _portal_redirect(thread_id, token, "这封信已经安静收进归档夹。")
 
     if action == "decision":
-        result = await mail_service.set_thread_decision_status(thread_id, decision_status or "pending")
+        result = await set_thread_decision_action(thread_id, decision_status or "pending")
         if result.get("status") != "success":
             return _portal_redirect(thread_id, token, result.get("message", "未能更新处理状态"), tone="error")
         status_copy = {
@@ -154,7 +163,7 @@ async def portal_thread_decision(
 ):
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
-    result = await mail_service.set_thread_decision_status(thread_id, decision_status)
+    result = await set_thread_decision_action(thread_id, decision_status)
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "未能更新处理状态"), tone="error")
     status_copy = {
@@ -170,12 +179,12 @@ async def portal_send_draft(thread_id: str, draft_id: str = Form(""), token: str
     if not mail_service.verify_mail_portal_token(thread_id, token):
         return HTMLResponse("<h3>链接无效或已失效</h3>", status_code=403)
     if not draft_id:
-        detail = await mail_service.get_mail_thread(thread_id)
+        detail = await get_mail_thread_or_error(thread_id)
         latest_draft = next((draft for draft in (detail or {}).get("drafts", []) if draft.get("status") != "sent"), None)
         draft_id = (latest_draft or {}).get("draft_id", "")
     if not draft_id:
         return _portal_redirect(thread_id, token, "当前没有可发送的草稿。", tone="error")
-    result = await mail_service.send_mail_draft(draft_id)
+    result = await send_draft_action(draft_id)
     if result.get("status") != "success":
         return _portal_redirect(thread_id, token, result.get("message", "草稿发送失败"), tone="error")
     return _portal_redirect(thread_id, token, "这封回信已经替你寄出。")

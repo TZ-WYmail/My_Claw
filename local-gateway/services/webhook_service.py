@@ -15,7 +15,7 @@ from typing import Optional
 import httpx
 
 from config import BASE_DIR
-from services import habit_service, note_service, task_service
+from services import habit_service, note_service, task_command_service
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +293,7 @@ async def handle_incoming_webhook(
 
     # 处理不同事件
     if event_type == "task.create":
-        result = await task_service.add_task(
+        result = await task_command_service.add_task(
             task_name=data.get("task_name", "外部任务"),
             due_time=data.get("due_time", datetime.now().isoformat()),
             description=data.get("description"),
@@ -303,7 +303,7 @@ async def handle_incoming_webhook(
     elif event_type == "task.complete":
         task_id = data.get("task_id")
         if task_id:
-            result = await task_service.complete_task(task_id)
+            result = await task_command_service.complete_task(task_id)
         else:
             return {"status": "error", "message": "缺少 task_id"}
 

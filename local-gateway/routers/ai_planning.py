@@ -8,18 +8,18 @@ GET  /api/ai/insights — 效率洞察
 """
 from fastapi import APIRouter
 
-from models.schemas import BaseModel, Field
-from services.ai_planning_service import (
-    analyze_task_patterns,
-    confirm_task_plan,
-    decompose_task,
-    estimate_task_time,
-    generate_task_plan,
-    get_smart_suggestions,
-    preview_task_plan,
-    replan_tasks,
-    replan_tasks_with_acceptance,
+from application.planning_actions import (
+    analyze_task_patterns_action,
+    confirm_task_plan_action,
+    decompose_task_action,
+    estimate_task_time_action,
+    generate_task_plan_action,
+    get_smart_suggestions_action,
+    preview_task_plan_action,
+    replan_tasks_action,
+    replan_tasks_with_acceptance_action,
 )
+from models.schemas import BaseModel, Field
 
 router = APIRouter(prefix="/ai", tags=["ai_planning"])
 
@@ -73,27 +73,27 @@ class EstimateRequest(BaseModel):
 @router.post("/decompose", response_model=DecomposeResponse)
 async def ai_decompose_task(request: DecomposeRequest):
     """AI任务拆解 - 将复杂任务分解为子任务"""
-    result = await decompose_task(request.task_name, request.description)
+    result = await decompose_task_action(request.task_name, request.description)
     return result
 
 
 @router.post("/plan")
 async def ai_generate_plan(request: PlanRequest):
     """AI生成任务计划 - 基于约束条件优化安排"""
-    result = await generate_task_plan(request.tasks, request.constraints)
+    result = await generate_task_plan_action(request.tasks, request.constraints)
     return result
 
 
 @router.post("/plan/preview")
 async def ai_preview_plan(request: PreviewRequest):
     """结构化预览任务计划"""
-    return await preview_task_plan(request.tasks, request.constraints)
+    return await preview_task_plan_action(request.tasks, request.constraints)
 
 
 @router.post("/plan/confirm")
 async def ai_confirm_plan(request: ConfirmPlanRequest):
     """确认并创建任务计划"""
-    return await confirm_task_plan(
+    return await confirm_task_plan_action(
         request.preview_id,
         request.selected_variant,
         request.user_adjustments,
@@ -103,13 +103,13 @@ async def ai_confirm_plan(request: ConfirmPlanRequest):
 @router.post("/plan/replan")
 async def ai_replan(request: ReplanRequest):
     """插入任务或任务变更后的重排"""
-    return await replan_tasks(request.tasks, request.constraints, request.interrupt_task)
+    return await replan_tasks_action(request.tasks, request.constraints, request.interrupt_task)
 
 
 @router.post("/plan/replan/accept")
 async def ai_replan_with_acceptance(request: ReplanAcceptanceRequest):
     """接受部分建议后生成新的重排方案"""
-    return await replan_tasks_with_acceptance(
+    return await replan_tasks_with_acceptance_action(
         request.tasks,
         request.constraints,
         request.interrupt_task,
@@ -120,7 +120,7 @@ async def ai_replan_with_acceptance(request: ReplanAcceptanceRequest):
 @router.post("/estimate")
 async def ai_estimate_time(request: EstimateRequest):
     """AI时间估算 - 智能预估任务完成时间"""
-    result = await estimate_task_time(
+    result = await estimate_task_time_action(
         request.task_name,
         request.description,
         request.category,
@@ -131,12 +131,12 @@ async def ai_estimate_time(request: EstimateRequest):
 @router.get("/suggestions")
 async def ai_suggestions():
     """智能建议 - 基于当前任务状态提供建议"""
-    result = await get_smart_suggestions()
+    result = await get_smart_suggestions_action()
     return result
 
 
 @router.get("/insights")
 async def ai_insights():
     """效率洞察 - 分析任务完成模式"""
-    result = await analyze_task_patterns()
+    result = await analyze_task_patterns_action()
     return result

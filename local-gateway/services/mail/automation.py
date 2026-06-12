@@ -162,7 +162,7 @@ async def create_task_from_mail_thread(
     description: str = "",
     priority: int = 1,
 ) -> dict:
-    from services import task_service
+    from services import task_command_service
 
     detail = await get_mail_thread(thread_id)
     if not detail:
@@ -185,7 +185,7 @@ async def create_task_from_mail_thread(
     ]
     task_description = "\n".join(part for part in description_parts if part)
 
-    result = await task_service.add_task(
+    result = await task_command_service.add_task(
         task_name=inferred_task_name,
         due_time=inferred_due_time,
         priority=priority,

@@ -9,6 +9,7 @@ from services.unified_search_service import unified_search
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
     import services.task_service as ts_mod
+    import services.task_query_service as tq_mod
     import services.note_service as ns_mod
     import services.habit_service as hs_mod
     import services.tag_service as tg_mod
@@ -17,6 +18,7 @@ async def setup_db(tmp_path, monkeypatch):
     import services.calendar_sync_service as cs_mod
     db_path = tmp_path / "test_unified.db"
     monkeypatch.setattr(ts_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(tq_mod, "DB_PATH", db_path)
     monkeypatch.setattr(ns_mod, "DB_PATH", db_path)
     monkeypatch.setattr(hs_mod, "DB_PATH", db_path)
     monkeypatch.setattr(tg_mod, "DB_PATH", db_path)

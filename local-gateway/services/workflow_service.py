@@ -294,14 +294,14 @@ class WorkflowEngine:
 
     async def _execute_action(self, action_type: str, config: dict) -> dict:
         """执行单个动作"""
-        from services import task_service
+        from services import task_command_service
         from services import habit_service
         from services import note_service
         from services.webhook_service import send_webhook
 
         try:
             if action_type == "create_task":
-                return await task_service.add_task(
+                return await task_command_service.add_task(
                     task_name=config.get("task_name", "自动任务"),
                     due_time=config.get("due_time", datetime.now().isoformat()),
                     description=config.get("description"),
@@ -310,7 +310,7 @@ class WorkflowEngine:
                 )
 
             elif action_type == "complete_task":
-                return await task_service.complete_task(config.get("task_id"))
+                return await task_command_service.complete_task(config.get("task_id"))
 
             elif action_type == "create_note":
                 return await note_service.create_note(

@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 import httpx
 
+from application.ai_tools import execute_ai_tool
 from config import ai_config
 from services.security_service import (
     execute_validated_local_command,
@@ -656,7 +657,7 @@ async def _call_ai(messages: list[dict]) -> Optional[dict]:
 
 
 async def _execute_tool(name: str, args: dict) -> dict:
-    """通过 HTTP 调用本地网关的工具端点，或执行 code_interpreter/shell"""
+    """执行本地工具，或执行 code_interpreter/shell。"""
     # Code Interpreter: 直接在本地 Python 子进程中执行
     if name == "code_interpreter":
         return await _execute_code_interpreter(args)
@@ -664,26 +665,8 @@ async def _execute_tool(name: str, args: dict) -> dict:
     # Shell Exec: 直接在本地 shell 中执行
     if name == "shell_exec":
         return await _execute_shell(args)
-
-    tool_endpoint_map = {
-        "local_task_manager": ("/api/task", "POST"),
-        "batch_task_manager": ("/api/task/batch", "POST"),
-        "local_safe_downloader": ("/api/download", "POST"),
-        "local_file_search": ("/api/search", "POST"),
-        "local_sandbox_executor": ("/api/sandbox", "POST"),
-        "local_job_status": ("/api/job/status", "POST"),
-    }
-
-    if name not in tool_endpoint_map:
-        return {"status": "error", "message": f"未知工具: {name}"}
-
-    endpoint, method = tool_endpoint_map[name]
-    url = f"{ai_config.gateway_base_url}{endpoint}"
-
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=args)
-            return resp.json()
+        return await execute_ai_tool(name, args)
     except Exception as e:
         logger.exception("工具调用失败: %s", name)
         return {"status": "error", "message": f"工具调用失败: {e}"}

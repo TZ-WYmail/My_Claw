@@ -8,6 +8,7 @@ POST /api/download/cancel — 取消下载
 """
 from fastapi import APIRouter, Query
 
+from application.ai_tools import execute_local_safe_downloader
 from models.schemas import SafeDownloaderRequest, SafeDownloaderResponse
 from services.download_service import (
     add_to_queue,
@@ -26,11 +27,7 @@ router = APIRouter()
 @router.post("/download", response_model=SafeDownloaderResponse)
 async def handle_download(request: SafeDownloaderRequest):
     """处理安全下载请求（大文件自动走队列）"""
-    result = await safe_download(
-        url=request.url,
-        category=request.category.value,
-        filename=request.filename,
-    )
+    result = await execute_local_safe_downloader(request.model_dump())
     return SafeDownloaderResponse(**result)
 
 

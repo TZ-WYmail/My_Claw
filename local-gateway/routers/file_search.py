@@ -9,6 +9,7 @@ POST   /api/search/index/rebuild — 重建索引
 """
 from fastapi import APIRouter, Query
 
+from application.ai_tools import execute_local_file_search
 from models.schemas import FileSearchRequest, FileSearchResponse, UnifiedSearchRequest, UnifiedSearchResponse
 from services.unified_search_service import (
     get_index_stats,
@@ -24,24 +25,8 @@ router = APIRouter(prefix="/search", tags=["search"])
 @router.post("", response_model=UnifiedSearchResponse)
 async def handle_unified_search(request: UnifiedSearchRequest):
     """统一搜索：文件 + 任务 + 笔记 + 习惯"""
-    result = await unified_search(
-        keyword=request.keyword,
-        scope=request.scope.value,
-        category=request.category or "all",
-        page=request.page,
-        page_size=request.page_size,
-    )
-    files = result.get("results", {}).get("files", {})
-    tasks = result.get("results", {}).get("tasks", {})
-    notes = result.get("results", {}).get("notes", {})
-    habits = result.get("results", {}).get("habits", {})
-    return UnifiedSearchResponse(
-        **result,
-        files=files.get("items", []),
-        tasks=tasks.get("items", []),
-        notes=notes.get("items", []),
-        habits=habits.get("items", []),
-    )
+    result = await execute_local_file_search(request.model_dump())
+    return UnifiedSearchResponse(**result)
 
 
 @router.post("/legacy", response_model=FileSearchResponse)

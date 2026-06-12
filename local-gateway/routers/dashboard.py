@@ -5,13 +5,19 @@ GET /api/logs — 操作日志
 """
 from fastapi import APIRouter, Query
 
+from application.dashboard_actions import (
+    get_all_tasks_action,
+    get_dashboard_action,
+    get_download_history_action,
+    get_logs_action,
+    get_streak_action,
+)
 from models.schemas import (
     AllTasksResponse,
     DashboardResponse,
     DownloadHistoryResponse,
     LogsResponse,
 )
-from services import task_service
 
 router = APIRouter()
 
@@ -19,7 +25,7 @@ router = APIRouter()
 @router.get("/dashboard", response_model=DashboardResponse)
 async def dashboard():
     """仪表盘统计数据"""
-    result = await task_service.get_dashboard_stats()
+    result = await get_dashboard_action()
     return DashboardResponse(**result)
 
 
@@ -30,7 +36,7 @@ async def download_history(
     page_size: int = Query(20, ge=1, le=100),
 ):
     """下载历史记录"""
-    result = await task_service.get_download_history(
+    result = await get_download_history_action(
         category=category, page=page, page_size=page_size,
     )
     return DownloadHistoryResponse(**result)
@@ -43,7 +49,7 @@ async def logs(
     page_size: int = Query(50, ge=1, le=200),
 ):
     """操作日志"""
-    result = await task_service.get_logs(
+    result = await get_logs_action(
         page=page, page_size=page_size, operation=operation,
     )
     return LogsResponse(**result)
@@ -59,8 +65,8 @@ async def all_tasks(
     page_size: int = Query(20, ge=1, le=100),
 ):
     """全部任务（带筛选和分页）"""
-    result = await task_service.get_all_tasks(
-        status_filter=status, keyword=keyword, tag=tag, priority=priority, page=page, page_size=page_size,
+    result = await get_all_tasks_action(
+        status=status, keyword=keyword, tag=tag, priority=priority, page=page, page_size=page_size,
     )
     return AllTasksResponse(**result)
 
@@ -68,6 +74,4 @@ async def all_tasks(
 @router.get("/streak")
 async def get_streak():
     """获取 streak 和今日进度数据"""
-    from services.streak_service import get_streak_info
-    info = await get_streak_info()
-    return {"status": "success", **info}
+    return await get_streak_action()

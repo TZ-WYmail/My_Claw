@@ -6,6 +6,33 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from application.mail_actions import (
+    archive_thread_action,
+    create_account_action,
+    create_draft_action,
+    create_task_from_thread_action,
+    delete_account_action,
+    generate_reply_draft_action,
+    get_account_action,
+    get_dashboard_action,
+    get_mail_polling_action,
+    get_sync_status_action,
+    get_mail_thread_or_error,
+    get_thread_agent_runs_action,
+    ingest_message_action,
+    list_accounts_action,
+    list_folders_action,
+    list_threads_action,
+    mark_thread_read_action,
+    run_mail_polling_once_action,
+    send_draft_action,
+    sync_account_action,
+    set_thread_decision_action,
+    test_account_action,
+    update_account_action,
+    update_draft_action,
+    update_mail_polling_action,
+)
 from services import mail_service
 
 router = APIRouter()
@@ -120,35 +147,32 @@ class MailPollingConfigRequest(BaseModel):
 
 @router.get("/accounts")
 async def list_accounts():
-    return {"status": "success", "accounts": await mail_service.list_mail_accounts()}
+    return await list_accounts_action()
 
 
 @router.get("/accounts/{account_id}")
 async def get_account(account_id: str):
-    account = await mail_service.get_mail_account(account_id)
-    if not account:
-        return {"status": "error", "message": f"账户 {account_id} 不存在"}
-    return {"status": "success", "account": account}
+    return await get_account_action(account_id)
 
 
 @router.post("/accounts")
 async def create_account(request: MailAccountCreateRequest):
-    return await mail_service.create_mail_account(**request.model_dump())
+    return await create_account_action(request.model_dump())
 
 
 @router.put("/accounts/{account_id}")
 async def update_account(account_id: str, request: MailAccountUpdateRequest):
-    return await mail_service.update_mail_account(account_id, **request.model_dump(exclude_unset=True))
+    return await update_account_action(account_id, request.model_dump(exclude_unset=True))
 
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(account_id: str):
-    return await mail_service.delete_mail_account(account_id)
+    return await delete_account_action(account_id)
 
 
 @router.post("/accounts/{account_id}/test")
 async def test_account(account_id: str):
-    return await mail_service.test_mail_account_connection(account_id)
+    return await test_account_action(account_id)
 
 
 @router.post("/accounts/{account_id}/sync")
@@ -157,32 +181,32 @@ async def sync_account(
     folder_kind: str = Query("inbox", description="要同步的信箱类型"),
     limit: int = Query(20, ge=1, le=100, description="单次最多拉取的邮件数"),
 ):
-    return await mail_service.sync_mail_account(account_id, folder_kind=folder_kind, limit=limit)
+    return await sync_account_action(account_id, folder_kind=folder_kind, limit=limit)
 
 
 @router.get("/accounts/{account_id}/sync-status")
 async def get_sync_status(account_id: str):
-    return await mail_service.get_mail_sync_status(account_id)
+    return await get_sync_status_action(account_id)
 
 
 @router.get("/polling")
 async def get_mail_polling():
-    return {"status": "success", "polling": mail_service.get_mail_polling_status()}
+    return await get_mail_polling_action()
 
 
 @router.put("/polling")
 async def update_mail_polling(request: MailPollingConfigRequest):
-    return await mail_service.update_mail_polling_config(**request.model_dump(exclude_unset=True))
+    return await update_mail_polling_action(request.model_dump(exclude_unset=True))
 
 
 @router.post("/polling/run-once")
 async def run_mail_polling_once():
-    return await mail_service.run_mail_polling_once()
+    return await run_mail_polling_once_action()
 
 
 @router.get("/folders")
 async def list_folders(account_id: str = Query("", description="可选账户 ID")):
-    return {"status": "success", "folders": await mail_service.list_mail_folders(account_id or None)}
+    return await list_folders_action(account_id or None)
 
 
 @router.get("/threads")
@@ -196,7 +220,7 @@ async def list_threads(
     failed_draft_only: bool = Query(False),
     q: str = Query(""),
 ):
-    threads = await mail_service.list_mail_threads(
+    return await list_threads_action(
         account_id=account_id or None,
         folder=folder,
         needs_reply=needs_reply,
@@ -206,15 +230,11 @@ async def list_threads(
         failed_draft_only=failed_draft_only,
         q=q,
     )
-    return {"status": "success", "threads": threads}
 
 
 @router.get("/threads/{thread_id}")
 async def get_thread(thread_id: str):
-    detail = await mail_service.get_mail_thread(thread_id)
-    if not detail:
-        return {"status": "error", "message": f"线程 {thread_id} 不存在"}
-    return {"status": "success", **detail}
+    return await get_mail_thread_or_error(thread_id)
 
 
 @router.get("/threads/{thread_id}/agent-runs")
@@ -222,58 +242,54 @@ async def get_thread_agent_runs(
     thread_id: str,
     limit: int = Query(20, ge=1, le=100, description="返回最近的自动处理记录数"),
 ):
-    detail = await mail_service.get_mail_thread(thread_id)
-    if not detail:
-        return {"status": "error", "message": f"线程 {thread_id} 不存在"}
-    runs = await mail_service.list_mail_agent_runs(thread_id, limit=limit)
-    return {"status": "success", "thread_id": thread_id, "agent_runs": runs}
+    return await get_thread_agent_runs_action(thread_id, limit=limit)
 
 
 @router.post("/threads/{thread_id}/mark-read")
 async def mark_thread_read(thread_id: str):
-    return await mail_service.mark_thread_read(thread_id, True)
+    return await mark_thread_read_action(thread_id, True)
 
 
 @router.post("/threads/{thread_id}/archive")
 async def archive_thread(thread_id: str):
-    return await mail_service.move_thread_to_folder(thread_id, "archive")
+    return await archive_thread_action(thread_id)
 
 
 @router.post("/threads/{thread_id}/decision")
 async def set_thread_decision(thread_id: str, request: MailThreadDecisionRequest):
-    return await mail_service.set_thread_decision_status(thread_id, request.decision_status)
+    return await set_thread_decision_action(thread_id, request.decision_status)
 
 
 @router.post("/threads/{thread_id}/create-task")
 async def create_task_from_thread(thread_id: str, request: Optional[MailThreadTaskCreateRequest] = None):
-    return await mail_service.create_task_from_mail_thread(thread_id, **((request.model_dump()) if request else {}))
+    return await create_task_from_thread_action(thread_id, **((request.model_dump()) if request else {}))
 
 
 @router.post("/threads/{thread_id}/generate-reply-draft")
 async def generate_reply_draft(thread_id: str):
-    return await mail_service.generate_reply_draft_for_thread(thread_id)
+    return await generate_reply_draft_action(thread_id)
 
 
 @router.post("/messages/ingest")
 async def ingest_message(request: MailMessageIngestRequest):
-    return await mail_service.ingest_mail_message(**request.model_dump())
+    return await ingest_message_action(request.model_dump())
 
 
 @router.post("/drafts")
 async def create_draft(request: MailDraftCreateRequest):
-    return await mail_service.create_mail_draft(**request.model_dump())
+    return await create_draft_action(request.model_dump())
 
 
 @router.put("/drafts/{draft_id}")
 async def update_draft(draft_id: str, request: MailDraftUpdateRequest):
-    return await mail_service.update_mail_draft(draft_id, **request.model_dump(exclude_unset=True))
+    return await update_draft_action(draft_id, request.model_dump(exclude_unset=True))
 
 
 @router.post("/drafts/{draft_id}/send")
 async def send_draft(draft_id: str):
-    return await mail_service.send_mail_draft(draft_id)
+    return await send_draft_action(draft_id)
 
 
 @router.get("/dashboard")
 async def get_dashboard(account_id: str = Query("", description="可选账户 ID")):
-    return await mail_service.get_mail_dashboard(account_id or None)
+    return await get_dashboard_action(account_id or None)
