@@ -495,6 +495,20 @@ HTTP ai_planning router
 - 这几轮架构收口不再只依赖文档约束
 - 后续如果有人把主链重新挂回 `task_service`、把 legacy/search/advanced 边界重新混回去，测试会直接失败
 
+### 1.27 阅读与结构文档已同步到当前架构
+
+已完成：
+
+- 重写 `docs/CODE_READING_GUIDE_2026-06-12.md`
+- 重写 `docs/PROJECT_STRUCTURE_OVERVIEW_2026-06-12.md`
+- 将阅读顺序、结构说明、owner 判断、compat 边界同步到 2026-06-13 当前代码状态
+
+当前结果：
+
+- 旧文档不再继续把 `task_service`、`file_search`、`advanced_features` 描述成主实现入口
+- 新读者可以直接按当前 application / split services / formal routers / compat routers 的结构理解代码
+- 文档层与代码层的架构判断已经基本对齐
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
