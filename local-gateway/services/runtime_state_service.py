@@ -8,12 +8,86 @@ token storage.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import aiosqlite
 
 from config import DB_PATH
+
+
+async def save_planning_preview(
+    preview_id: str,
+    payload: dict,
+    selected_variant: str = "balanced",
+    source: str = "ai_planning",
+    ttl_hours: int = 24,
+) -> dict:
+    created_at = datetime.now().isoformat()
+    expire_at = (datetime.now() + timedelta(hours=ttl_hours)).isoformat() if ttl_hours else None
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            """
+            INSERT OR REPLACE INTO planning_previews
+            (preview_id, payload, selected_variant, source, created_at, expire_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                preview_id,
+                json.dumps(payload, ensure_ascii=False),
+                selected_variant,
+                source,
+                created_at,
+                expire_at,
+            ),
+        )
+        await db.commit()
+
+    return {
+        "status": "success",
+        "preview_id": preview_id,
+        "selected_variant": selected_variant,
+        "created_at": created_at,
+        "expire_at": expire_at,
+    }
+
+
+async def get_planning_preview(preview_id: str) -> Optional[dict]:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM planning_previews WHERE preview_id = ?",
+            (preview_id,),
+        )
+        row = await cursor.fetchone()
+
+    if not row:
+        return None
+
+    payload = json.loads(row["payload"])
+    record = dict(row)
+    record["payload"] = payload
+    return record
+
+
+async def delete_planning_preview(preview_id: str) -> dict:
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("DELETE FROM planning_previews WHERE preview_id = ?", (preview_id,))
+        await db.commit()
+
+    return {"status": "success", "preview_id": preview_id}
+
+
+async def cleanup_expired_planning_previews() -> int:
+    now_iso = datetime.now().isoformat()
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "DELETE FROM planning_previews WHERE expire_at IS NOT NULL AND expire_at <= ?",
+            (now_iso,),
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 async def enqueue_offline_operation(

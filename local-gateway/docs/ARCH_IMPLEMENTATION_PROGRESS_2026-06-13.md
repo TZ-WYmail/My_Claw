@@ -187,6 +187,39 @@ HTTP ai_planning router
 - task command / query 已形成两块独立实现
 - 旧调用面仍可继续工作，但主入口已显式依赖 `task_command_service` / `task_query_service`
 
+### 1.10 task planning 与 preview state 治理
+
+已完成：
+
+- 新建 `services/task_planning_service.py`
+- 新建 `services/ai_planning_preview_service.py`
+- 将 task planning 相关辅助职责从 `task_command_service` 中拆出：
+  - 时间归一
+  - weekday 计算
+  - 批量 analyze
+  - 每日计划生成
+  - 可读时间摘要
+- 将 AI planning preview/replan 相关预览生命周期职责从 `ai_planning_service` 中继续拆出：
+  - preview id 生成
+  - task normalize
+  - variant capacity 定义
+  - preview 持久化与确认读取
+  - variant task schedule 映射
+  - 冲突链提取
+  - replan context 构建
+- 在 `services/runtime_state_service.py` 中新增 planning preview 存储能力
+- `services/ai_planning_service.py` 的 preview/confirm 主链改为使用 runtime state 持久化 preview
+- `services/ai_planning_service.py` 的 preview/confirm/replan 主链已开始委托 `ai_planning_preview_service`
+
+当前结果：
+
+- `task_command_service` 已明显向纯 command 侧收缩
+- task planning 已形成独立服务边界
+- planning preview 不再依赖进程内 `_planning_previews` 作为主状态源
+- confirm 成功后会清理已消费的 preview state
+- preview 生命周期与重排上下文已形成独立服务边界
+- `ai_planning_service` 继续保留高层编排、LLM 重排建议与计划策略计算
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -198,6 +231,7 @@ HTTP ai_planning router
 - `services/runtime_state_service.py`
 - `services/mobile_service.py`
 - `services/task_command_service.py`
+- `services/task_planning_service.py`
 - `services/task_query_service.py`
 - `models/sync_models.py`
 - `test/test_task_application.py`
@@ -208,6 +242,7 @@ HTTP ai_planning router
 - `test/test_sync_application.py`
 - `test/test_runtime_state_service.py`
 - `test/test_task_command_service.py`
+- `test/test_task_planning_service.py`
 - `test/test_task_query_service.py`
 
 ## 3. 本轮修改文件
@@ -229,6 +264,9 @@ HTTP ai_planning router
 - `services/workflow_service.py`
 - `services/mail/automation.py`
 - `services/task_service.py`
+- `services/runtime_state_service.py`
+- `services/task_planning_service.py`
+- `services/ai_planning_preview_service.py`
 
 ## 4. 回归验证结果
 
@@ -249,6 +287,7 @@ HTTP ai_planning router
 - `test/test_mail_drafts.py`
 - `test/test_mail_automation.py`
 - `test/test_task_command_service.py`
+- `test/test_task_planning_service.py`
 - `test/test_mobile_application.py`
 - `test/test_sync_application.py`
 - `test/test_runtime_state_service.py`
@@ -264,6 +303,7 @@ HTTP ai_planning router
 - task query 拆分与相关回归一组：`25` 个用例通过
 - task command 拆分与主链回归一组：`34` 个用例通过
 - workflow / webhook / automation 相关回归一组：`22` 个用例通过，`4` 个按测试设计跳过
+- phase-6 task planning / preview state 回归一组：`68` 个用例通过，`4` 个按测试设计跳过
 
 未直接执行成功的测试：
 
@@ -305,6 +345,26 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这让后续继续删兼容层、改调用面时不会再同时承担“迁移调用方”和“维护两份逻辑”两种风险。
 
+### 5.5 planning preview 已从内存态转为 runtime state
+
+现在 `ai_planning_service` 的 preview/confirm 主链不再依赖进程内字典：
+
+- preview 会持久化到 runtime state
+- confirm 会读取持久态 preview
+- 成功确认后会删除已消费 preview
+
+这解决了单进程内存状态的脆弱性，但还没有进一步做容量治理、后台清理策略和更细的状态建模。
+
+### 5.6 preview 生命周期已形成独立 owner
+
+现在 preview/confirm/replan 的状态编排不再散落在 `ai_planning_service` 内部：
+
+- `ai_planning_preview_service` 持有 preview 生命周期辅助逻辑
+- `ai_planning_service` 主要保留高层 planning 编排与 LLM 冲突重排
+- 预览持久化、确认读取、冲突链提取开始有单一职责边界
+
+这一步的价值不是“文件变多”，而是避免 preview 逻辑和规划策略继续绑定在同一个巨石 service 里。
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已收口，但移动端聚合查询仍偏临时
@@ -320,16 +380,20 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - `services/mobile_service.py` 仍是移动端聚合查询容器，不是稳定领域服务
 - 后续应继续把 task / habit / pomodoro 查询口做成更清晰的领域查询接口
 
-### 6.2 状态所有权还没有真正治理
+### 6.2 状态所有权开始收口，但还没有真正治理完成
 
 虽然主调用链开始收口，但以下状态仍未明确统一归属：
 
 - SQLite 持久状态
 - JSON / JSONL 文件状态
 - 内存缓存
-- preview/replan 这类短生命周期状态
+- replan 这类短生命周期状态的更细粒度治理
 - 同步队列状态
 - push token / device runtime 状态
+
+已经改善：
+
+- planning preview 已从进程内状态迁到 runtime state
 
 ### 6.3 service 层仍然偏“巨石化”
 
@@ -343,8 +407,9 @@ router 不再继续承担“组织多个 service 的业务动作”。
 其中：
 
 - `task_service` 已不再是主实现，但兼容层仍偏厚
-- `task_command_service` 已独立，但内部还同时承担 CRUD、批量编排、时间解析、计划分析
-- `services/ai_planning_service.py` 依然承担过多规划策略与临时状态管理
+- `task_command_service` 已进一步收缩，但仍保留一部分 compatibility helper 转发
+- `services/task_planning_service.py` 已拆出，但后续还可以继续细化 planning domain
+- `services/ai_planning_service.py` 已收出 preview lifecycle，但仍承担过多规划策略与 LLM/replan 编排
 
 问题不再是“有没有 application 层”，而是 service 内部仍承担过多职责。
 
@@ -360,9 +425,10 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 建议按以下顺序继续：
 
-1. 继续拆 `task_command_service` 内部的 planning/normalization 辅助职责
-2. 开始治理 planning preview/replan 的临时状态存放方式
+1. 继续细化 `ai_planning_service`，把 preview/replan 的状态编排与策略计算拆开
+2. 继续细化 `ai_planning_service`，把 variant plan 构建与 LLM 重排编排拆开
 3. 明确 `task_service` 兼容 facade 的退场范围与剩余调用方
+4. 继续压缩 `task_command_service` 的 compatibility helper 面积
 4. 把 `mobile_service` 临时聚合查询继续下沉到稳定领域查询接口
 5. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
 

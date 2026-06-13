@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     platform     TEXT NOT NULL,           -- ios/android
     registered_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS planning_previews (
+    preview_id   TEXT PRIMARY KEY,
+    payload      TEXT NOT NULL,
+    selected_variant TEXT,
+    source       TEXT DEFAULT 'ai_planning',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    expire_at    TEXT
+);
 """
 
 

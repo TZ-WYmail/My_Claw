@@ -1,4 +1,5 @@
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,7 +10,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
     temp_db_path = Path(temp_dir) / "test_runtime_state.db"
     with patch("config.DB_PATH", temp_db_path), \
          patch("services.task_service.DB_PATH", temp_db_path), \
-         patch("services.runtime_state_service.DB_PATH", temp_db_path):
+         patch("services.runtime_state_service.DB_PATH", temp_db_path), \
+         patch("services.task_planning_service.DB_PATH", temp_db_path), \
+         patch("services.task_query_service.DB_PATH", temp_db_path), \
+         patch("services.task_command_service.DB_PATH", temp_db_path):
         from services import runtime_state_service, task_service
 
 
@@ -65,3 +69,41 @@ async def test_register_device_and_heartbeat():
     assert heartbeat["status"] == "success"
     assert devices["total"] >= 1
     assert any(device["device_id"] == "device_1" for device in devices["devices"])
+
+
+@pytest.mark.asyncio
+async def test_save_and_get_planning_preview():
+    saved = await runtime_state_service.save_planning_preview(
+        preview_id="preview_test_1",
+        payload={"status": "success", "preview_id": "preview_test_1", "variant_plans": {}},
+        selected_variant="balanced",
+    )
+    fetched = await runtime_state_service.get_planning_preview("preview_test_1")
+
+    assert saved["status"] == "success"
+    assert fetched is not None
+    assert fetched["selected_variant"] == "balanced"
+    assert fetched["payload"]["preview_id"] == "preview_test_1"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_expired_planning_previews():
+    await runtime_state_service.save_planning_preview(
+        preview_id="preview_expired",
+        payload={"status": "success"},
+        selected_variant="balanced",
+    )
+    import aiosqlite
+    runtime_state_service.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    async with aiosqlite.connect(str(runtime_state_service.DB_PATH)) as db:
+        await db.execute(
+            "UPDATE planning_previews SET expire_at = ? WHERE preview_id = ?",
+            ((datetime.now() - timedelta(minutes=1)).isoformat(), "preview_expired"),
+        )
+        await db.commit()
+
+    removed = await runtime_state_service.cleanup_expired_planning_previews()
+    fetched = await runtime_state_service.get_planning_preview("preview_expired")
+
+    assert removed >= 1
+    assert fetched is None

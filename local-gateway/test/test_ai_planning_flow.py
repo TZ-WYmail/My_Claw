@@ -12,6 +12,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
     temp_db_path = Path(temp_dir) / "test_ai_planning.db"
     with patch('config.DB_PATH', temp_db_path), \
          patch('services.task_service.DB_PATH', temp_db_path), \
+         patch('services.task_command_service.DB_PATH', temp_db_path), \
+         patch('services.task_planning_service.DB_PATH', temp_db_path), \
+         patch('services.task_query_service.DB_PATH', temp_db_path), \
+         patch('services.runtime_state_service.DB_PATH', temp_db_path), \
          patch('services.note_service.DB_PATH', temp_db_path), \
          patch('services.tag_service.DB_PATH', temp_db_path), \
          patch('services.subtask_service.DB_PATH', temp_db_path), \
@@ -134,6 +138,23 @@ async def test_confirm_task_plan_uses_selected_variant():
     assert created["end_time"]
     assert "T" in created["start_time"]
     assert "T" in created["end_time"]
+
+
+@pytest.mark.asyncio
+async def test_confirm_task_plan_deletes_persisted_preview_after_success():
+    from services import runtime_state_service
+
+    preview = await preview_task_plan([
+        {"task_name": "准备汇报", "due_time": "2026-05-21", "estimated_minutes": 360},
+    ])
+    before = await runtime_state_service.get_planning_preview(preview["preview_id"])
+    assert before is not None
+
+    result = await confirm_task_plan(preview["preview_id"], selected_variant="balanced")
+    after = await runtime_state_service.get_planning_preview(preview["preview_id"])
+
+    assert result["status"] == "success"
+    assert after is None
 
 
 @pytest.mark.asyncio
