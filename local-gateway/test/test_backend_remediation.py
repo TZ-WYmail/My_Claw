@@ -11,12 +11,16 @@ import pytest
 with tempfile.TemporaryDirectory() as temp_dir:
     temp_db_path = Path(temp_dir) / "test_backend_remediation.db"
     with patch('config.DB_PATH', temp_db_path), \
-         patch('services.task_service.DB_PATH', temp_db_path), \
+         patch('services.bootstrap_service.DB_PATH', temp_db_path), \
+         patch('services.task_command_service.DB_PATH', temp_db_path), \
+         patch('services.task_detail_service.DB_PATH', temp_db_path), \
          patch('services.note_service.DB_PATH', temp_db_path), \
          patch('services.tag_service.DB_PATH', temp_db_path), \
          patch('services.subtask_service.DB_PATH', temp_db_path), \
          patch('services.pomodoro_service.DB_PATH', temp_db_path):
-        from services.task_service import init_db, add_task, batch_update_tasks, get_task_detail
+        from services.bootstrap_service import init_db
+        from services.task_command_service import add_task, batch_update_tasks
+        from services.task_detail_service import get_task_detail
         from services.note_service import create_note
         from services.subtask_service import create_subtask
         from services.pomodoro_service import start_pomodoro

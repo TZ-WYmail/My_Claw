@@ -7,6 +7,7 @@ import asyncio
 import aiosqlite
 import pytest
 
+from services import bootstrap_service
 from services import task_service
 from services import tag_service, subtask_service, pomodoro_service
 from services import calendar_sync_service, note_service, habit_service
@@ -27,8 +28,10 @@ def event_loop():
 
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
+    import services.bootstrap_service as bootstrap_service_mod
     import services.task_service as task_service_mod
     import services.task_command_service as task_command_service
+    import services.task_detail_service as task_detail_service
     import services.task_query_service as task_query_service
     import services.task_planning_service as task_planning_service
     import services.runtime_state_service as runtime_state_service
@@ -41,8 +44,10 @@ async def setup_db(tmp_path, monkeypatch):
     import services.habit_service as habit_service_mod
 
     db_path = tmp_path / "test_services.db"
+    monkeypatch.setattr(bootstrap_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(task_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
+    monkeypatch.setattr(task_detail_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_planning_service, "DB_PATH", db_path)
     monkeypatch.setattr(runtime_state_service, "DB_PATH", db_path)
@@ -54,7 +59,7 @@ async def setup_db(tmp_path, monkeypatch):
     monkeypatch.setattr(calendar_sync_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(habit_service_mod, "DB_PATH", db_path)
 
-    await task_service_mod.init_db()
+    await bootstrap_service_mod.init_db()
     async with aiosqlite.connect(str(db_path)) as db:
         cursor = await db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
         existing_tables = {row[0] for row in await cursor.fetchall()}

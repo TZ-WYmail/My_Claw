@@ -4,7 +4,8 @@ import pytest
 
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
-    import services.task_service as task_service
+    import services.bootstrap_service as bootstrap_service
+    import services.task_command_service as task_command_service
     import services.task_planning_service as task_planning_service
     import services.task_query_service as task_query_service
     import services.note_service as note_service
@@ -14,7 +15,8 @@ async def setup_db(tmp_path, monkeypatch):
     import services.calendar_sync_service as calendar_sync_service
 
     db_path = tmp_path / "test_task_planning.db"
-    monkeypatch.setattr(task_service, "DB_PATH", db_path)
+    monkeypatch.setattr(bootstrap_service, "DB_PATH", db_path)
+    monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_planning_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
     monkeypatch.setattr(note_service, "DB_PATH", db_path)
@@ -23,7 +25,7 @@ async def setup_db(tmp_path, monkeypatch):
     monkeypatch.setattr(pomodoro_service, "DB_PATH", db_path)
     monkeypatch.setattr(calendar_sync_service, "DB_PATH", db_path)
 
-    await task_service.init_db()
+    await bootstrap_service.init_db()
     async with aiosqlite.connect(str(db_path)) as db:
         await db.executescript(
             """
@@ -73,9 +75,9 @@ def test_task_planning_service_generate_daily_plan_returns_distribution(setup_db
 @pytest.mark.asyncio
 async def test_task_planning_service_analyze_tasks_returns_existing_tasks(setup_db):
     task_planning_service = setup_db
-    import services.task_service as task_service
+    import services.task_command_service as task_command_service
 
-    await task_service.add_task(
+    await task_command_service.add_task(
         task_name="已有任务",
         due_time="2026-06-15T12:00:00",
         start_time="2026-06-15T09:00:00",

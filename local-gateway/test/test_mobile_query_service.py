@@ -12,14 +12,14 @@ async def setup_db(tmp_path, monkeypatch):
     import services.subtask_service as subtask_service
     import services.tag_service as tag_service
     import services.task_command_service as task_command_service
+    import services.task_detail_service as task_detail_service
     import services.task_query_service as task_query_service
-    import services.task_service as task_service
     import services.calendar_sync_service as calendar_sync_service
 
     db_path = tmp_path / "test_mobile_query.db"
     monkeypatch.setattr(bootstrap_service, "DB_PATH", db_path)
-    monkeypatch.setattr(task_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
+    monkeypatch.setattr(task_detail_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
     monkeypatch.setattr(habit_service, "DB_PATH", db_path)
     monkeypatch.setattr(tag_service, "DB_PATH", db_path)
@@ -44,7 +44,7 @@ async def setup_db(tmp_path, monkeypatch):
         )
         await db.commit()
 
-    return task_service, habit_service, mobile_query_service
+    return task_command_service, habit_service, mobile_query_service
 
 
 @pytest.mark.asyncio

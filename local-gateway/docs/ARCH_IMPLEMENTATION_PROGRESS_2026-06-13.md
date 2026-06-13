@@ -361,6 +361,21 @@ HTTP ai_planning router
 - 新逻辑继续挂在 `/api/advanced/*` 上的风险进一步降低
 - 后续收缩这组旧路径时，不会再和“它是不是主入口”混淆
 
+### 1.18 task facade 的测试依赖面继续收缩
+
+已完成：
+
+- 一批 task 相关测试 fixture 改为直接依赖 `bootstrap_service`
+- 一批 task 写侧测试改为直接依赖 `task_command_service`
+- 一批 task detail 测试改为直接依赖 `task_detail_service`
+- `task_service` 在测试中的角色继续向“兼容入口”而不是“默认 owner”收缩
+
+当前结果：
+
+- `task_service.init_db()` 不再是所有 task 相关测试的默认初始化入口
+- `task_service.DB_PATH` 的 patch 面积进一步缩小
+- 后续继续压缩 `task_service` facade 时，测试阻力会更低
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -671,6 +686,16 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - `/api/advanced/*` 不是推荐主入口
 - 正式域路径已经存在
 - 旧路由的职责是兼容，而不是继续承接新增功能
+
+### 5.20 task facade 的保留理由已更集中在兼容层
+
+现在 `task_service` 的主要保留价值进一步收敛到：
+
+- 历史导入路径
+- 少量尚未迁完的测试 glue
+- 兼容入口转发
+
+这意味着后续如果还要继续瘦身 `task_service`，目标已经不再是“先拆业务逻辑”，而是继续迁掉剩余测试与旧调用面。
 
 ## 6. 仍然存在的主要问题
 
