@@ -44,13 +44,13 @@ async def setup_db(tmp_path, monkeypatch):
         )
         await db.commit()
 
-    return task_command_service, task_query_service
+    return task_command_service, task_query_service, task_detail_service
 
 
 @pytest.mark.asyncio
 async def test_get_pending_tasks_returns_today_related_and_tags(setup_db):
-    task_service, task_query_service = setup_db
-    created = await task_service.add_task(
+    task_command_service, task_query_service, _ = setup_db
+    created = await task_command_service.add_task(
         task_name="今天的任务",
         due_time="2026-06-13T10:00:00",
         tags=["work"],
@@ -66,10 +66,10 @@ async def test_get_pending_tasks_returns_today_related_and_tags(setup_db):
 
 @pytest.mark.asyncio
 async def test_get_all_tasks_filters_by_status_and_keyword(setup_db):
-    task_service, task_query_service = setup_db
-    await task_service.add_task(task_name="task_query_unique_alpha", due_time="2026-06-13T10:00:00")
-    other = await task_service.add_task(task_name="task_query_unique_mail_beta", due_time="2026-06-14T10:00:00")
-    await task_service.complete_task(other["task_id"])
+    task_command_service, task_query_service, _ = setup_db
+    await task_command_service.add_task(task_name="task_query_unique_alpha", due_time="2026-06-13T10:00:00")
+    other = await task_command_service.add_task(task_name="task_query_unique_mail_beta", due_time="2026-06-14T10:00:00")
+    await task_command_service.complete_task(other["task_id"])
 
     result = await task_query_service.get_all_tasks(
         status_filter="completed",
@@ -85,14 +85,14 @@ async def test_get_all_tasks_filters_by_status_and_keyword(setup_db):
 
 @pytest.mark.asyncio
 async def test_get_task_detail_returns_neighbors_and_related_data(setup_db):
-    task_service, task_query_service = setup_db
-    target = await task_service.add_task(
+    task_command_service, task_query_service, task_detail_service = setup_db
+    target = await task_command_service.add_task(
         task_name="写周报",
         due_time="2026-06-13T10:00:00",
         start_time="2026-06-13T09:00:00",
         tags=["report"],
     )
-    await task_service.add_task(
+    await task_command_service.add_task(
         task_name="准备汇报",
         due_time="2026-06-13T15:00:00",
         start_time="2026-06-13T14:00:00",
@@ -102,7 +102,7 @@ async def test_get_task_detail_returns_neighbors_and_related_data(setup_db):
     with patch("services.task_detail_service.get_all_notes", new=AsyncMock(return_value={"notes": []})), \
          patch("services.task_detail_service.get_subtasks", new=AsyncMock(return_value=[])), \
          patch("services.task_detail_service.get_active_pomodoro", new=AsyncMock(return_value=None)):
-        result = await task_query_service.get_task_detail(target["task_id"])
+        result = await task_detail_service.get_task_detail(target["task_id"])
 
     assert result["status"] == "success"
     assert result["task"]["task_id"] == target["task_id"]
@@ -112,12 +112,12 @@ async def test_get_task_detail_returns_neighbors_and_related_data(setup_db):
 
 @pytest.mark.asyncio
 async def test_get_dashboard_stats_combines_counts_and_streak(setup_db):
-    task_service, task_query_service = setup_db
+    task_command_service, task_query_service, _ = setup_db
     import services.dashboard_query_service as dashboard_query_service
 
-    await task_service.add_task(task_name="任务A", due_time="2026-06-13T10:00:00")
-    completed = await task_service.add_task(task_name="任务B", due_time="2026-06-13T12:00:00")
-    await task_service.complete_task(completed["task_id"])
+    await task_command_service.add_task(task_name="任务A", due_time="2026-06-13T10:00:00")
+    completed = await task_command_service.add_task(task_name="任务B", due_time="2026-06-13T12:00:00")
+    await task_command_service.complete_task(completed["task_id"])
 
     with patch("services.dashboard_query_service.get_streak_info", new=AsyncMock(return_value={"current_streak": 3})):
         result = await dashboard_query_service.get_dashboard_stats()

@@ -260,7 +260,7 @@ async def get_logs(
 async def get_task_detail(task_id: str) -> dict:
     """获取任务详情聚合信息"""
     _sync_task_module_paths()
-    return await task_query_service.get_task_detail(task_id)
+    return await task_detail_service.get_task_detail(task_id)
 
 
 # ============================================================

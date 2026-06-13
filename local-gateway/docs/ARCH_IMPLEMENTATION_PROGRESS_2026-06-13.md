@@ -376,6 +376,21 @@ HTTP ai_planning router
 - `task_service.DB_PATH` 的 patch 面积进一步缩小
 - 后续继续压缩 `task_service` facade 时，测试阻力会更低
 
+### 1.19 mobile / task detail compat 继续退场
+
+已完成：
+
+- 删除 `services/mobile_service.py`
+- 删除 `task_query_service.get_task_detail()` compat 转发
+- `task_service.get_task_detail()` 改为直接转发到 `task_detail_service`
+- `task detail` 相关测试改为直接依赖 `task_detail_service`
+
+当前结果：
+
+- mobile dashboard 的旧 wrapper 已不再保留
+- `task_query_service` 更接近纯 task-domain read service
+- task detail 的 owner 已只剩 `task_detail_service` 与 `task_service` facade 兼容入口
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -696,6 +711,15 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - 兼容入口转发
 
 这意味着后续如果还要继续瘦身 `task_service`，目标已经不再是“先拆业务逻辑”，而是继续迁掉剩余测试与旧调用面。
+
+### 5.21 两个最薄 compat 点已实际删除
+
+现在下面这两个兼容点已不再保留：
+
+- `services/mobile_service.py`
+- `task_query_service.get_task_detail()`
+
+这说明兼容层收缩已经不再停留在“标记与规划”阶段，而是开始进入真实删除阶段。
 
 ## 6. 仍然存在的主要问题
 

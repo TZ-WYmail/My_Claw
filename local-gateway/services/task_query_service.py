@@ -302,9 +302,3 @@ async def get_all_tasks(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
     }
-
-async def get_task_detail(task_id: str) -> dict:
-    from services import task_detail_service
-
-    task_detail_service.DB_PATH = DB_PATH
-    return await task_detail_service.get_task_detail(task_id)
