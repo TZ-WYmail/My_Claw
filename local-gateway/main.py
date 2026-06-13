@@ -26,6 +26,7 @@ from models.schemas import HealthResponse
 from routers import (
     advanced_features,
     ai_planning,
+    calendar,
     calendar_sync,
     chat as chat_router,
     dashboard,
@@ -37,11 +38,15 @@ from routers import (
     mobile,
     notes,
     notification as notification_router,
+    pomodoro,
     safe_downloader,
     sandbox_executor,
     shortcuts,
+    subtasks,
     sync,
+    tags,
     task_manager,
+    task_detail,
     voice,
     webhooks,
     workflows,
@@ -127,6 +132,11 @@ app.include_router(sandbox_executor.router, prefix="/api")
 app.include_router(chat_router.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(advanced_features.router, prefix="/api")
+app.include_router(tags.router, prefix="/api")
+app.include_router(subtasks.router, prefix="/api")
+app.include_router(pomodoro.router, prefix="/api")
+app.include_router(calendar.router, prefix="/api")
+app.include_router(task_detail.router, prefix="/api")
 app.include_router(shortcuts.router, prefix="/api")
 app.include_router(ai_planning.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")

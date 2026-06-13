@@ -331,6 +331,24 @@ HTTP ai_planning router
 - tag / subtask / pomodoro / calendar / task-detail 已有独立 application 落点
 - 后续即使还暂时保留 `/advanced/*` 命名，也不会继续把实现边界绑死在 `advanced_actions.py`
 
+### 1.16 正式域 router 已补齐
+
+已完成：
+
+- 新建 `routers/tags.py`
+- 新建 `routers/subtasks.py`
+- 新建 `routers/pomodoro.py`
+- 新建 `routers/calendar.py`
+- 新建 `routers/task_detail.py`
+- `main.py` 已注册正式域 router
+- 新增 `test/test_domain_routers.py` 锁定新路由对 application owner 的调用面
+
+当前结果：
+
+- `/api/advanced/*` 不再是 tags/subtasks/pomodoro/calendar/task-detail 的唯一 HTTP 入口
+- 正式域路由已经存在，后续可以把 `advanced_features` 继续退成纯兼容转发
+- 路由层迁移不再依赖一次性改前端或一次性删除旧路径
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -365,6 +383,12 @@ HTTP ai_planning router
 - `application/pomodoro_actions.py`
 - `application/calendar_actions.py`
 - `application/task_detail_actions.py`
+- `routers/tags.py`
+- `routers/subtasks.py`
+- `routers/pomodoro.py`
+- `routers/calendar.py`
+- `routers/task_detail.py`
+- `test/test_domain_routers.py`
 
 ## 3. 本轮修改文件
 
@@ -400,6 +424,7 @@ HTTP ai_planning router
 - `main.py`
 - `application/advanced_actions.py`
 - `routers/advanced_features.py`
+- `main.py`
 
 ## 4. 回归验证结果
 
@@ -609,6 +634,22 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这一步的价值在于后续要改 `/advanced/*` 命名时，可以先改路由边界，而不用再先从一个混装 application 文件里拆实现。
 
+### 5.18 advanced 历史路由已不再是唯一正式入口
+
+现在 tags/subtasks/pomodoro/calendar/task-detail 已有正式域 router：
+
+- `/api/tags`
+- `/api/subtasks`
+- `/api/pomodoro/*`
+- `/api/calendar/*`
+- `/api/tasks/{task_id}/detail`
+- `/api/tasks/batch-update`
+
+这意味着：
+
+- `advanced_features` 已开始退成兼容命名层
+- 后续删除 `/api/advanced/*` 时，不需要再和“补正式入口”绑成一次大改
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合模型仍偏粗
@@ -671,13 +712,14 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 - `advanced_actions.py` 已不再是增强功能的单一实现 owner
 - `routers/advanced_features.py` 下面的内部 application 落点已经开始按领域分拆
+- 正式域 router 已存在，剩余问题主要是兼容路径与调用面迁移，不再是缺正式入口
 
 ## 7. 建议的下一步实施顺序
 
 建议按以下顺序继续：
 
-1. 继续压缩 `task_service` 仍保留的宽兼容入口，识别可以直接改主调用链的旧依赖
-2. 为 `advanced_features` 建立目标路由域映射，并决定是否拆 router 或仅改命名层
+1. 让 `advanced_features` router 逐步收缩为纯兼容转发，避免新逻辑继续挂在旧路径上
+2. 继续压缩 `task_service` 仍保留的宽兼容入口，识别可以直接改主调用链的旧依赖
 3. 评估 `ai_planning_service` 的公开入口中还能继续下沉的 orchestration 片段
 4. 清点剩余 facade/compat wrapper 的保留理由与退场顺序
 5. 评估 mobile dashboard snapshot 是否需要拆成更稳定的移动端读模型
