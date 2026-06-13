@@ -283,6 +283,21 @@ HTTP ai_planning router
 - `task_query_service` 更接近纯 task-domain query service
 - `task_command_service` 的兼容面进一步变薄
 
+### 1.13 mobile dashboard 聚合继续下沉到领域查询
+
+已完成：
+
+- `task_query_service` 新增通用任务区间查询与计数接口
+- `habit_service` 新增“习惯 + 今日打卡状态”读接口
+- `mobile_query_service` 不再直接写 task/habit SQL，改为编排领域查询
+- 新增 `test/test_mobile_query_service.py` 锁定 mobile dashboard 聚合行为
+
+当前结果：
+
+- mobile dashboard 仍保留一个移动端聚合 owner
+- 但聚合 owner 已不再直接碰 tasks/habits 表
+- task / habit 的读侧职责更清晰，mobile 只负责组合视图数据
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -310,6 +325,7 @@ HTTP ai_planning router
 - `test/test_task_command_service.py`
 - `test/test_task_planning_service.py`
 - `test/test_task_query_service.py`
+- `test/test_mobile_query_service.py`
 
 ## 3. 本轮修改文件
 
@@ -340,6 +356,7 @@ HTTP ai_planning router
 - `services/bootstrap_service.py`
 - `services/mobile_query_service.py`
 - `services/task_db_schema.py`
+- `services/habit_service.py`
 - `main.py`
 
 ## 4. 回归验证结果
@@ -518,9 +535,19 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这让 query 边界从“任务加一堆旁路查询”继续收敛到“任务领域读模型”。
 
+### 5.15 mobile 聚合已从直接查表转为领域查询编排
+
+现在 `mobile_query_service` 虽然仍是聚合 owner，但它已经不再直接承载 task/habit SQL：
+
+- task 列表与计数来自 `task_query_service`
+- habit 今日打卡视图来自 `habit_service`
+- mobile query service 只保留 dashboard snapshot 的组合职责
+
+这一步的价值在于后续继续拆 mobile 侧读模型时，不需要先从“移动端私有 SQL”回退到领域能力。
+
 ## 6. 仍然存在的主要问题
 
-### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合仍未拆成领域组合
+### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合模型仍偏粗
 
 已经解决：
 
@@ -530,8 +557,8 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 仍待优化：
 
-- `mobile_query_service` 现在只是 owner 更明确，但内部仍直接聚合 task / habit 查询
-- 后续应继续把 task / habit / pomodoro 查询口做成更清晰的领域查询接口，再由 mobile application 做组合
+- `mobile_query_service` 已改为编排领域查询，但 snapshot 仍是单一粗粒度模型
+- 后续应继续评估是否需要拆成 today focus / habit summary / sync summary 等更稳定的移动端读模型
 
 ### 6.2 状态所有权开始收口，但还没有真正治理完成
 
@@ -580,10 +607,10 @@ router 不再继续承担“组织多个 service 的业务动作”。
 建议按以下顺序继续：
 
 1. 继续压缩 `task_service` 仍保留的宽兼容入口，识别可以直接改主调用链的旧依赖
-2. 把 `mobile_query_service` 的聚合 SQL 进一步下沉到稳定领域查询接口
-3. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
-4. 评估 `ai_planning_service` 的公开入口中还能继续下沉的 orchestration 片段
-5. 清点剩余 facade/compat wrapper 的保留理由与退场顺序
+2. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
+3. 评估 `ai_planning_service` 的公开入口中还能继续下沉的 orchestration 片段
+4. 清点剩余 facade/compat wrapper 的保留理由与退场顺序
+5. 评估 mobile dashboard snapshot 是否需要拆成更稳定的移动端读模型
 
 ## 8. 当前判断
 

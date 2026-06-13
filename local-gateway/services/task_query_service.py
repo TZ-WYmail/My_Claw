@@ -17,6 +17,63 @@ from services.tag_service import get_task_tags_batch
 from services.time_service import extract_system_date, is_overdue, system_now, system_today_iso
 
 
+async def list_tasks_due_between(
+    start_due_time: str,
+    end_due_time: str,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[dict]:
+    conditions = ["due_time BETWEEN ? AND ?"]
+    params: list[object] = [start_due_time, end_due_time]
+
+    if status is not None:
+        conditions.append("status = ?")
+        params.append(status)
+
+    sql = f"""
+        SELECT task_id, task_name, due_time, recurrence, status, priority,
+               description, estimated_minutes, created_at, updated_at,
+               start_time, end_time, completed_at
+        FROM tasks
+        WHERE {' AND '.join(conditions)}
+        ORDER BY priority ASC, due_time ASC
+    """
+
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(sql, params)
+        rows = await cursor.fetchall()
+
+    return [dict(row) for row in rows]
+
+
+async def count_tasks(
+    status: str | None = None,
+    start_due_time: str | None = None,
+    end_due_time: str | None = None,
+) -> int:
+    conditions = ["1=1"]
+    params: list[object] = []
+
+    if status is not None:
+        conditions.append("status = ?")
+        params.append(status)
+    if start_due_time is not None and end_due_time is not None:
+        conditions.append("due_time BETWEEN ? AND ?")
+        params.extend([start_due_time, end_due_time])
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            f"SELECT COUNT(*) FROM tasks WHERE {' AND '.join(conditions)}",
+            params,
+        )
+        return (await cursor.fetchone())[0]
+
+
 async def get_task_by_id(task_id: str) -> dict | None:
     async with aiosqlite.connect(str(DB_PATH)) as db:
         db.row_factory = aiosqlite.Row

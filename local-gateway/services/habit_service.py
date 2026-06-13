@@ -91,6 +91,33 @@ async def get_all_habits() -> list[dict]:
         return [dict(row) for row in rows]
 
 
+async def get_habits_with_today_checkin(today: str | None = None) -> list[dict]:
+    """获取习惯列表并附带今日是否已打卡状态"""
+    checkin_date = today or datetime.now().strftime("%Y-%m-%d")
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """
+            SELECT h.*, COUNT(hc.checkin_id) as today_count
+            FROM habits h
+            LEFT JOIN habit_checkins hc ON h.habit_id = hc.habit_id
+            AND hc.checkin_date = ?
+            GROUP BY h.habit_id
+            ORDER BY h.created_at DESC
+            """,
+            (checkin_date,),
+        )
+        rows = await cursor.fetchall()
+
+    habits = []
+    for row in rows:
+        habit = dict(row)
+        habit["checked_in"] = habit["today_count"] > 0
+        habits.append(habit)
+    return habits
+
+
 async def get_habit(habit_id: str) -> Optional[dict]:
     """获取单个习惯详情（含打卡记录）"""
     async with aiosqlite.connect(str(DB_PATH)) as db:
