@@ -648,7 +648,7 @@ HTTP ai_planning router
 未直接执行成功的测试：
 
 - `test/test_api.py`
-- `test/test_advanced_features.py`
+- `test/test_advanced_compat_routes.py`
 
 原因：
 

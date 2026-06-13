@@ -8,6 +8,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRS = ("application", "routers", "services", "test")
 TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
 FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
+TEST_SOURCE_DIR = REPO_ROOT / "test"
+ADVANCED_COMPAT_TEST_FILE = TEST_SOURCE_DIR / "test_advanced_compat_routes.py"
+SEARCH_LEGACY_TEST_FILE = TEST_SOURCE_DIR / "test_search_routers.py"
+ADVANCED_COMPAT_PATH = "/api/" "advanced/"
+SEARCH_LEGACY_PATH = "/api/search/" "legacy"
 THIS_TEST_FILE = Path(__file__).resolve()
 
 
@@ -77,7 +82,33 @@ def test_frontend_sources_no_longer_use_advanced_compat_paths():
 
     for path in FRONTEND_SOURCE_DIR.rglob("*.[jt]sx"):
         content = path.read_text(encoding="utf-8")
-        if "/api/advanced/" in content:
+        if ADVANCED_COMPAT_PATH in content:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
+
+
+def test_non_compat_tests_no_longer_use_advanced_compat_paths():
+    findings: list[str] = []
+
+    for path in TEST_SOURCE_DIR.rglob("test_*.py"):
+        if path in {ADVANCED_COMPAT_TEST_FILE, THIS_TEST_FILE}:
+            continue
+        content = path.read_text(encoding="utf-8")
+        if ADVANCED_COMPAT_PATH in content:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
+
+
+def test_only_search_router_boundary_test_uses_legacy_search_path():
+    findings: list[str] = []
+
+    for path in TEST_SOURCE_DIR.rglob("test_*.py"):
+        if path in {SEARCH_LEGACY_TEST_FILE, THIS_TEST_FILE}:
+            continue
+        content = path.read_text(encoding="utf-8")
+        if SEARCH_LEGACY_PATH in content:
             findings.append(str(path.relative_to(REPO_ROOT)))
 
     assert findings == []

@@ -2,19 +2,11 @@
 AI 规划日历联动测试
 """
 import pytest
-import httpx
-
-BASE_URL = "http://localhost:8900"
-
-
-@pytest.fixture
-def client():
-    return httpx.Client(base_url=BASE_URL, timeout=10.0)
 
 
 class TestAIPlanningCalendar:
-    def test_preview_includes_calendar_conflict_data(self, client):
-        event_resp = client.post("/api/advanced/calendar/events", json={
+    def test_preview_includes_calendar_conflict_data(self, live_server):
+        event_resp = live_server.post("/api/calendar/events", json={
             "title": "测试会议",
             "start_time": "2026-05-20T09:00:00+08:00",
             "end_time": "2026-05-20T11:00:00+08:00",
@@ -22,7 +14,7 @@ class TestAIPlanningCalendar:
         })
         assert event_resp.status_code == 200
 
-        resp = client.post("/api/ai/plan/preview", json={
+        resp = live_server.post("/api/ai/plan/preview", json={
             "tasks": [
                 {"task_name": "写周报", "due_time": "2026-05-20", "estimated_minutes": 120},
                 {"task_name": "整理邮件", "due_time": "2026-05-20", "estimated_minutes": 30},

@@ -47,7 +47,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 以下测试不应混入当前常规离线回归基线：
 
-### `test/test_advanced_features.py`
+### `test/test_advanced_compat_routes.py`
 
 特点：
 
@@ -62,7 +62,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 conda run -n claude python main.py
 
 # 终端 2
-conda run -n claude python -m pytest test/test_advanced_features.py -v
+conda run -n claude python -m pytest test/test_advanced_compat_routes.py -v
 ```
 
 ### `test/test_phase2.py`
@@ -72,6 +72,20 @@ conda run -n claude python -m pytest test/test_advanced_features.py -v
 - 同样依赖本地真实服务
 - 覆盖 AI / notes / habits / voice 等历史联调路径
 - 其中部分 AI 用例允许在缺少外部 API 配置时返回错误态
+
+### `test/test_ai_planning_calendar.py`
+
+特点：
+
+- 同样依赖本地真实服务
+- 验证 AI planning preview 对日历事件冲突数据的联动
+
+### `test/test_api.py`
+
+特点：
+
+- 同样依赖本地真实服务
+- 覆盖基础 HTTP 入口可访问性与旧集成接口冒烟
 
 运行方式：
 

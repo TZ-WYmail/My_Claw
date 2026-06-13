@@ -4,16 +4,7 @@ API 端点集成测试 — 测试所有 18 个端点
 需要服务启动在 http://localhost:8900
 """
 import pytest
-import httpx
 import asyncio
-
-BASE_URL = "http://localhost:8900"
-
-
-@pytest.fixture
-def client():
-    return httpx.Client(base_url=BASE_URL, timeout=10.0)
-
 
 # ============================================================
 # 基础端点测试
@@ -22,18 +13,18 @@ def client():
 class TestBasicEndpoints:
     """基础端点可访问性"""
 
-    def test_health(self, client):
-        resp = client.get("/health")
+    def test_health(self, live_server):
+        resp = live_server.get("/health")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "healthy"
 
-    def test_api_info(self, client):
-        resp = client.get("/api-info")
+    def test_api_info(self, live_server):
+        resp = live_server.get("/api-info")
         assert resp.status_code == 200
 
-    def test_root(self, client):
-        resp = client.get("/")
+    def test_root(self, live_server):
+        resp = live_server.get("/")
         assert resp.status_code == 200
         assert "text/html" in resp.headers.get("content-type", "")
 
@@ -45,16 +36,16 @@ class TestBasicEndpoints:
 class TestAIConfigEndpoints:
     """AI 配置管理接口"""
 
-    def test_get_config(self, client):
-        resp = client.get("/api/chat/config")
+    def test_get_config(self, live_server):
+        resp = live_server.get("/api/chat/config")
         assert resp.status_code == 200
         data = resp.json()
         # API Key 应被掩码
         if data.get("api_key"):
             assert "****" in data["api_key"] or len(data["api_key"]) < 10
 
-    def test_get_models(self, client):
-        resp = client.get("/api/chat/models")
+    def test_get_models(self, live_server):
+        resp = live_server.get("/api/chat/models")
         assert resp.status_code == 200
         data = resp.json()
         # 返回可能是列表或带 status 的 dict
@@ -68,8 +59,8 @@ class TestAIConfigEndpoints:
 class TestTaskEndpoints:
     """任务 CRUD 接口"""
 
-    def test_add_task(self, client):
-        resp = client.post("/api/task", json={
+    def test_add_task(self, live_server):
+        resp = live_server.post("/api/task", json={
             "action": "add_task",
             "task_name": "测试任务_审查",
             "due_time": "2026-04-01T10:00:00+08:00",
@@ -79,8 +70,8 @@ class TestTaskEndpoints:
         assert data["status"] == "success"
         return data
 
-    def test_complete_task(self, client):
-        add_resp = client.post("/api/task", json={
+    def test_complete_task(self, live_server):
+        add_resp = live_server.post("/api/task", json={
             "action": "add_task",
             "task_name": "完成测试任务",
             "due_time": "2026-05-01T10:00:00+08:00",
@@ -89,14 +80,14 @@ class TestTaskEndpoints:
         task_id = add_resp.json().get("task_id")
 
         if task_id:
-            resp = client.post("/api/task", json={
+            resp = live_server.post("/api/task", json={
                 "action": "complete_task",
                 "task_id": task_id,
             })
             assert resp.status_code == 200
 
-    def test_delete_task(self, client):
-        add_resp = client.post("/api/task", json={
+    def test_delete_task(self, live_server):
+        add_resp = live_server.post("/api/task", json={
             "action": "add_task",
             "task_name": "删除测试任务",
             "due_time": "2026-05-01T10:00:00+08:00",
@@ -105,14 +96,14 @@ class TestTaskEndpoints:
         task_id = add_resp.json().get("task_id")
 
         if task_id:
-            resp = client.post("/api/task", json={
+            resp = live_server.post("/api/task", json={
                 "action": "delete_task",
                 "task_id": task_id,
             })
             assert resp.status_code == 200
 
-    def test_invalid_action(self, client):
-        resp = client.post("/api/task", json={
+    def test_invalid_action(self, live_server):
+        resp = live_server.post("/api/task", json={
             "action": "add_task",
         })
         # 缺少必填字段 → 422 或返回 error
@@ -126,22 +117,22 @@ class TestTaskEndpoints:
 class TestDashboardEndpoints:
     """仪表盘接口"""
 
-    def test_dashboard(self, client):
-        resp = client.get("/api/dashboard")
+    def test_dashboard(self, live_server):
+        resp = live_server.get("/api/dashboard")
         assert resp.status_code == 200
         data = resp.json()
         assert "total_tasks" in data or "status" in data
 
-    def test_download_history(self, client):
-        resp = client.get("/api/download/history")
+    def test_download_history(self, live_server):
+        resp = live_server.get("/api/download/history")
         assert resp.status_code == 200
 
-    def test_logs(self, client):
-        resp = client.get("/api/logs")
+    def test_logs(self, live_server):
+        resp = live_server.get("/api/logs")
         assert resp.status_code == 200
 
-    def test_all_tasks(self, client):
-        resp = client.get("/api/tasks/all")
+    def test_all_tasks(self, live_server):
+        resp = live_server.get("/api/tasks/all")
         assert resp.status_code == 200
 
 
@@ -152,8 +143,8 @@ class TestDashboardEndpoints:
 class TestSearchEndpoint:
     """文件搜索接口"""
 
-    def test_search_all(self, client):
-        resp = client.post("/api/search", json={
+    def test_search_all(self, live_server):
+        resp = live_server.post("/api/search", json={
             "keyword": "test",
             "category": "all",
         })
@@ -161,8 +152,8 @@ class TestSearchEndpoint:
         data = resp.json()
         assert "files" in data
 
-    def test_search_invalid_category(self, client):
-        resp = client.post("/api/search", json={
+    def test_search_invalid_category(self, live_server):
+        resp = live_server.post("/api/search", json={
             "keyword": "test",
             "category": "all",  # 使用有效 category
         })
@@ -178,8 +169,8 @@ class TestSearchEndpoint:
 class TestJobStatusEndpoint:
     """异步任务状态查询"""
 
-    def test_nonexistent_job(self, client):
-        resp = client.post("/api/job/status", json={
+    def test_nonexistent_job(self, live_server):
+        resp = live_server.post("/api/job/status", json={
             "job_id": "nonexistent_id_12345",
         })
         assert resp.status_code == 200
