@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import aiosqlite
 
 from config import DB_PATH
+from services import dashboard_query_service
 from services import task_command_service
 from services import task_planning_service
 from services import task_query_service
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS planning_previews (
 def _sync_task_module_paths() -> None:
     """Keep split task modules on same database path as compatibility facade."""
     task_command_service.DB_PATH = DB_PATH
+    dashboard_query_service.DB_PATH = DB_PATH
     task_query_service.DB_PATH = DB_PATH
 
 
@@ -355,7 +357,7 @@ async def get_download_history(
 ) -> dict:
     """获取下载历史"""
     _sync_task_module_paths()
-    return await task_query_service.get_download_history(
+    return await dashboard_query_service.get_download_history(
         category=category,
         page=page,
         page_size=page_size,
@@ -369,7 +371,7 @@ async def get_logs(
 ) -> dict:
     """获取操作日志"""
     _sync_task_module_paths()
-    return await task_query_service.get_logs(
+    return await dashboard_query_service.get_logs(
         page=page,
         page_size=page_size,
         operation=operation,
@@ -389,20 +391,7 @@ async def get_task_detail(task_id: str) -> dict:
 async def get_dashboard_stats() -> dict:
     """获取仪表盘统计信息"""
     _sync_task_module_paths()
-    return await task_query_service.get_dashboard_stats()
-
-
-def _calc_disk_stats():
-    """同步计算磁盘统计（供线程池调用）"""
-    from config import DOWNLOADS_DIR
-    total_size = 0
-    file_count = 0
-    if DOWNLOADS_DIR.exists():
-        for f in DOWNLOADS_DIR.rglob("*"):
-            if f.is_file():
-                total_size += f.stat().st_size
-                file_count += 1
-    return total_size, file_count
+    return await dashboard_query_service.get_dashboard_stats()
 
 
 # human_size 已移至 services.utils

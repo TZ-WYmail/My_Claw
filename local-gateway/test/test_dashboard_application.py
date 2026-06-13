@@ -8,7 +8,7 @@ from application import dashboard_actions
 @pytest.mark.asyncio
 async def test_get_dashboard_action_delegates_to_service():
     with patch(
-        "application.dashboard_actions.task_query_service.get_dashboard_stats",
+        "application.dashboard_actions.dashboard_query_service.get_dashboard_stats",
         new=AsyncMock(return_value={"status": "success", "today_completed": 3}),
     ) as mocked:
         result = await dashboard_actions.get_dashboard_action()

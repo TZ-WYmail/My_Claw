@@ -111,7 +111,7 @@ async def test_get_dashboard_stats_combines_counts_and_streak(setup_db):
     completed = await task_service.add_task(task_name="任务B", due_time="2026-06-13T12:00:00")
     await task_service.complete_task(completed["task_id"])
 
-    with patch("services.task_query_service.get_streak_info", new=AsyncMock(return_value={"current_streak": 3})):
+    with patch("services.dashboard_query_service.get_streak_info", new=AsyncMock(return_value={"current_streak": 3})):
         result = await task_query_service.get_dashboard_stats()
 
     assert result["status"] == "success"

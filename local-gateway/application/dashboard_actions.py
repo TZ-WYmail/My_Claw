@@ -6,12 +6,13 @@ transport-only and future internal callers can reuse the same query path.
 """
 from __future__ import annotations
 
+from services import dashboard_query_service
 from services import task_query_service
 from services.streak_service import get_streak_info
 
 
 async def get_dashboard_action() -> dict:
-    return await task_query_service.get_dashboard_stats()
+    return await dashboard_query_service.get_dashboard_stats()
 
 
 async def get_download_history_action(
@@ -19,7 +20,7 @@ async def get_download_history_action(
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
-    return await task_query_service.get_download_history(
+    return await dashboard_query_service.get_download_history(
         category=category,
         page=page,
         page_size=page_size,
@@ -31,7 +32,7 @@ async def get_logs_action(
     page: int = 1,
     page_size: int = 50,
 ) -> dict:
-    return await task_query_service.get_logs(
+    return await dashboard_query_service.get_logs(
         page=page,
         page_size=page_size,
         operation=operation,
