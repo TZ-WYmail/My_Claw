@@ -313,6 +313,24 @@ HTTP ai_planning router
 - `task_query_service` 更接近任务领域读侧
 - `advanced_actions` 主链不再依赖继续膨胀的 task query 容器
 
+### 1.15 advanced application 继续按领域拆分
+
+已完成：
+
+- 新建 `application/tag_actions.py`
+- 新建 `application/subtask_actions.py`
+- 新建 `application/pomodoro_actions.py`
+- 新建 `application/calendar_actions.py`
+- 新建 `application/task_detail_actions.py`
+- `routers/advanced_features.py` 主链改为直接依赖各领域 action owner
+- `application/advanced_actions.py` 收缩为兼容聚合壳
+
+当前结果：
+
+- `advanced_features` 路由内部已不再继续把所有增强能力都压到单一 application 模块
+- tag / subtask / pomodoro / calendar / task-detail 已有独立 application 落点
+- 后续即使还暂时保留 `/advanced/*` 命名，也不会继续把实现边界绑死在 `advanced_actions.py`
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -342,6 +360,11 @@ HTTP ai_planning router
 - `test/test_task_planning_service.py`
 - `test/test_task_query_service.py`
 - `test/test_mobile_query_service.py`
+- `application/tag_actions.py`
+- `application/subtask_actions.py`
+- `application/pomodoro_actions.py`
+- `application/calendar_actions.py`
+- `application/task_detail_actions.py`
 
 ## 3. 本轮修改文件
 
@@ -375,6 +398,8 @@ HTTP ai_planning router
 - `services/habit_service.py`
 - `services/task_detail_service.py`
 - `main.py`
+- `application/advanced_actions.py`
+- `routers/advanced_features.py`
 
 ## 4. 回归验证结果
 
@@ -572,6 +597,18 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这一步的意义在于把“任务列表/过滤查询”和“任务详情聚合视图”拆成不同的读模型边界。
 
+### 5.17 advanced application 已从单文件聚合转为领域 action 组合
+
+现在 `advanced_features` 的 application 层虽然还保留历史兼容入口文件，但主实现已开始分域：
+
+- tags -> `application/tag_actions.py`
+- subtasks -> `application/subtask_actions.py`
+- pomodoro -> `application/pomodoro_actions.py`
+- calendar -> `application/calendar_actions.py`
+- task detail -> `application/task_detail_actions.py`
+
+这一步的价值在于后续要改 `/advanced/*` 命名时，可以先改路由边界，而不用再先从一个混装 application 文件里拆实现。
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合模型仍偏粗
@@ -630,12 +667,17 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - 一些 router 还是按“功能堆叠”组织，而不是按领域组织
 - `task_service` 作为 facade 仍继续暴露较大的兼容面，后续需要明确退场边界
 
+已经改善：
+
+- `advanced_actions.py` 已不再是增强功能的单一实现 owner
+- `routers/advanced_features.py` 下面的内部 application 落点已经开始按领域分拆
+
 ## 7. 建议的下一步实施顺序
 
 建议按以下顺序继续：
 
 1. 继续压缩 `task_service` 仍保留的宽兼容入口，识别可以直接改主调用链的旧依赖
-2. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
+2. 为 `advanced_features` 建立目标路由域映射，并决定是否拆 router 或仅改命名层
 3. 评估 `ai_planning_service` 的公开入口中还能继续下沉的 orchestration 片段
 4. 清点剩余 facade/compat wrapper 的保留理由与退场顺序
 5. 评估 mobile dashboard snapshot 是否需要拆成更稳定的移动端读模型
