@@ -3,7 +3,6 @@
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import sqlite3
@@ -117,45 +116,11 @@ def _sync_task_module_paths() -> None:
 
 
 async def init_db():
-    """初始化数据库表结构"""
-    _sync_task_module_paths()
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        await db.executescript(_schema)
-        await db.commit()
+    """兼容入口：初始化数据库表结构"""
+    from services import bootstrap_service
 
-    # 初始化标签相关表
-    from services.tag_service import init_tag_db
-    await init_tag_db()
-
-    # 初始化子任务相关表
-    from services.subtask_service import init_subtask_db
-    await init_subtask_db()
-
-    # 初始化番茄钟相关表
-    from services.pomodoro_service import init_pomodoro_db
-    await init_pomodoro_db()
-
-    # 初始化习惯相关表
-    from services.habit_service import init_habit_db
-    await init_habit_db()
-
-    # 初始化笔记相关表
-    from services.note_service import init_note_db
-    await init_note_db()
-
-    # 初始化日历相关表
-    from services.calendar_sync_service import init_calendar_db
-    await init_calendar_db()
-
-    # 迁移：为已有数据库添加 start_time / end_time / completed_at 列
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        cursor = await db.execute("PRAGMA table_info(tasks)")
-        existing_columns = {row[1] for row in await cursor.fetchall()}
-        for col in ("start_time", "end_time", "completed_at"):
-            if col not in existing_columns:
-                await db.execute(f"ALTER TABLE tasks ADD COLUMN {col} TEXT")
-        await db.commit()
+    bootstrap_service.DB_PATH = DB_PATH
+    await bootstrap_service.init_db()
 
 
 # ============================================================

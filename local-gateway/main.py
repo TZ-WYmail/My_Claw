@@ -46,7 +46,7 @@ from routers import (
     webhooks,
     workflows,
 )
-from services import mail_service, task_service
+from services import bootstrap_service, mail_service
 from services.sync_service import sync_engine
 from services.time_service import build_system_time_payload
 
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     # 确保目录存在
     ensure_dirs()
     # 初始化数据库
-    await task_service.init_db()
+    await bootstrap_service.init_db()
     logger.info(f"✅ 数据库初始化完成: tasks.db")
     await mail_service.init_mail_db()
     logger.info("✅ 邮件基础设施初始化完成")

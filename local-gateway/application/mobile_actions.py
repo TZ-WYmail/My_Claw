@@ -6,7 +6,7 @@ longer mixes transport, SQL access, and cross-module coordination.
 """
 from __future__ import annotations
 from services import habit_service
-from services import mobile_service
+from services import mobile_query_service
 from services import pomodoro_service
 from services import runtime_state_service
 from services import task_command_service
@@ -22,7 +22,7 @@ _QUICK_ACTION_DISPATCH = {
 
 
 async def get_mobile_dashboard_action() -> dict:
-    snapshot = await mobile_service.get_mobile_dashboard_snapshot()
+    snapshot = await mobile_query_service.get_mobile_dashboard_snapshot()
     pomodoro_stats = await pomodoro_service.get_pomodoro_stats()
     sync_status = await sync_engine.get_sync_status()
 

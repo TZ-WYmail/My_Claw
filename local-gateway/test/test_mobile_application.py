@@ -32,7 +32,7 @@ async def test_quick_action_action_delegates_to_handler():
 @pytest.mark.asyncio
 async def test_get_mobile_dashboard_action_aggregates_snapshot_and_runtime():
     with patch(
-        "application.mobile_actions.mobile_service.get_mobile_dashboard_snapshot",
+        "application.mobile_actions.mobile_query_service.get_mobile_dashboard_snapshot",
         new=AsyncMock(return_value={
             "today_tasks": [{"task_id": "task_1"}],
             "pending_count": 3,

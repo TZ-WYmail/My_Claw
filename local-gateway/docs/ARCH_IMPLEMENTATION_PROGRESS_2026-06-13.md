@@ -249,6 +249,23 @@ HTTP ai_planning router
 - `task_query_service` 在主调用链中的跨域 dashboard/history 查询职责进一步收缩
 - `ai_planning_service` 继续保留高层公开入口编排
 
+### 1.11 bootstrap 与 mobile query owner 收口
+
+已完成：
+
+- 新建 `services/bootstrap_service.py`
+- 新建 `services/mobile_query_service.py`
+- `main.py` 启动初始化主链改为直接调用 `bootstrap_service.init_db()`
+- `task_service.init_db()` 收缩为兼容入口，转发到 `bootstrap_service`
+- `application/mobile_actions.py` 的 mobile dashboard 主链改为直接依赖 `mobile_query_service`
+- `services/mobile_service.py` 收缩为兼容 wrapper，保留旧调用面
+
+当前结果：
+
+- 数据库/bootstrap 初始化不再继续挂在 `task_service` 这个 task facade 名下
+- mobile dashboard 聚合查询已有更明确 owner，router/application 主链不再依赖临时聚合容器
+- `task_service` 与 `mobile_service` 都进一步退向 compatibility facade
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -262,6 +279,8 @@ HTTP ai_planning router
 - `services/task_command_service.py`
 - `services/task_planning_service.py`
 - `services/task_query_service.py`
+- `services/bootstrap_service.py`
+- `services/mobile_query_service.py`
 - `models/sync_models.py`
 - `test/test_task_application.py`
 - `test/test_planning_application.py`
@@ -300,6 +319,9 @@ HTTP ai_planning router
 - `services/ai_planning_replan_service.py`
 - `services/runtime_log_service.py`
 - `services/dashboard_query_service.py`
+- `services/bootstrap_service.py`
+- `services/mobile_query_service.py`
+- `main.py`
 
 ## 4. 回归验证结果
 
@@ -438,9 +460,29 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这一步让 task query 边界更接近“任务领域读侧”，而不是继续混装仪表盘与运行历史查询。
 
+### 5.11 bootstrap 初始化已形成独立 owner
+
+现在数据库初始化与基础子系统建表不再由 `task_service` 主持：
+
+- `bootstrap_service` 持有 schema 初始化与子模块建表编排
+- `main.py` 已切到新 owner
+- `task_service.init_db()` 仅保留兼容转发
+
+这一步的意义在于把“系统启动基础设施”从“任务领域 facade”里拿出来，避免继续扩大 task 领域的表面职责。
+
+### 5.12 mobile dashboard 查询 owner 更清晰
+
+现在 mobile dashboard 聚合查询不再由 `mobile_service` 这个泛名入口承载主调用链：
+
+- `mobile_query_service` 持有移动端 dashboard 聚合查询
+- `application.mobile_actions` 已改为直接依赖查询 owner
+- `mobile_service` 仅保留兼容转发
+
+这一步让 mobile 侧后续继续拆 task/habit/pomodoro 聚合时，有了明确的读侧落点。
+
 ## 6. 仍然存在的主要问题
 
-### 6.1 `mobile` 的主坏味道已收口，但移动端聚合查询仍偏临时
+### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合仍未拆成领域组合
 
 已经解决：
 
@@ -450,8 +492,8 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 仍待优化：
 
-- `services/mobile_service.py` 仍是移动端聚合查询容器，不是稳定领域服务
-- 后续应继续把 task / habit / pomodoro 查询口做成更清晰的领域查询接口
+- `mobile_query_service` 现在只是 owner 更明确，但内部仍直接聚合 task / habit 查询
+- 后续应继续把 task / habit / pomodoro 查询口做成更清晰的领域查询接口，再由 mobile application 做组合
 
 ### 6.2 状态所有权开始收口，但还没有真正治理完成
 
@@ -499,11 +541,11 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 建议按以下顺序继续：
 
-1. 明确 `task_service` 初始化职责是否下沉到独立 bootstrap/db service
-2. 继续压缩 `task_command_service` 的 compatibility helper 面积
-3. 评估 `task_query_service` compatibility wrapper 的删除时机
-4. 把 `mobile_service` 临时聚合查询继续下沉到稳定领域查询接口
-5. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
+1. 继续压缩 `task_command_service` 的 compatibility helper 面积
+2. 评估 `task_query_service` compatibility wrapper 的删除时机
+3. 把 `mobile_query_service` 的聚合 SQL 进一步下沉到稳定领域查询接口
+4. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
+5. 评估 `bootstrap_service` 是否继续拆分 schema owner，降低对 `task_service._schema` 的引用
 
 ## 8. 当前判断
 
