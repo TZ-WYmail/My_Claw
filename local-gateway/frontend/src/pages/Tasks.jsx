@@ -792,7 +792,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
       setSubtasks([]);
       return [];
     }
-    const res = await apiGet(`/api/advanced/tasks/${task.task_id}/subtasks`);
+    const res = await apiGet(`/api/tasks/${task.task_id}/subtasks`);
     if (res.status === 'success') {
       const subtasks = normalizeList(res, ['subtasks', 'items']);
       setSubtasks(subtasks);
@@ -804,7 +804,7 @@ function AllTasksView({ autoOpenCreate = false, prefill = null, focusedTask = nu
 
   const fetchPomodoroStatus = useCallback(async () => {
     try {
-      const res = await apiGet('/api/advanced/pomodoro/status');
+      const res = await apiGet('/api/pomodoro/status');
       if (res.status === 'success') setActivePomodoro(res.active_session || null);
     } catch {
       setActivePomodoro(null);
@@ -1373,7 +1373,7 @@ function TaskDetailDrawer({
   const createSubtask = async () => {
     if (!newSubtask.trim()) return;
     try {
-      const res = await request(async () => fetch('/api/advanced/subtasks', {
+      const res = await request(async () => fetch('/api/subtasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: task.task_id, name: newSubtask.trim() }),
@@ -1392,7 +1392,7 @@ function TaskDetailDrawer({
   const toggleSubtask = async (subtask) => {
     try {
       const nextStatus = subtask.status === 'completed' ? 'pending' : 'completed';
-      const res = await request(async () => fetch(`/api/advanced/subtasks/${subtask.subtask_id}`, {
+      const res = await request(async () => fetch(`/api/subtasks/${subtask.subtask_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subtask_id: subtask.subtask_id, status: nextStatus }),
@@ -1408,7 +1408,7 @@ function TaskDetailDrawer({
 
   const startPomodoro = async (durationMinutes = 25) => {
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/start', {
+      const res = await request(async () => fetch('/api/pomodoro/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: task.task_id, duration_minutes: durationMinutes }),
@@ -1424,7 +1424,7 @@ function TaskDetailDrawer({
 
   const completePomodoro = async () => {
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/complete', {
+      const res = await request(async () => fetch('/api/pomodoro/complete', {
         method: 'POST',
       }).then(r => r.json()));
       if (res.status === 'error') throw new Error(res.message || '完成番茄钟失败');
@@ -1438,7 +1438,7 @@ function TaskDetailDrawer({
 
   const interruptPomodoro = async () => {
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/interrupt', {
+      const res = await request(async () => fetch('/api/pomodoro/interrupt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: activePomodoro?.session_id || '', reason: 'manual_stop' }),

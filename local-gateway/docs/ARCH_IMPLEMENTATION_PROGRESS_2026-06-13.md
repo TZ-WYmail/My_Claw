@@ -509,6 +509,28 @@ HTTP ai_planning router
 - 新读者可以直接按当前 application / split services / formal routers / compat routers 的结构理解代码
 - 文档层与代码层的架构判断已经基本对齐
 
+### 1.28 前端主页面已迁离 `/api/advanced/*` 兼容路径
+
+已完成：
+
+- `frontend/src/pages/Tasks.jsx` 改为使用正式域路径：
+  - `/api/tasks/{task_id}/subtasks`
+  - `/api/subtasks`
+  - `/api/pomodoro/*`
+- `frontend/src/pages/Calendar.jsx` 改为使用正式域路径：
+  - `/api/calendar/*`
+  - `/api/pomodoro/*`
+- `frontend/src/pages/Dashboard.jsx` 改为使用正式域路径：
+  - `/api/tasks/{task_id}/subtasks`
+  - `/api/pomodoro/*`
+- `test/test_architecture_guards.py` 新增前端源码护栏，禁止 `frontend/src` 重新依赖 `/api/advanced/*`
+
+当前结果：
+
+- `/api/advanced/*` 进一步退回到兼容层，而不是继续被主前端页面当作默认调用面
+- 正式域 router 已同时在后端 owner、前端调用面、测试护栏三层对齐
+- 后续如果要删除 advanced 兼容路径，阻力会更多地集中在历史兼容测试与外部调用，而不是当前主界面
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

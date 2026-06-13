@@ -7,6 +7,7 @@ from routers import advanced_features, file_search, fulltext_search, search
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRS = ("application", "routers", "services", "test")
 TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
+FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
 THIS_TEST_FILE = Path(__file__).resolve()
 
 
@@ -69,3 +70,14 @@ def test_search_router_ownership_boundaries_are_stable():
         "/search/index/rebuild",
         "/search/index/stats",
     ]
+
+
+def test_frontend_sources_no_longer_use_advanced_compat_paths():
+    findings: list[str] = []
+
+    for path in FRONTEND_SOURCE_DIR.rglob("*.[jt]sx"):
+        content = path.read_text(encoding="utf-8")
+        if "/api/advanced/" in content:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []

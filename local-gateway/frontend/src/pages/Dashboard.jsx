@@ -438,7 +438,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
 
   const fetchPomodoroStatus = useCallback(async () => {
     try {
-      const res = await apiGet('/api/advanced/pomodoro/status');
+      const res = await apiGet('/api/pomodoro/status');
       if (res.status === 'success') setActivePomodoro(res.active_session || null);
     } catch {
       setActivePomodoro(null);
@@ -453,7 +453,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
     }
     const entries = await Promise.all(slice.map(async (task) => {
       try {
-        const res = await apiGet(`/api/advanced/tasks/${task.task_id}/subtasks`);
+        const res = await apiGet(`/api/tasks/${task.task_id}/subtasks`);
         const subtasks = res.status === 'success' ? normalizeList(res, ['subtasks', 'items']) : [];
         const total = subtasks.length;
         const completed = subtasks.filter(item => item.status === 'completed').length;
@@ -544,7 +544,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
   const startPomodoroForTask = useCallback(async (task, durationMinutes = 25) => {
     if (!task?.task_id) return;
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/start', {
+      const res = await request(async () => fetch('/api/pomodoro/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: task.task_id, duration_minutes: durationMinutes }),
@@ -560,7 +560,7 @@ export default function Dashboard({ onCreateTask, onCreateNote, onOpenAi, onOpen
 
   const completePomodoro = useCallback(async () => {
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/complete', { method: 'POST' }).then(r => r.json()));
+      const res = await request(async () => fetch('/api/pomodoro/complete', { method: 'POST' }).then(r => r.json()));
       if (res.status === 'error') throw new Error(res.message || '完成番茄钟失败');
       toast('专注已完成', 'success');
       fetchPomodoroStatus();

@@ -33,7 +33,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
 
   const fetchCalendar = useCallback(async () => {
     try {
-      const res = await request(async () => apiGet(`/api/advanced/calendar/view?year=${year}&month=${month}`));
+      const res = await request(async () => apiGet(`/api/calendar/view?year=${year}&month=${month}`));
       if (res.status === 'error') throw new Error(res.message);
       setDays(normalizeList(res, ['days', 'items']).map(normalizeCalendarDay));
     } catch (e) {
@@ -43,7 +43,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
 
   const fetchEventsForDay = useCallback(async (dateStr) => {
     try {
-      const res = await apiGet(`/api/advanced/calendar/events?start_date=${dateStr}&end_date=${dateStr}`);
+      const res = await apiGet(`/api/calendar/events?start_date=${dateStr}&end_date=${dateStr}`);
       return normalizeList(res, ['events', 'items']);
     } catch {
       return [];
@@ -52,7 +52,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
 
   const fetchPomodoroStatus = useCallback(async () => {
     try {
-      const res = await apiGet('/api/advanced/pomodoro/status');
+      const res = await apiGet('/api/pomodoro/status');
       if (res.status === 'success') setActivePomodoro(res.active_session || null);
     } catch {
       setActivePomodoro(null);
@@ -97,7 +97,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
     if (!eventForm.start_time || !eventForm.end_time) { toast('请设置起止时间', 'error'); return; }
     try {
       const res = await request(async () =>
-        apiPost('/api/advanced/calendar/events', {
+        apiPost('/api/calendar/events', {
           title: eventForm.title.trim(),
           description: eventForm.description,
           start_time: new Date(eventForm.start_time).toISOString(),
@@ -122,7 +122,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
   const handleDeleteEvent = async (eventId) => {
     if (!confirm('确认删除此事件?')) return;
     try {
-      const res = await fetch(`/api/advanced/calendar/events/${eventId}`, { method: 'DELETE' }).then(r => r.json());
+      const res = await fetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' }).then(r => r.json());
       if (res.status === 'error') throw new Error(res.message);
       toast('事件已删除', 'success');
       fetchCalendar();
@@ -136,7 +136,7 @@ export default function Calendar({ onCreateTaskForDate, onCreateNoteFromTask, on
 
   const startPomodoroForTask = async (task, durationMinutes = 25) => {
     try {
-      const res = await request(async () => fetch('/api/advanced/pomodoro/start', {
+      const res = await request(async () => fetch('/api/pomodoro/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: task.task_id, duration_minutes: durationMinutes }),
