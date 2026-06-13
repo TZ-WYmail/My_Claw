@@ -1,5 +1,9 @@
 """
-高级功能路由 — 标签、子任务、番茄钟、日历视图
+高级功能兼容路由。
+
+历史 `/api/advanced/*` 入口保留一段兼容期，主入口已逐步迁往
+正式域路由：`/api/tags`、`/api/subtasks`、`/api/pomodoro/*`、
+`/api/calendar/*`、`/api/tasks/*`。
 """
 
 from fastapi import APIRouter, Query
