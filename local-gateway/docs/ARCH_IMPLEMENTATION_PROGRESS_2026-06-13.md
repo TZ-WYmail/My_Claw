@@ -467,6 +467,20 @@ HTTP ai_planning router
 - 全文索引的正式 owner 不再经过一层无内部调用的 compat 包装
 - 搜索子系统内的正式路径和兼容路径边界更清晰
 
+### 1.25 `advanced_features` 已收缩为正式域 router 的兼容别名聚合
+
+已完成：
+
+- `routers/advanced_features.py` 不再重复维护 tags/subtasks/pomodoro/calendar/task-detail 的端点函数
+- 兼容路由改为直接 `include_router(...)` 复用正式域 router
+- `/api/advanced/*` 继续可用，但实现 owner 已完全回到正式域 router
+
+当前结果：
+
+- `advanced_features` 不再继续持有一份平行的路由实现
+- 正式域 router 与 advanced 兼容路径之间不再存在重复的 handler 维护面
+- 后续删除 `/api/advanced/*` 时，主要工作会变成路径兼容治理，而不是清理重复实现
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
