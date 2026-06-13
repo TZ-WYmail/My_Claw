@@ -95,9 +95,9 @@ async def test_get_task_detail_returns_neighbors_and_related_data(setup_db):
         tags=["meeting"],
     )
 
-    with patch("services.task_query_service.get_all_notes", new=AsyncMock(return_value={"notes": []})), \
-         patch("services.task_query_service.get_subtasks", new=AsyncMock(return_value=[])), \
-         patch("services.task_query_service.get_active_pomodoro", new=AsyncMock(return_value=None)):
+    with patch("services.task_detail_service.get_all_notes", new=AsyncMock(return_value={"notes": []})), \
+         patch("services.task_detail_service.get_subtasks", new=AsyncMock(return_value=[])), \
+         patch("services.task_detail_service.get_active_pomodoro", new=AsyncMock(return_value=None)):
         result = await task_query_service.get_task_detail(target["task_id"])
 
     assert result["status"] == "success"

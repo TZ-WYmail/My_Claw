@@ -11,7 +11,7 @@ from services import pomodoro_service
 from services import subtask_service
 from services import tag_service
 from services import task_command_service
-from services import task_query_service
+from services import task_detail_service
 
 
 async def create_tag_action(name: str, color: str) -> dict:
@@ -131,4 +131,4 @@ async def batch_update_tasks_action(
 
 
 async def get_task_detail_action(task_id: str) -> dict:
-    return await task_query_service.get_task_detail(task_id)
+    return await task_detail_service.get_task_detail(task_id)

@@ -13,6 +13,7 @@ from services import dashboard_query_service
 from services import runtime_log_service
 from services import runtime_state_service
 from services import task_command_service
+from services import task_detail_service
 from services import task_planning_service
 from services import task_query_service
 from services.task_db_schema import TASK_SCHEMA_SQL
@@ -20,6 +21,7 @@ from services.task_db_schema import TASK_SCHEMA_SQL
 
 def _sync_paths() -> None:
     task_command_service.DB_PATH = DB_PATH
+    task_detail_service.DB_PATH = DB_PATH
     task_query_service.DB_PATH = DB_PATH
     task_planning_service.DB_PATH = DB_PATH
     runtime_state_service.DB_PATH = DB_PATH

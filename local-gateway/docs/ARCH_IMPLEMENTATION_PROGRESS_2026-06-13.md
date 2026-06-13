@@ -298,6 +298,21 @@ HTTP ai_planning router
 - 但聚合 owner 已不再直接碰 tasks/habits 表
 - task / habit 的读侧职责更清晰，mobile 只负责组合视图数据
 
+### 1.14 task detail 聚合拆出独立 owner
+
+已完成：
+
+- 新建 `services/task_detail_service.py`
+- `application/advanced_actions.py` 的 task detail 主链改为直接依赖 `task_detail_service`
+- `task_query_service.get_task_detail()` 收缩为兼容转发
+- `task_service.get_task_detail()` 继续保留 facade 转发
+
+当前结果：
+
+- task detail 这类跨 task/note/subtask/pomodoro 的聚合不再继续堆在 `task_query_service`
+- `task_query_service` 更接近任务领域读侧
+- `advanced_actions` 主链不再依赖继续膨胀的 task query 容器
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -314,6 +329,7 @@ HTTP ai_planning router
 - `services/bootstrap_service.py`
 - `services/mobile_query_service.py`
 - `services/task_db_schema.py`
+- `services/task_detail_service.py`
 - `models/sync_models.py`
 - `test/test_task_application.py`
 - `test/test_planning_application.py`
@@ -357,6 +373,7 @@ HTTP ai_planning router
 - `services/mobile_query_service.py`
 - `services/task_db_schema.py`
 - `services/habit_service.py`
+- `services/task_detail_service.py`
 - `main.py`
 
 ## 4. 回归验证结果
@@ -545,6 +562,16 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这一步的价值在于后续继续拆 mobile 侧读模型时，不需要先从“移动端私有 SQL”回退到领域能力。
 
+### 5.16 task detail 聚合已形成独立 owner
+
+现在 task detail 不再被视为普通 task query 的一部分：
+
+- `task_detail_service` 持有跨 task/note/subtask/pomodoro 的聚合视图
+- `advanced_actions` 已切到新 owner
+- `task_query_service` 仅保留兼容转发，便于平滑退场
+
+这一步的意义在于把“任务列表/过滤查询”和“任务详情聚合视图”拆成不同的读模型边界。
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合模型仍偏粗
@@ -591,6 +618,7 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - `services/task_planning_service.py` 已拆出，但后续还可以继续细化 planning domain
 - `services/ai_planning_service.py` 已收出 preview lifecycle、variant builder、replan apply，但仍承担公开 planning 聚合入口
 - `task_query_service` 已基本回到 task 读侧，但 `task_service` 仍保留较宽 facade 面
+- `advanced_actions` 对外命名仍然偏历史兼容入口，未按更稳定业务域拆包
 
 问题不再是“有没有 application 层”，而是 service 内部仍承担过多职责。
 

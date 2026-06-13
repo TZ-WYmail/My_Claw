@@ -76,3 +76,16 @@ async def test_batch_update_tasks_action_normalizes_optional_tag_lists():
         tags_remove=[],
     )
     assert result["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_get_task_detail_action_delegates_to_task_detail_service():
+    with patch(
+        "application.advanced_actions.task_detail_service.get_task_detail",
+        new=AsyncMock(return_value={"status": "success", "task": {"task_id": "task_1"}}),
+    ) as mocked:
+        result = await advanced_actions.get_task_detail_action("task_1")
+
+    mocked.assert_awaited_once_with("task_1")
+    assert result["status"] == "success"
+    assert result["task"]["task_id"] == "task_1"

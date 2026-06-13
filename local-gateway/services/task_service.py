@@ -13,6 +13,7 @@ import aiosqlite
 from config import DB_PATH
 from services import dashboard_query_service
 from services import task_command_service
+from services import task_detail_service
 from services import task_planning_service
 from services import task_query_service
 
@@ -24,6 +25,7 @@ def _sync_task_module_paths() -> None:
     """Keep split task modules on same database path as compatibility facade."""
     task_command_service.DB_PATH = DB_PATH
     dashboard_query_service.DB_PATH = DB_PATH
+    task_detail_service.DB_PATH = DB_PATH
     task_query_service.DB_PATH = DB_PATH
 
 
