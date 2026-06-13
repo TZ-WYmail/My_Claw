@@ -266,6 +266,23 @@ HTTP ai_planning router
 - mobile dashboard 聚合查询已有更明确 owner，router/application 主链不再依赖临时聚合容器
 - `task_service` 与 `mobile_service` 都进一步退向 compatibility facade
 
+### 1.12 task schema owner 与 compat 继续收缩
+
+已完成：
+
+- 新建 `services/task_db_schema.py`
+- `bootstrap_service` 不再从 `task_service` 导入 schema
+- `task_service` 删除内嵌 task schema 定义，继续向纯 facade 收缩
+- `task_query_service` 删除 dashboard/download/logs 兼容转发，仅保留 task 领域读侧
+- `task_command_service` 删除未被主链使用的 planning helper shim
+
+当前结果：
+
+- bootstrap 初始化已不再反向依赖 task facade
+- task schema 的 owner 已从 compatibility facade 中剥离
+- `task_query_service` 更接近纯 task-domain query service
+- `task_command_service` 的兼容面进一步变薄
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
@@ -281,6 +298,7 @@ HTTP ai_planning router
 - `services/task_query_service.py`
 - `services/bootstrap_service.py`
 - `services/mobile_query_service.py`
+- `services/task_db_schema.py`
 - `models/sync_models.py`
 - `test/test_task_application.py`
 - `test/test_planning_application.py`
@@ -321,6 +339,7 @@ HTTP ai_planning router
 - `services/dashboard_query_service.py`
 - `services/bootstrap_service.py`
 - `services/mobile_query_service.py`
+- `services/task_db_schema.py`
 - `main.py`
 
 ## 4. 回归验证结果
@@ -480,6 +499,25 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这一步让 mobile 侧后续继续拆 task/habit/pomodoro 聚合时，有了明确的读侧落点。
 
+### 5.13 task schema owner 已脱离 facade
+
+现在 task 表与运行期基础表的 DDL 不再内嵌在 `task_service`：
+
+- `task_db_schema.py` 持有 schema 定义
+- `bootstrap_service` 直接依赖 schema owner
+- `task_service` 不再作为 bootstrap 的隐式依赖
+
+这一步解决的不是“文件大小”本身，而是避免基础设施初始化继续耦合到兼容 facade。
+
+### 5.14 task query compat wrapper 已明显变薄
+
+现在 `task_query_service` 已不再兼容承载 dashboard/history/log 查询：
+
+- 仪表盘与运行历史查询完全回到 `dashboard_query_service`
+- `task_query_service` 仅保留 task 读侧查询与 task detail 聚合
+
+这让 query 边界从“任务加一堆旁路查询”继续收敛到“任务领域读模型”。
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已继续收口，但移动端聚合仍未拆成领域组合
@@ -522,10 +560,10 @@ router 不再继续承担“组织多个 service 的业务动作”。
 其中：
 
 - `task_service` 已不再是主实现，但兼容层仍偏厚
-- `task_command_service` 已进一步收缩，但仍保留一部分 compatibility helper 转发
+- `task_command_service` 已进一步收缩，但仍保留完整 task facade 兼容入口背后的转发压力
 - `services/task_planning_service.py` 已拆出，但后续还可以继续细化 planning domain
 - `services/ai_planning_service.py` 已收出 preview lifecycle、variant builder、replan apply，但仍承担公开 planning 聚合入口
-- `task_query_service` 仍保留一层 compatibility wrapper，尚未完全退成纯 task 读侧
+- `task_query_service` 已基本回到 task 读侧，但 `task_service` 仍保留较宽 facade 面
 
 问题不再是“有没有 application 层”，而是 service 内部仍承担过多职责。
 
@@ -541,11 +579,11 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 建议按以下顺序继续：
 
-1. 继续压缩 `task_command_service` 的 compatibility helper 面积
-2. 评估 `task_query_service` compatibility wrapper 的删除时机
-3. 把 `mobile_query_service` 的聚合 SQL 进一步下沉到稳定领域查询接口
-4. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
-5. 评估 `bootstrap_service` 是否继续拆分 schema owner，降低对 `task_service._schema` 的引用
+1. 继续压缩 `task_service` 仍保留的宽兼容入口，识别可以直接改主调用链的旧依赖
+2. 把 `mobile_query_service` 的聚合 SQL 进一步下沉到稳定领域查询接口
+3. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
+4. 评估 `ai_planning_service` 的公开入口中还能继续下沉的 orchestration 片段
+5. 清点剩余 facade/compat wrapper 的保留理由与退场顺序
 
 ## 8. 当前判断
 

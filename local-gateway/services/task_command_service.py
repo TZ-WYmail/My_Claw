@@ -428,23 +428,3 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
 async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     task_planning_service.DB_PATH = DB_PATH
     return await task_planning_service.analyze_tasks(raw_tasks)
-
-
-def _generate_daily_plan(analyzed: list[dict]) -> dict[str, dict]:
-    return task_planning_service.generate_daily_plan(analyzed)
-
-
-def _normalize_time(time_str: str) -> str:
-    return task_planning_service.normalize_time(time_str)
-
-
-def _date_to_weekday(date_str: str) -> str:
-    return task_planning_service.date_to_weekday(date_str)
-
-
-def _calc_next_reminder(due_time: str, recurrence: str) -> str:
-    return task_planning_service.calc_next_reminder(due_time, recurrence)
-
-
-def _human_readable_time(iso_time: str) -> str:
-    return task_planning_service.human_readable_time(iso_time)

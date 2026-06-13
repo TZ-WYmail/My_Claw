@@ -15,7 +15,7 @@ from services import runtime_state_service
 from services import task_command_service
 from services import task_planning_service
 from services import task_query_service
-from services.task_service import _schema
+from services.task_db_schema import TASK_SCHEMA_SQL
 
 
 def _sync_paths() -> None:
@@ -31,7 +31,7 @@ async def init_db() -> None:
     _sync_paths()
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(str(DB_PATH)) as db:
-        await db.executescript(_schema)
+        await db.executescript(TASK_SCHEMA_SQL)
         await db.commit()
 
     from services.tag_service import init_tag_db

@@ -1,8 +1,7 @@
 """
 Task query service.
 
-This module owns task read-side queries. Dashboard/history queries are being
-moved to `dashboard_query_service`; compatibility wrappers remain temporarily.
+This module owns task-domain read-side queries.
 """
 from __future__ import annotations
 
@@ -11,7 +10,6 @@ from datetime import datetime, timedelta
 import aiosqlite
 
 from config import DB_PATH
-from services import dashboard_query_service
 from services.note_service import get_all_notes
 from services.pomodoro_service import get_active_pomodoro
 from services.subtask_service import get_subtasks
@@ -251,25 +249,6 @@ async def get_all_tasks(
         "total_pages": (total + page_size - 1) // page_size,
     }
 
-
-async def get_download_history(
-    category: str = "",
-    page: int = 1,
-    page_size: int = 20,
-) -> dict:
-    dashboard_query_service.DB_PATH = DB_PATH
-    return await dashboard_query_service.get_download_history(category=category, page=page, page_size=page_size)
-
-
-async def get_logs(
-    page: int = 1,
-    page_size: int = 50,
-    operation: str = "",
-) -> dict:
-    dashboard_query_service.DB_PATH = DB_PATH
-    return await dashboard_query_service.get_logs(page=page, page_size=page_size, operation=operation)
-
-
 async def get_task_detail(task_id: str) -> dict:
     task = await get_task_by_id(task_id)
     if not task:
@@ -313,8 +292,3 @@ async def get_task_detail(task_id: str) -> dict:
         "active_pomodoro": active_pomodoro,
         "weekly_neighbors": weekly_neighbors,
     }
-
-
-async def get_dashboard_stats() -> dict:
-    dashboard_query_service.DB_PATH = DB_PATH
-    return await dashboard_query_service.get_dashboard_stats()

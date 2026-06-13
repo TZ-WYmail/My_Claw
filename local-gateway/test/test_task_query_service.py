@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
     import services.task_service as task_service
+    import services.dashboard_query_service as dashboard_query_service
     import services.task_query_service as task_query_service
     import services.note_service as note_service
     import services.tag_service as tag_service
@@ -16,6 +17,7 @@ async def setup_db(tmp_path, monkeypatch):
     db_path = tmp_path / "test_task_query.db"
     monkeypatch.setattr(task_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
+    monkeypatch.setattr(dashboard_query_service, "DB_PATH", db_path)
     monkeypatch.setattr(note_service, "DB_PATH", db_path)
     monkeypatch.setattr(tag_service, "DB_PATH", db_path)
     monkeypatch.setattr(subtask_service, "DB_PATH", db_path)
@@ -107,12 +109,14 @@ async def test_get_task_detail_returns_neighbors_and_related_data(setup_db):
 @pytest.mark.asyncio
 async def test_get_dashboard_stats_combines_counts_and_streak(setup_db):
     task_service, task_query_service = setup_db
+    import services.dashboard_query_service as dashboard_query_service
+
     await task_service.add_task(task_name="任务A", due_time="2026-06-13T10:00:00")
     completed = await task_service.add_task(task_name="任务B", due_time="2026-06-13T12:00:00")
     await task_service.complete_task(completed["task_id"])
 
     with patch("services.dashboard_query_service.get_streak_info", new=AsyncMock(return_value={"current_streak": 3})):
-        result = await task_query_service.get_dashboard_stats()
+        result = await dashboard_query_service.get_dashboard_stats()
 
     assert result["status"] == "success"
     assert result["tasks"]["pending"] >= 1
