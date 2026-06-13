@@ -9,17 +9,26 @@ import pytest
 with tempfile.TemporaryDirectory() as temp_dir:
     temp_db_path = Path(temp_dir) / "test_runtime_state.db"
     with patch("config.DB_PATH", temp_db_path), \
-         patch("services.task_service.DB_PATH", temp_db_path), \
+         patch("services.bootstrap_service.DB_PATH", temp_db_path), \
          patch("services.runtime_state_service.DB_PATH", temp_db_path), \
          patch("services.task_planning_service.DB_PATH", temp_db_path), \
          patch("services.task_query_service.DB_PATH", temp_db_path), \
-         patch("services.task_command_service.DB_PATH", temp_db_path):
-        from services import runtime_state_service, task_service
+         patch("services.task_command_service.DB_PATH", temp_db_path), \
+         patch("services.task_detail_service.DB_PATH", temp_db_path), \
+         patch("services.runtime_log_service.DB_PATH", temp_db_path), \
+         patch("services.dashboard_query_service.DB_PATH", temp_db_path), \
+         patch("services.note_service.DB_PATH", temp_db_path), \
+         patch("services.tag_service.DB_PATH", temp_db_path), \
+         patch("services.subtask_service.DB_PATH", temp_db_path), \
+         patch("services.pomodoro_service.DB_PATH", temp_db_path), \
+         patch("services.habit_service.DB_PATH", temp_db_path), \
+         patch("services.calendar_sync_service.DB_PATH", temp_db_path):
+        from services import bootstrap_service, runtime_state_service
 
 
 @pytest.fixture(autouse=True)
 async def setup_db():
-    await task_service.init_db()
+    await bootstrap_service.init_db()
     yield
 
 

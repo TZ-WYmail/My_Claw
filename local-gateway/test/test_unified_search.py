@@ -8,8 +8,14 @@ from services.unified_search_service import unified_search
 
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
-    import services.task_service as ts_mod
+    import services.bootstrap_service as bs_mod
+    import services.task_command_service as tc_mod
+    import services.task_detail_service as td_mod
     import services.task_query_service as tq_mod
+    import services.task_planning_service as tp_mod
+    import services.runtime_state_service as rs_mod
+    import services.runtime_log_service as rl_mod
+    import services.dashboard_query_service as dq_mod
     import services.note_service as ns_mod
     import services.habit_service as hs_mod
     import services.tag_service as tg_mod
@@ -17,21 +23,27 @@ async def setup_db(tmp_path, monkeypatch):
     import services.pomodoro_service as pm_mod
     import services.calendar_sync_service as cs_mod
     db_path = tmp_path / "test_unified.db"
-    monkeypatch.setattr(ts_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(bs_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(tc_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(td_mod, "DB_PATH", db_path)
     monkeypatch.setattr(tq_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(tp_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(rs_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(rl_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(dq_mod, "DB_PATH", db_path)
     monkeypatch.setattr(ns_mod, "DB_PATH", db_path)
     monkeypatch.setattr(hs_mod, "DB_PATH", db_path)
     monkeypatch.setattr(tg_mod, "DB_PATH", db_path)
     monkeypatch.setattr(st_mod, "DB_PATH", db_path)
     monkeypatch.setattr(pm_mod, "DB_PATH", db_path)
     monkeypatch.setattr(cs_mod, "DB_PATH", db_path)
-    from services.task_service import init_db
+    from services.bootstrap_service import init_db
     await init_db()
 
 
 @pytest.mark.asyncio
 async def test_unified_search_tasks():
-    from services.task_service import add_task
+    from services.task_command_service import add_task
     await add_task("学习Python", "2026-05-01T09:00:00")
     result = await unified_search("Python", scope="tasks")
     assert result["total"] >= 1
@@ -49,7 +61,7 @@ async def test_unified_search_notes():
 
 @pytest.mark.asyncio
 async def test_unified_search_scope_all():
-    from services.task_service import add_task
+    from services.task_command_service import add_task
     from services.note_service import create_note
     await add_task("学习Go", "2026-05-01T09:00:00")
     await create_note("Go笔记", content="Gin框架")

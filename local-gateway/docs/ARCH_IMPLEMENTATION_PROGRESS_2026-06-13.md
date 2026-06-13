@@ -391,6 +391,24 @@ HTTP ai_planning router
 - `task_query_service` 更接近纯 task-domain read service
 - task detail 的 owner 已只剩 `task_detail_service` 与 `task_service` facade 兼容入口
 
+### 1.20 测试初始化与 facade 依赖继续收缩
+
+已完成：
+
+- `test/test_runtime_state_service.py` 改为直接通过 `bootstrap_service.init_db()` 初始化
+- `test/test_ai_planning_flow.py` 改为直接通过 `bootstrap_service.init_db()` 初始化
+- `test/test_unified_search.py` 改为直接依赖 `bootstrap_service` 与 `task_command_service`
+- `test/test_phase_mvp_updates.py` 改为直接依赖 `task_command_service` / `task_query_service`
+- `test/test_mobile_query_service.py` 的 fixture 和测试变量改为显式使用 `task_command_service`
+- `test/test_services.py` 中 task 创建/查询测试改为直接依赖 `task_command_service` / `task_query_service`
+
+当前结果：
+
+- `task_service.init_db()` 在测试中的默认入口角色继续减弱
+- `task_service` 在测试里的 owner 误导性进一步下降
+- `bootstrap_service` 作为系统初始化 owner 的语义更稳定
+- 后续继续瘦身 `task_service` facade 时，测试迁移成本会更低
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

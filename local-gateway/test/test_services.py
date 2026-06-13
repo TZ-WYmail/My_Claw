@@ -8,12 +8,11 @@ import aiosqlite
 import pytest
 
 from services import bootstrap_service
-from services import task_service
+from services import task_command_service, task_query_service
 from services import tag_service, subtask_service, pomodoro_service
 from services import calendar_sync_service, note_service, habit_service
 from services.shortcut_service import (
     get_all_shortcuts,
-    register_shortcut,
     validate_key_combo,
 )
 
@@ -105,7 +104,7 @@ class TestSubtasks:
     @pytest.mark.asyncio
     async def test_create_subtask(self):
         """创建子任务"""
-        task_result = await task_service.add_task(
+        task_result = await task_command_service.add_task(
             task_name="父任务测试",
             due_time="2026-04-22T10:00:00",
         )
@@ -206,7 +205,7 @@ class TestTasksAdvanced:
     @pytest.mark.asyncio
     async def test_create_task_with_priority(self):
         """创建带优先级的任务"""
-        result = await task_service.add_task(
+        result = await task_command_service.add_task(
             task_name="高优先级任务",
             due_time="2026-04-22T10:00:00",
             priority=0,  # 紧急
@@ -217,7 +216,7 @@ class TestTasksAdvanced:
         assert result["status"] == "success"
         task_id = result["task_id"]
 
-        tasks = await task_service.get_all_tasks(
+        tasks = await task_query_service.get_all_tasks(
             status_filter="active",
             keyword="高优先级",
         )

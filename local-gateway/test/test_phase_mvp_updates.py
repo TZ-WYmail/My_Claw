@@ -16,10 +16,23 @@ import pytest
 with tempfile.TemporaryDirectory() as temp_dir:
     temp_db_path = Path(temp_dir) / "test_mvp_updates.db"
     with patch('config.DB_PATH', temp_db_path), \
-         patch('services.task_service.DB_PATH', temp_db_path), \
+         patch('services.bootstrap_service.DB_PATH', temp_db_path), \
+         patch('services.task_command_service.DB_PATH', temp_db_path), \
+         patch('services.task_query_service.DB_PATH', temp_db_path), \
+         patch('services.task_detail_service.DB_PATH', temp_db_path), \
+         patch('services.task_planning_service.DB_PATH', temp_db_path), \
+         patch('services.runtime_state_service.DB_PATH', temp_db_path), \
+         patch('services.runtime_log_service.DB_PATH', temp_db_path), \
+         patch('services.dashboard_query_service.DB_PATH', temp_db_path), \
          patch('services.note_service.DB_PATH', temp_db_path), \
-         patch('services.tag_service.DB_PATH', temp_db_path):
-        from services.task_service import init_db, add_task, update_task, get_all_tasks
+         patch('services.tag_service.DB_PATH', temp_db_path), \
+         patch('services.subtask_service.DB_PATH', temp_db_path), \
+         patch('services.pomodoro_service.DB_PATH', temp_db_path), \
+         patch('services.habit_service.DB_PATH', temp_db_path), \
+         patch('services.calendar_sync_service.DB_PATH', temp_db_path):
+        from services.bootstrap_service import init_db
+        from services.task_command_service import add_task, update_task
+        from services.task_query_service import get_all_tasks
         from services.note_service import create_note, get_all_notes
 
 
