@@ -195,6 +195,7 @@ HTTP ai_planning router
 - 新建 `services/ai_planning_preview_service.py`
 - 新建 `services/ai_planning_variant_service.py`
 - 新建 `services/ai_planning_replan_service.py`
+- 新建 `services/runtime_log_service.py`
 - 将 task planning 相关辅助职责从 `task_command_service` 中拆出：
   - 时间归一
   - weekday 计算
@@ -219,6 +220,10 @@ HTTP ai_planning router
   - JSON 解析与结果补默认值
   - fallback 重排建议
   - suggestion accept/apply
+- 将 runtime 杂项记录写路径从 `task_service` 中继续拆出：
+  - download history 写入/更新
+  - operation log 写入
+- `application/task_actions.py` 的批量 preview/create 分析主链改为直接走 `task_planning_service`
 - 在 `services/runtime_state_service.py` 中新增 planning preview 存储能力
 - `services/ai_planning_service.py` 的 preview/confirm 主链改为使用 runtime state 持久化 preview
 - `services/ai_planning_service.py` 的 preview/confirm/replan 主链已开始委托 `ai_planning_preview_service`
@@ -234,6 +239,7 @@ HTTP ai_planning router
 - preview 生命周期与重排上下文已形成独立服务边界
 - variant plan 构建已形成独立服务边界
 - replan 编排与建议应用已形成独立服务边界
+- `task_service` 在生产代码中的跨域写侧职责进一步收缩
 - `ai_planning_service` 继续保留高层公开入口编排
 
 ## 2. 本轮新增文件
@@ -285,6 +291,7 @@ HTTP ai_planning router
 - `services/ai_planning_preview_service.py`
 - `services/ai_planning_variant_service.py`
 - `services/ai_planning_replan_service.py`
+- `services/runtime_log_service.py`
 
 ## 4. 回归验证结果
 
@@ -403,6 +410,16 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 这让 `ai_planning_service` 更接近 facade/orchestrator，而不是继续膨胀成单文件规则中心。
 
+### 5.9 task facade 的跨域职责继续退场
+
+现在生产代码里，`task_service` 不再承担下载记录与操作日志写入：
+
+- `runtime_log_service` 持有 download history / operation log 写侧
+- `download_service` / `shortcut_service` 已改走新服务
+- `application.task_actions` 的 planning 分析主链已直接走 `task_planning_service`
+
+当前生产代码里保留对 `task_service` 的直接依赖，基本只剩数据库初始化入口。
+
 ## 6. 仍然存在的主要问题
 
 ### 6.1 `mobile` 的主坏味道已收口，但移动端聚合查询仍偏临时
@@ -448,6 +465,7 @@ router 不再继续承担“组织多个 service 的业务动作”。
 - `task_command_service` 已进一步收缩，但仍保留一部分 compatibility helper 转发
 - `services/task_planning_service.py` 已拆出，但后续还可以继续细化 planning domain
 - `services/ai_planning_service.py` 已收出 preview lifecycle、variant builder、replan apply，但仍承担公开 planning 聚合入口
+- `task_query_service` 仍承载 task 查询与 dashboard/history 查询的混合职责
 
 问题不再是“有没有 application 层”，而是 service 内部仍承担过多职责。
 
@@ -463,9 +481,9 @@ router 不再继续承担“组织多个 service 的业务动作”。
 
 建议按以下顺序继续：
 
-1. 明确 `task_service` 兼容 facade 的退场范围与剩余调用方
+1. 明确 `task_service` 初始化职责是否下沉到独立 bootstrap/db service
 2. 继续压缩 `task_command_service` 的 compatibility helper 面积
-3. 评估 `ai_planning_service` 是否继续下沉成更薄 facade
+3. 评估 `task_query_service` 中 dashboard/history 查询是否继续拆域
 4. 把 `mobile_service` 临时聚合查询继续下沉到稳定领域查询接口
 5. 再处理 `advanced_features` 等兼容命名与页面/路由边界对齐
 

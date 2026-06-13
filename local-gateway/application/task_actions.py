@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from models.schemas import BatchTaskResponse, TaskManagerRequest, TaskManagerResponse, TaskUpdateRequest
 from services import task_command_service
+from services import task_planning_service
 from services import task_query_service
 
 
@@ -77,9 +78,9 @@ async def execute_batch_task_manager(payload: dict) -> dict:
     ]
 
     if action == "preview":
-        result = await task_command_service.analyze_tasks(task_dicts)
+        result = await task_planning_service.analyze_tasks(task_dicts)
     elif action == "create":
-        analyzed = await task_command_service.analyze_tasks(task_dicts)
+        analyzed = await task_planning_service.analyze_tasks(task_dicts)
         valid_tasks = [
             {
                 "task_name": item["task_name"],

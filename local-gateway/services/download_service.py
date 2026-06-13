@@ -24,8 +24,8 @@ from config import (
     MAX_FILE_SIZE,
     DOWNLOADS_DIR,
 )
+from services import runtime_log_service
 from services.security_service import sanitize_filename, validate_url_for_ssrf
-from services.task_service import add_download_record, update_download_record, add_log
 from services.utils import human_size
 
 logger = logging.getLogger(__name__)
@@ -194,12 +194,12 @@ async def _sync_download(url: str, save_path: Path, category: str) -> dict:
         file_size = human_size(save_path.stat().st_size)
 
         # 记录下载历史
-        await add_download_record(
+        await runtime_log_service.add_download_record(
             url=url, category=category, filename=save_path.name,
             file_path=str(save_path), file_size=file_size,
             security_scan=scan_result, status="completed",
         )
-        await add_log("download", "/api/download", url, "success", f"{save_path.name} ({file_size})")
+        await runtime_log_service.add_log("download", "/api/download", url, "success", f"{save_path.name} ({file_size})")
 
         return {
             "status": "success",
@@ -224,13 +224,13 @@ async def _async_download_with_record(job_id: str, url: str, save_path: Path, re
     # 更新下载历史
     job = _jobs.get(job_id, {})
     if job.get("status") == "completed":
-        await update_download_record(record_id,
+        await runtime_log_service.update_download_record(record_id,
             file_path=job.get("file_path", ""),
             file_size=job.get("file_size", ""),
             security_scan=job.get("security_scan", ""),
             status="completed",
         )
-        await add_log("download_async", "/api/download", url, "success", f"完成 {job.get('file_size', '')}")
+        await runtime_log_service.add_log("download_async", "/api/download", url, "success", f"完成 {job.get('file_size', '')}")
 
 
 async def _async_download(job_id: str, url: str, save_path: Path):

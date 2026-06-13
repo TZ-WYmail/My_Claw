@@ -223,7 +223,7 @@ def trigger_shortcut(key_combo: str, context: dict = None) -> dict:
     action = shortcut.get("action")
 
     # 记录触发日志
-    from services.task_service import add_log
+    from services.runtime_log_service import add_log
     asyncio.create_task(add_log(
         "shortcut_triggered",
         "/api/shortcuts/trigger",

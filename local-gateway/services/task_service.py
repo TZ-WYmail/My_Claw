@@ -13,8 +13,8 @@ import aiosqlite
 
 from config import DB_PATH
 from services import task_command_service
+from services import task_planning_service
 from services import task_query_service
-from services.security_service import validate_update_columns
 from services.utils import human_size
 from services.tag_service import add_task_tags, get_task_tags_batch
 from services.time_service import extract_system_date, is_overdue, system_now, system_today_iso
@@ -287,19 +287,20 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
 
 async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     _sync_task_module_paths()
-    return await task_command_service.analyze_tasks(raw_tasks)
+    task_planning_service.DB_PATH = DB_PATH
+    return await task_planning_service.analyze_tasks(raw_tasks)
 
 
 def _generate_daily_plan(analyzed: list[dict]) -> dict[str, dict]:
-    return task_command_service._generate_daily_plan(analyzed)
+    return task_planning_service.generate_daily_plan(analyzed)
 
 
 def _normalize_time(time_str: str) -> str:
-    return task_command_service._normalize_time(time_str)
+    return task_planning_service.normalize_time(time_str)
 
 
 def _date_to_weekday(date_str: str) -> str:
-    return task_command_service._date_to_weekday(date_str)
+    return task_planning_service.date_to_weekday(date_str)
 
 
 # ============================================================
@@ -307,11 +308,11 @@ def _date_to_weekday(date_str: str) -> str:
 # ============================================================
 
 def _calc_next_reminder(due_time: str, recurrence: str) -> str:
-    return task_command_service._calc_next_reminder(due_time, recurrence)
+    return task_planning_service.calc_next_reminder(due_time, recurrence)
 
 
 def _human_readable_time(iso_time: str) -> str:
-    return task_command_service._human_readable_time(iso_time)
+    return task_planning_service.human_readable_time(iso_time)
 
 
 def _translate_status(status: str) -> str:
@@ -347,55 +348,6 @@ async def get_all_tasks(
     )
 
 
-# ============================================================
-# 下载历史记录
-# ============================================================
-
-async def add_download_record(
-    url: str,
-    category: str,
-    filename: str = "",
-    file_path: str = "",
-    file_size: str = "",
-    security_scan: str = "pending",
-    status: str = "downloading",
-    job_id: str = "",
-) -> int:
-    """记录下载历史"""
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        cursor = await db.execute(
-            """INSERT INTO download_history (url, filename, category, file_path, file_size, security_scan, status, job_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (url, filename, category, file_path, file_size, security_scan, status, job_id),
-        )
-        await db.commit()
-        return cursor.lastrowid
-
-
-async def update_download_record(record_id: int, **kwargs):
-    """更新下载记录（列名经过白名单校验，防止 SQL 注入）"""
-    # 白名单校验列名
-    valid, invalid = validate_update_columns("download_history", set(kwargs.keys()))
-    if not valid:
-        logger.warning(f"update_download_record 拒绝非法列名: {invalid}")
-        return
-
-    sets = []
-    vals = []
-    for k, v in kwargs.items():
-        sets.append(f"{k} = ?")
-        vals.append(v)
-    if not sets:
-        return
-    vals.append(record_id)
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        await db.execute(
-            f"UPDATE download_history SET {', '.join(sets)} WHERE id = ?",
-            vals,
-        )
-        await db.commit()
-
-
 async def get_download_history(
     category: str = "",
     page: int = 1,
@@ -408,21 +360,6 @@ async def get_download_history(
         page=page,
         page_size=page_size,
     )
-
-
-# ============================================================
-# 操作日志
-# ============================================================
-
-async def add_log(operation: str, endpoint: str, params: str = "", result: str = "success", detail: str = ""):
-    """添加操作日志"""
-    async with aiosqlite.connect(str(DB_PATH)) as db:
-        await db.execute(
-            """INSERT INTO operation_logs (operation, endpoint, params, result, detail)
-               VALUES (?, ?, ?, ?, ?)""",
-            (operation, endpoint, params, result, detail),
-        )
-        await db.commit()
 
 
 async def get_logs(

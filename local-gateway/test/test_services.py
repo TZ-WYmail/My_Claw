@@ -3,6 +3,8 @@
 运行: cd local-gateway && conda run -n claude python -m pytest test/test_services.py -v
 """
 import asyncio
+
+import aiosqlite
 import pytest
 
 from services import task_service
@@ -21,6 +23,59 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(autouse=True)
+async def setup_db(tmp_path, monkeypatch):
+    import services.task_service as task_service_mod
+    import services.task_command_service as task_command_service
+    import services.task_query_service as task_query_service
+    import services.task_planning_service as task_planning_service
+    import services.runtime_state_service as runtime_state_service
+    import services.runtime_log_service as runtime_log_service
+    import services.note_service as note_service_mod
+    import services.tag_service as tag_service_mod
+    import services.subtask_service as subtask_service_mod
+    import services.pomodoro_service as pomodoro_service_mod
+    import services.calendar_sync_service as calendar_sync_service_mod
+    import services.habit_service as habit_service_mod
+
+    db_path = tmp_path / "test_services.db"
+    monkeypatch.setattr(task_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
+    monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
+    monkeypatch.setattr(task_planning_service, "DB_PATH", db_path)
+    monkeypatch.setattr(runtime_state_service, "DB_PATH", db_path)
+    monkeypatch.setattr(runtime_log_service, "DB_PATH", db_path)
+    monkeypatch.setattr(note_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(tag_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(subtask_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(pomodoro_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(calendar_sync_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(habit_service_mod, "DB_PATH", db_path)
+
+    await task_service_mod.init_db()
+    async with aiosqlite.connect(str(db_path)) as db:
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        existing_tables = {row[0] for row in await cursor.fetchall()}
+        for table_name in [
+            "task_tags",
+            "tags",
+            "subtasks",
+            "notes",
+            "pomodoro_sessions",
+            "habit_checkins",
+            "habits",
+            "calendar_events",
+            "download_history",
+            "operation_logs",
+            "tasks",
+        ]:
+            if table_name in existing_tables:
+                await db.execute(f"DELETE FROM {table_name}")
+        await db.commit()
+
+    yield
 
 
 class TestTags:

@@ -80,7 +80,7 @@ async def test_execute_batch_task_manager_create_filters_invalid_tasks():
         "daily_timeline": ["daily"],
     }
 
-    with patch("application.task_actions.task_command_service.analyze_tasks", new=AsyncMock(return_value=analyzed)) as analyze_mock, \
+    with patch("application.task_actions.task_planning_service.analyze_tasks", new=AsyncMock(return_value=analyzed)) as analyze_mock, \
          patch("application.task_actions.task_command_service.batch_add_tasks", new=AsyncMock(return_value={
              "status": "success",
              "total": 1,
