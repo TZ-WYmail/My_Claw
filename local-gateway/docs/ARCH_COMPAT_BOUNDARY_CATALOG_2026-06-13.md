@@ -140,25 +140,7 @@
 2. 继续以正式域路由承接新增主路径
 3. 再决定是拆路由还是仅改命名层
 
-### 3.5 `services/unified_search_service.py` 中的全文索引兼容接口
-
-分类：`可进入观察期`
-
-当前作用：
-
-- 兼容旧全文搜索调用方式
-
-当前问题：
-
-- 新旧搜索接口共存，容易继续扩大兼容面
-
-建议动作：
-
-1. 明确正式全文索引入口由 `routers/fulltext_search.py` 承接
-2. 标记 `unified_search_service` 中这组函数为历史兼容接口
-3. 待调用面收口后再删除
-
-### 3.6 `POST /api/search/legacy`（位于 `routers/file_search.py`）
+### 3.5 `POST /api/search/legacy`（位于 `routers/file_search.py`）
 
 分类：`可计划淘汰`
 
@@ -183,10 +165,9 @@
 按风险和收益，建议顺序如下：
 
 1. `POST /api/search/legacy`
-2. `services/unified_search_service.py` 里的全文索引 compat 函数
-3. `routers/advanced_features.py` 的历史命名与边界重整
-4. `task_service.init_db()` compat 入口
-5. `services/task_service.py` 更大范围的 facade 瘦身
+2. `routers/advanced_features.py` 的历史命名与边界重整
+3. `task_service.init_db()` compat 入口
+4. `services/task_service.py` 更大范围的 facade 瘦身
 
 ## 5. 当前不建议立刻动的部分
 
@@ -207,6 +188,7 @@
 
 - `services/mobile_service.py`
 - `task_query_service.get_task_detail()`
+- `services/unified_search_service.py` 中的全文索引 compat 函数
 
 ## 7. 下一阶段建议
 
@@ -215,7 +197,6 @@
 ### 7.1 低风险清理组
 
 - 清点 legacy file search 调用面
-- 清点 `unified_search_service` 中全文索引兼容函数的调用面
 - 评估 `task_service.init_db()` 的仓库外保留必要性
 
 ### 7.2 边界重命名组

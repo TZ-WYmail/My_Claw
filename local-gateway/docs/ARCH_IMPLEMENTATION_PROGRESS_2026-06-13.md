@@ -453,6 +453,20 @@ HTTP ai_planning router
 - 搜索主路径、legacy 文件搜索、全文索引三者已形成更清晰的 owner 分层
 - 后续如果删除 legacy 文件搜索入口，不需要再改 unified search 主入口模块
 
+### 1.24 unified search 中的全文索引 compat 函数已删除
+
+已完成：
+
+- 删除 `services/unified_search_service.py` 中对全文索引服务的兼容包装函数
+- 全文索引主链统一收口到 `services/fulltext_search_service.py`
+- 路由层继续直接依赖 `routers/fulltext_search.py` -> `services/fulltext_search_service.py`
+
+当前结果：
+
+- `unified_search_service` 回到统一搜索聚合 owner 的单一职责
+- 全文索引的正式 owner 不再经过一层无内部调用的 compat 包装
+- 搜索子系统内的正式路径和兼容路径边界更清晰
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
