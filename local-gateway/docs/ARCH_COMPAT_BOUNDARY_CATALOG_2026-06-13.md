@@ -29,8 +29,6 @@
 
 ### 2.2 wrapper 类
 
-- `services/mobile_service.py`
-- `task_query_service.get_task_detail()`
 - `task_service.init_db()`
 
 特点：
@@ -44,7 +42,7 @@
 - `routers/advanced_features.py`
 - `/api/advanced/*`
 - `services/unified_search_service.py` 里的全文索引兼容接口
-- `routers/file_search.py` 里的 legacy search 入口
+- `POST /api/search/legacy`（位于 `routers/file_search.py`）
 
 特点：
 
@@ -68,9 +66,9 @@
 
 当前作用：
 
-- 保持旧任务入口可用
-- 维持测试中基于 `task_service.DB_PATH` 的临时数据库注入方式
-- 兼容一批尚未完全迁出的历史调用
+- 保持历史任务导入路径与旧函数签名可用
+- 为仓库外部旧调用保留兼容转发面
+- 继续提供统一的兼容 facade，而不再承载仓库内部主链
 
 当前问题：
 
@@ -80,53 +78,17 @@
 
 建议动作：
 
-1. 保留 facade，但禁止新增内部主链继续依赖它
-2. 逐步把测试 fixture 从 `task_service.DB_PATH` 改到更具体的 owner
-3. 等测试注入策略稳定后，再评估 facade 进一步瘦身
+1. 保留 facade，但继续禁止新增仓库内部主链依赖它
+2. 观察外部旧调用面是否仍需要 `task_service.init_db()` 与宽 facade 面
+3. 条件成熟后，再评估公开废弃策略与进一步瘦身
 
-### 3.2 `services/mobile_service.py`
-
-分类：`可计划淘汰`
-
-当前作用：
-
-- 只为旧移动端 dashboard 查询调用保留转发
-
-当前问题：
-
-- 名称看起来像主 owner，但已不是主路径
-
-建议动作：
-
-1. 保留短期兼容
-2. 清点是否还有生产代码外部依赖
-3. 依赖清零后直接删除
-
-### 3.3 `task_query_service.get_task_detail()`
-
-分类：`可进入观察期`
-
-当前作用：
-
-- 为旧调用面兼容转发到 `task_detail_service`
-
-当前问题：
-
-- 语义上它已不是 task-domain query 的自然组成部分
-
-建议动作：
-
-1. 新代码统一直接依赖 `task_detail_service`
-2. 观察一轮回归与调用面稳定性
-3. 条件成熟后去掉该 compat 转发
-
-### 3.4 `task_service.init_db()`
+### 3.2 `task_service.init_db()`
 
 分类：`必须短期保留`
 
 当前作用：
 
-- 兼容现有测试与历史启动路径
+- 兼容历史初始化入口
 - 真实 owner 已是 `bootstrap_service`
 
 当前问题：
@@ -136,10 +98,10 @@
 建议动作：
 
 1. 生产启动保持只走 `bootstrap_service`
-2. 逐步把测试 fixture 改为直接 patch `bootstrap_service.DB_PATH`
-3. 待测试迁移后再评估是否去掉该兼容入口
+2. 继续观察是否仍有仓库外部历史调用依赖它
+3. 条件成熟后再评估显式废弃或删除
 
-### 3.5 `services/mail_service.py`
+### 3.3 `services/mail_service.py`
 
 分类：`必须短期保留`
 
@@ -159,7 +121,7 @@
 2. 在文档和新代码中明确 mail 主实现边界
 3. 避免继续往 `mail_service.py` 堆新逻辑
 
-### 3.6 `routers/advanced_features.py` / `/api/advanced/*`
+### 3.4 `routers/advanced_features.py` / `/api/advanced/*`
 
 分类：`可进入观察期`
 
@@ -175,15 +137,10 @@
 建议动作：
 
 1. 先冻结继续新增“advanced” 类型能力
-2. 补一份目标域映射：
-   - tags
-   - subtasks
-   - pomodoro
-   - calendar
-   - task-detail
+2. 继续以正式域路由承接新增主路径
 3. 再决定是拆路由还是仅改命名层
 
-### 3.7 `services/unified_search_service.py` 中的全文索引兼容接口
+### 3.5 `services/unified_search_service.py` 中的全文索引兼容接口
 
 分类：`可进入观察期`
 
@@ -197,11 +154,11 @@
 
 建议动作：
 
-1. 明确统一搜索主入口
-2. 标记全文索引兼容函数为历史入口
+1. 明确正式全文索引入口由 `routers/fulltext_search.py` 承接
+2. 标记 `unified_search_service` 中这组函数为历史兼容接口
 3. 待调用面收口后再删除
 
-### 3.8 `routers/file_search.py` 里的 legacy 入口
+### 3.6 `POST /api/search/legacy`（位于 `routers/file_search.py`）
 
 分类：`可计划淘汰`
 
@@ -212,6 +169,7 @@
 当前问题：
 
 - 路由层继续暴露 legacy 语义
+- `routers/file_search.py` 这个模块名仍带历史色彩
 
 建议动作：
 
@@ -223,13 +181,11 @@
 
 按风险和收益，建议顺序如下：
 
-1. `services/mobile_service.py`
-2. `task_query_service.get_task_detail()` compat 转发
-3. `routers/file_search.py` legacy 入口
-4. `services/unified_search_service.py` 里的全文索引 compat 函数
-5. `routers/advanced_features.py` 的历史命名与边界重整
-6. `task_service.init_db()` compat 入口
-7. `services/task_service.py` 更大范围的 facade 瘦身
+1. `POST /api/search/legacy`
+2. `services/unified_search_service.py` 里的全文索引 compat 函数
+3. `routers/advanced_features.py` 的历史命名与边界重整
+4. `task_service.init_db()` compat 入口
+5. `services/task_service.py` 更大范围的 facade 瘦身
 
 ## 5. 当前不建议立刻动的部分
 
@@ -241,23 +197,30 @@
 
 原因：
 
-- 仍承担测试稳定性
 - 仍承担历史导入路径稳定性
 - 直接删除的收益小于回归成本
 
-## 6. 下一阶段建议
+## 6. 已完成退场项
+
+以下兼容点已完成退场，不再属于当前主风险面：
+
+- `services/mobile_service.py`
+- `task_query_service.get_task_detail()`
+
+## 7. 下一阶段建议
 
 建议把后续动作拆成两组并行目标：
 
-### 6.1 低风险清理组
+### 7.1 低风险清理组
 
-- 删除 `mobile_service` 条件评估
-- 删除 `task_query_service.get_task_detail()` 条件评估
 - 清点 legacy file search 调用面
+- 清点 `unified_search_service` 中全文索引兼容函数的调用面
+- 评估 `task_service.init_db()` 的仓库外保留必要性
 
-### 6.2 边界重命名组
+### 7.2 边界重命名组
 
 - 为 `advanced_features` 建立目标域映射文档
+- 评估 `routers/file_search.py` 的模块命名是否需要最终调整
 - 评估新的 router/package 命名方案
 - 明确是否需要前后端一起改路径
 

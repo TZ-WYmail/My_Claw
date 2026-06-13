@@ -1,14 +1,16 @@
 """
-任务管理服务 — SQLite CRUD + APScheduler 定时提醒 + 批量任务编排
+Task compatibility facade.
+
+Internal mainline code should depend on the split owners directly:
+
+- `bootstrap_service`
+- `task_command_service`
+- `task_query_service`
+- `task_detail_service`
+- `task_planning_service`
+- `dashboard_query_service`
 """
 from __future__ import annotations
-
-import logging
-import re
-import sqlite3
-import uuid
-from datetime import datetime, timedelta
-import aiosqlite
 
 from config import DB_PATH
 from services import dashboard_query_service
@@ -18,14 +20,12 @@ from services import task_planning_service
 from services import task_query_service
 
 
-logger = logging.getLogger(__name__)
-
-
 def _sync_task_module_paths() -> None:
     """Keep split task modules on same database path as compatibility facade."""
     task_command_service.DB_PATH = DB_PATH
     dashboard_query_service.DB_PATH = DB_PATH
     task_detail_service.DB_PATH = DB_PATH
+    task_planning_service.DB_PATH = DB_PATH
     task_query_service.DB_PATH = DB_PATH
 
 
@@ -168,7 +168,6 @@ async def batch_add_tasks(tasks: list[dict]) -> dict:
 
 async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     _sync_task_module_paths()
-    task_planning_service.DB_PATH = DB_PATH
     return await task_planning_service.analyze_tasks(raw_tasks)
 
 

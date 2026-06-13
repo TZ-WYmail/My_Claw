@@ -28,7 +28,6 @@ def event_loop():
 @pytest.fixture(autouse=True)
 async def setup_db(tmp_path, monkeypatch):
     import services.bootstrap_service as bootstrap_service_mod
-    import services.task_service as task_service_mod
     import services.task_command_service as task_command_service
     import services.task_detail_service as task_detail_service
     import services.task_query_service as task_query_service
@@ -44,7 +43,6 @@ async def setup_db(tmp_path, monkeypatch):
 
     db_path = tmp_path / "test_services.db"
     monkeypatch.setattr(bootstrap_service_mod, "DB_PATH", db_path)
-    monkeypatch.setattr(task_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_detail_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)

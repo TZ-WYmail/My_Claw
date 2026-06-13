@@ -409,6 +409,35 @@ HTTP ai_planning router
 - `bootstrap_service` 作为系统初始化 owner 的语义更稳定
 - 后续继续瘦身 `task_service` facade 时，测试迁移成本会更低
 
+### 1.21 `task_service` 已退出仓库内部主链依赖
+
+已完成：
+
+- 清理仓库内部剩余对 `task_service` 的直接调用与测试主路径依赖
+- `services/task_service.py` 调整为更明确的 compatibility facade 说明
+- facade 的 `DB_PATH` 同步逻辑补齐到 `task_planning_service`
+
+当前结果：
+
+- 当前仓库内部的 application / services / routers / 主测试链已不再直接依赖 `task_service`
+- `task_service` 的保留价值已进一步收敛到外部历史导入路径与兼容转发
+- 后续如果继续退场，主要问题已从“拆业务实现”转为“处理历史调用面”
+
+### 1.22 搜索与全文索引路由 owner 已分离
+
+已完成：
+
+- `main.py` 注册 `routers/fulltext_search.py` 作为正式全文索引路由 owner
+- `routers/file_search.py` 不再承载 `/api/search/fulltext` 与索引管理端点
+- `routers/file_search.py` 只保留统一搜索主入口与 `/api/search/legacy` 兼容入口
+- 新增 `test/test_search_routers.py` 锁定 unified search / legacy search / fulltext search 的路由归属
+
+当前结果：
+
+- 全文索引接口不再继续挂在历史命名的 `file_search` 路由模块里
+- `/api/search/legacy` 的兼容边界更清晰
+- 搜索路由层的正式 owner 与兼容 owner 已开始分离
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
