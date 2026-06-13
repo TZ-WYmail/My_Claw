@@ -1,198 +1,207 @@
 # LocalCommandCenter 本地网关
 
-> 🧠 本地指挥中心网关 — 接收 GLM 智能体的 Tool Call 请求并操作本地系统
+本目录是当前仓库的核心应用。
 
-## 功能概览
+它现在已经不是早期的“5 个 Tool Schema 网关”，而是一个本地工作台系统，包含：
 
-| 模块 | 说明 |
-|------|------|
-| 📋 **任务管理** | 添加/删除/完成/查询周计划，支持 once/daily/weekly/monthly 周期 |
-| 📥 **安全下载** | URL 安全校验 + 大文件异步下载 + 自动分类归档（paper/video/code/misc）|
-| 🔍 **文件检索** | 按关键词模糊搜索本地已归档文件，支持分类过滤 |
-| 🔧 **沙盒执行** | Docker 容器隔离执行 Python/Node/FFmpeg/Pandoc，支持动态写入脚本 |
-| ⏳ **异步任务** | 大文件下载和长时间沙盒任务的异步状态查询 |
-| 🖥️ **图形界面** | 内置 Web UI，暗色主题，响应式设计 |
+- task / notes / habits / pomodoro / calendar / notification
+- AI chat / AI planning
+- search / download / sandbox / security
+- mail workspace
+- sync / encryption / workflow / webhook / mobile
+
+## 技术栈
+
+- 后端：FastAPI + aiosqlite
+- 前端：React 19 + Vite
+- 数据：SQLite + 本地 JSON 状态文件
+- AI：OpenAI 兼容接口
+- 沙盒：Docker
 
 ## 快速启动
 
 ```bash
-# 1. 创建或更新环境（首次推荐）
 cd local-gateway
+
+# 首次推荐
 conda env create -f environment.yml || conda env update -f environment.yml --prune
 
-# 2. 激活环境
 conda activate claude
 
-# 3. 确保 Docker 已启动（仅沙盒功能依赖）
+# 仅沙盒功能依赖 Docker
 docker info
 
-# 4. 启动网关
 python main.py
-# 服务运行在 http://localhost:8900
-# 浏览器打开 http://localhost:8900 进入图形界面
-
-# 5. 运行后端测试（可选）
-python -m pytest test/ -v
-
-# 6. 内网穿透（让 GLM 云端可以访问你的本地服务）
-ngrok http 8900
 ```
 
-## WSL / Ubuntu 优先工作流
+默认地址：
 
-如果你后续要部署到 Ubuntu 服务器，建议平时也在 WSL 的 Ubuntu 文件系统中运行，而不是直接在 `/mnt/e/...` 这类 Windows 挂载目录上开发。
+- Web UI: `http://localhost:8900`
+- Swagger: `http://localhost:8900/docs`
 
-推荐目录：
+## 当前关键架构事实
 
-```bash
-~/projects/My_Claw/local-gateway
-```
+这几条判断是阅读和修改代码前必须先知道的：
 
-首次从 Windows 副本同步到 WSL：
+1. `bootstrap_service` 是数据库初始化 owner
+2. `task_service` 已经退成 compatibility facade
+3. task 领域已拆成：
+   - `task_command_service`
+   - `task_query_service`
+   - `task_detail_service`
+   - `task_planning_service`
+4. `/api/search`
+   - 正式统一搜索：`routers/search.py`
+   - legacy 文件搜索：`routers/file_search.py`
+   - 全文索引：`routers/fulltext_search.py`
+5. `/api/advanced/*` 只是 compatibility alias，不再维护独立实现
+6. application 层已经成形，router 不再是唯一业务编排点
 
-```bash
-cd /mnt/e/Project/My_Claw/local-gateway
-bash scripts/wsl-sync-from-windows.sh /mnt/e/Project/My_Claw ~/projects/My_Claw
-cd ~/projects/My_Claw/local-gateway
-chmod +x scripts/wsl-setup.sh scripts/wsl-run-backend.sh scripts/wsl-test.sh scripts/wsl-sync-from-windows.sh
-./scripts/wsl-setup.sh
-```
+## 主要目录
 
-日常运行：
-
-```bash
-cd ~/projects/My_Claw/local-gateway
-./scripts/wsl-run-backend.sh
-```
-
-运行测试：
-
-```bash
-cd ~/projects/My_Claw/local-gateway
-./scripts/wsl-test.sh
-```
-
-说明：
-
-- 这套流程默认使用 WSL 里的 `~/miniconda3` 和 `claude` 环境名；如果你的 conda 路径不同，可先设置 `WSL_CONDA_HOME`，如果想换环境名可设置 `WSL_CONDA_ENV`。
-- 这套流程在 Ubuntu 侧依然保持 Python 依赖由 `requirements-dev.txt` 驱动，只是交给 conda 管理解释器和环境隔离。
-- 脚本会优先完成后端环境；如果 WSL 里还没有原生 `node`，会跳过前端安装并给出提示。
-- 如果你继续在 Windows 侧改代码，可以重复执行 `scripts/wsl-sync-from-windows.sh` 把副本同步到 WSL。
-
-### Windows 编码说明
-
-- `pytest.ini` 已保持 ASCII，避免在默认 GBK 代码页下被 `pytest` 读取时报错。
-- 其余源码和文档统一按 UTF-8 处理；如果你在 PowerShell 中看到中文乱码，先执行 `.\scripts\windows-utf8.ps1`，再运行 `python`、`pip`、`pytest`。
-- 如果只想临时手动设置，等价命令是：`chcp 65001`、`$env:PYTHONUTF8=1`、`$env:PYTHONIOENCODING='utf-8'`。
-
-## 项目结构
-
-```
+```text
 local-gateway/
-├── main.py                  # FastAPI 应用入口
-├── config.py                # 全局配置
-├── requirements.txt         # Python 依赖
-├── static/                  # 前端静态文件
-│   ├── index.html           # 主页面
-│   ├── style.css            # 暗色主题样式
-│   └── app.js               # 前端交互逻辑
+├── main.py
+├── config.py
+├── application/
 ├── models/
-│   └── schemas.py           # Pydantic 请求/响应模型（5 个 Tool Schema）
 ├── routers/
-│   ├── task_manager.py      # POST /api/task
-│   ├── safe_downloader.py   # POST /api/download
-│   ├── file_search.py       # POST /api/search
-│   ├── job_status.py        # POST /api/job/status
-│   └── sandbox_executor.py  # POST /api/sandbox
 ├── services/
-│   ├── task_service.py      # SQLite 任务 CRUD + 定时提醒
-│   ├── download_service.py  # httpx 异步下载 + 白名单校验 + 安全扫描
-│   ├── search_service.py    # 本地文件模糊检索 + 分类过滤
-│   └── sandbox_service.py   # Docker SDK 沙盒调度 + 动态文件写入 + 输出回传
-├── data/                    # SQLite 数据库（自动创建）
-└── downloads/               # 下载归档目录（自动创建）
-    ├── paper/
-    ├── video/
-    ├── code/
-    └── misc/
+├── frontend/
+├── static/
+├── test/
+└── docs/
 ```
 
-## API 端点
+### `application/`
 
-| GLM Tool Name | HTTP 端点 | 方法 | 描述 |
-|---------------|-----------|------|------|
-| `local_task_manager` | `/api/task` | POST | 任务管理 |
-| `local_safe_downloader` | `/api/download` | POST | 安全下载 |
-| `local_file_search` | `/api/search` | POST | 文件检索 |
-| `local_job_status` | `/api/job/status` | POST | 异步任务状态 |
-| `local_sandbox_executor` | `/api/sandbox` | POST | 沙盒执行 |
+当前内部用例编排层，典型文件：
 
-| 页面 | 端点 | 说明 |
-|------|------|------|
-| 🖥️ Web UI | `GET /` | 图形化管理界面 |
-| 📖 API 文档 | `GET /docs` | Swagger UI |
-| ❤️ 健康检查 | `GET /health` | 服务状态 |
-| 🤖 **AI 对话** | `POST /api/chat` | 自然语言操控所有功能 |
-| ℹ️ API 信息 | `GET /api-info` | 端点列表 |
+- `task_actions.py`
+- `planning_actions.py`
+- `dashboard_actions.py`
+- `mobile_actions.py`
+- `sync_actions.py`
+- `ai_tools.py`
 
-## 图形界面
+### `routers/`
 
-浏览器打开 `http://localhost:8900` 即可使用 Web 管理界面：
+正式主路径：
 
-- **📊 仪表盘** — 一眼看到任务/下载/磁盘统计 + 最近活动
-- **📋 任务管理** — 周日历视图（带时间纵轴 07:00-23:00）+ 全部任务列表
-- **📥 下载中心** — 新建下载 + 下载历史记录（带分类筛选）
-- **🔍 文件检索** — 搜索已归档文件
-- **🔧 沙盒执行** — Docker 隔离执行代码
-- **📜 操作日志** — 所有操作可追溯
-- **🤖 AI 助手** — 右下角悬浮窗，自然语言操控全部功能（Ctrl+J 打开）
+- `task_manager.py`
+- `search.py`
+- `fulltext_search.py`
+- `dashboard.py`
+- `tags.py`
+- `subtasks.py`
+- `pomodoro.py`
+- `calendar.py`
+- `task_detail.py`
+- `chat.py`
+- `ai_planning.py`
+- `mobile.py`
+- `sync.py`
+- `mail.py`
 
-## AI 对话功能
+兼容路径：
 
-通过自然语言对话操控所有本地功能。配置方法：
+- `file_search.py`
+- `advanced_features.py`
+
+### `services/`
+
+当前主干：
+
+- `bootstrap_service.py`
+- `task_command_service.py`
+- `task_query_service.py`
+- `task_detail_service.py`
+- `task_planning_service.py`
+- `dashboard_query_service.py`
+- `mobile_query_service.py`
+- `runtime_state_service.py`
+- `runtime_log_service.py`
+- `ai_service.py`
+- `ai_planning_service.py`
+- `mail_service.py`
+
+## API 主入口
+
+### task
+
+- `POST /api/task`
+- `PUT /api/task/{task_id}`
+- `POST /api/task/batch`
+
+### search
+
+- `POST /api/search`
+- `POST /api/search/legacy`
+- `GET /api/search/fulltext`
+- `POST /api/search/index`
+- `GET /api/search/index/stats`
+- `POST /api/search/index/rebuild`
+
+### AI
+
+- `POST /api/chat`
+- `POST /api/chat/stream`
+- `POST /api/ai/decompose`
+- `POST /api/ai/plan`
+- `POST /api/ai/plan/preview`
+- `POST /api/ai/plan/confirm`
+- `POST /api/ai/plan/replan`
+- `POST /api/ai/plan/replan/accept`
+- `POST /api/ai/estimate`
+- `GET /api/ai/suggestions`
+- `GET /api/ai/insights`
+
+### 正式域增强能力
+
+- `/api/tags`
+- `/api/subtasks`
+- `/api/pomodoro/*`
+- `/api/calendar/*`
+- `/api/tasks/{task_id}/detail`
+- `/api/tasks/batch-update`
+- `/api/mail/*`
+
+### 兼容增强路径
+
+- `/api/advanced/*`
+
+## 测试
+
+常用回归命令：
 
 ```bash
-# 设置 AI API（支持 OpenAI/GLM 兼容格式）
-export AI_API_KEY="your-api-key"
-export AI_MODEL="glm-4-flash"  # 可选
-export AI_API_BASE="https://open.bigmodel.cn/api/coding/paas/v4"  # 可选
-python main.py
+conda run -n claude python -m pytest test/test_task_application.py test/test_planning_application.py test/test_mobile_application.py test/test_mobile_query_service.py test/test_sync_application.py test/test_mail_automation.py test/test_phase3.py test/test_execution_guards.py test/test_unified_search.py test/test_task_query_service.py test/test_ai_planning_flow.py test/test_runtime_state_service.py test/test_task_planning_service.py test/test_task_command_service.py test/test_services.py test/test_security.py test/test_dashboard_application.py test/test_habit_service.py test/test_advanced_application.py test/test_backend_remediation.py test/test_domain_routers.py test/test_search_routers.py test/test_architecture_guards.py -q
 ```
 
-AI 可通过 function calling 自动调用 5 个工具：
-- 任务管理（添加/删除/完成/查询周计划）
-- 安全下载（URL → 归档）
-- 文件检索（关键词搜索）
-- 沙盒执行（Docker 代码运行）
-- 异步任务查询
+当前重要测试类型：
 
-## 快捷键
+- application 层测试
+- domain router 薄路由测试
+- search router owner 测试
+- architecture guard 测试
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Ctrl+K` | 全局搜索 |
-| `Ctrl+N` | 新建任务 |
-| `Ctrl+J` | 打开 AI 助手 |
+## 阅读入口
 
-## 环境变量
+建议先读：
 
-| 变量名 | 默认值 | 说明 |
-|--------|--------|------|
-| `GATEWAY_HOST` | `0.0.0.0` | 监听地址 |
-| `GATEWAY_PORT` | `8900` | 监听端口 |
-| `GATEWAY_DEBUG` | `false` | 调试模式 |
-| `DOWNLOADS_DIR` | `./downloads` | 下载归档目录 |
-| `SANDBOX_TIMEOUT` | `300` | 沙盒超时（秒） |
-| `SANDBOX_MEMORY_LIMIT` | `512m` | 沙盒内存限制 |
-| `CORS_ORIGINS` | `*` | 允许的 CORS 来源 |
-| `AI_API_BASE` | `https://open.bigmodel.cn/api/coding/paas/v4` | AI API 地址 |
-| `AI_API_KEY` | （空） | AI API Key |
-| `AI_MODEL` | `glm-4-flash` | AI 模型名称 |
+1. `docs/PROJECT_STRUCTURE_OVERVIEW_2026-06-12.md`
+2. `docs/CODE_READING_GUIDE_2026-06-12.md`
+3. `docs/ARCH_IMPLEMENTATION_PROGRESS_2026-06-13.md`
+4. `docs/ARCH_COMPAT_BOUNDARY_CATALOG_2026-06-13.md`
 
-## 安全注意事项
+## 当前主要兼容面
 
-1. **CORS**：生产环境应限制 `CORS_ORIGINS` 为 GLM 智能体中心的域名
-2. **认证**：建议添加 API Key 验证，防止未授权访问
-3. **Docker 镜像**：沙盒首次使用需拉取镜像，如 `docker pull python:3.11-slim`
-4. **目录权限**：确保网关进程对 `downloads/` 目录有读写权限
-5. **内网穿透**：ngrok 免费版有连接限制，生产环境建议使用固定域名方案
+还保留但已经不是主实现的对象：
+
+- `services/task_service.py`
+- `task_service.init_db()`
+- `POST /api/search/legacy`
+- `/api/advanced/*`
+- `services/mail_service.py`
+
+如果你继续做架构收口，优先不要往这些对象继续堆新逻辑。
