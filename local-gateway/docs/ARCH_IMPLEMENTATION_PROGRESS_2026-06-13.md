@@ -481,6 +481,20 @@ HTTP ai_planning router
 - 正式域 router 与 advanced 兼容路径之间不再存在重复的 handler 维护面
 - 后续删除 `/api/advanced/*` 时，主要工作会变成路径兼容治理，而不是清理重复实现
 
+### 1.26 架构护栏测试已补上
+
+已完成：
+
+- 新增 `test/test_architecture_guards.py`
+- 锁定仓库内部代码不再直接导入 `services.task_service`
+- 锁定 `advanced_features` 只作为正式域 router 的兼容别名聚合
+- 锁定 unified search / legacy search / fulltext search 的路由 owner 分层
+
+当前结果：
+
+- 这几轮架构收口不再只依赖文档约束
+- 后续如果有人把主链重新挂回 `task_service`、把 legacy/search/advanced 边界重新混回去，测试会直接失败
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
