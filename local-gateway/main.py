@@ -42,6 +42,7 @@ from routers import (
     pomodoro,
     safe_downloader,
     sandbox_executor,
+    search as search_router,
     shortcuts,
     subtasks,
     sync,
@@ -127,6 +128,7 @@ app.add_middleware(
 
 app.include_router(task_manager.router, prefix="/api")
 app.include_router(safe_downloader.router, prefix="/api")
+app.include_router(search_router.router, prefix="/api")
 app.include_router(file_search.router, prefix="/api")
 app.include_router(fulltext_search.router, prefix="/api")
 app.include_router(job_status.router, prefix="/api")
@@ -196,7 +198,8 @@ async def api_info():
         "endpoints": {
             "task_manager": "/api/task",
             "safe_downloader": "/api/download",
-            "file_search": "/api/search",
+            "search": "/api/search",
+            "search_legacy": "/api/search/legacy",
             "fulltext_search": "/api/search/fulltext",
             "job_status": "/api/job/status",
             "sandbox_executor": "/api/sandbox",

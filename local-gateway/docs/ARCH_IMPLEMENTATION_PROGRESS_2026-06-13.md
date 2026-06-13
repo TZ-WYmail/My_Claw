@@ -438,6 +438,21 @@ HTTP ai_planning router
 - `/api/search/legacy` 的兼容边界更清晰
 - 搜索路由层的正式 owner 与兼容 owner 已开始分离
 
+### 1.23 unified search 正式 owner 已从 `file_search` 命名中分离
+
+已完成：
+
+- 新建 `routers/search.py` 承接 `POST /api/search`
+- `routers/file_search.py` 收缩为只保留 `POST /api/search/legacy`
+- `main.py` 改为分别注册 `search` / `file_search` / `fulltext_search`
+- `api_info` 中的搜索入口说明改为 `search` 与 `search_legacy`
+
+当前结果：
+
+- `file_search` 不再继续承载统一搜索主入口
+- 搜索主路径、legacy 文件搜索、全文索引三者已形成更清晰的 owner 分层
+- 后续如果删除 legacy 文件搜索入口，不需要再改 unified search 主入口模块
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

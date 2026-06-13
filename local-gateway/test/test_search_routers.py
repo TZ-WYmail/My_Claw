@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routers import file_search, fulltext_search
+from routers import file_search, fulltext_search, search
 
 
 def _empty_search_result() -> dict:
@@ -26,6 +26,7 @@ def _empty_search_result() -> dict:
 
 def _build_client() -> TestClient:
     app = FastAPI()
+    app.include_router(search.router, prefix="/api")
     app.include_router(file_search.router, prefix="/api")
     app.include_router(fulltext_search.router, prefix="/api")
     return TestClient(app)
@@ -35,7 +36,7 @@ def test_unified_search_router_uses_ai_tool():
     client = _build_client()
 
     with patch(
-        "routers.file_search.execute_local_file_search",
+        "routers.search.execute_local_file_search",
         new=AsyncMock(return_value=_empty_search_result()),
     ) as mocked:
         response = client.post(

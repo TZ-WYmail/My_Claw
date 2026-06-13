@@ -170,6 +170,7 @@
 
 - 路由层继续暴露 legacy 语义
 - `routers/file_search.py` 这个模块名仍带历史色彩
+- 但 unified search 正式 owner 已转到 `routers/search.py`
 
 建议动作：
 
