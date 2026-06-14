@@ -63,13 +63,14 @@
 
 - facade 面仍然偏宽
 - 容易被误当 task 领域主实现
-- 仍承担 split service 的 `DB_PATH` 同步责任
+- 仍然保留较宽的历史转发表面
 
 建议动作：
 
 1. 保留 facade，但继续禁止新增仓库内部主链依赖它
-2. 观察外部旧调用面是否仍需要 `task_service.init_db()` 与宽 facade 面
-3. 条件成熟后，再评估公开废弃策略与进一步瘦身
+2. 继续压缩只剩兼容意义的转发函数
+3. 观察外部旧调用面是否仍需要 `task_service.init_db()` 与宽 facade 面
+4. 条件成熟后，再评估公开废弃策略与进一步瘦身
 
 ### 3.2 `task_service.init_db()`
 

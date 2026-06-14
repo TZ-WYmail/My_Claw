@@ -680,6 +680,19 @@ HTTP ai_planning router
 - 它的保留价值已进一步收缩到稳定导入面与兼容测试
 - 后续是否继续瘦身，判断重点会转到是否仍需要仓库外稳定导入面
 
+### 1.39 `task_service` 已不再承担 split service 路径同步桥
+
+已完成：
+
+- `services/task_service.py` 删除 `_sync_task_module_paths()`
+- 兼容 facade 不再在每次调用前给 split task modules 回写 `DB_PATH`
+
+当前结果：
+
+- `task_service` 的角色进一步收窄为兼容转发面
+- split task modules 的运行时路径不再依赖 compat facade 参与同步
+- 后续如果继续瘦身 `task_service`，焦点会更直接落在“哪些转发函数还值得保留”
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

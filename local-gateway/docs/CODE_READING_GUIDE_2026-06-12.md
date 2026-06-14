@@ -154,6 +154,7 @@ main.py
 - 它为什么还留着？
 - 哪些外部旧导入可能还需要它？
 - 为什么 `init_db()` 在仓库内已经只剩废弃告警测试意义？
+- 为什么它已经不再承担 split service 的 `DB_PATH` 同步职责？
 
 不要再把它当作仓库内部主实现。
 
@@ -388,7 +389,8 @@ AI 现在要分成两条线读。
 3. `mail_service.py` 仍然保留 facade 存在感
 4. AI 兼容工具别名 `local_file_search` 仍保留，但正式名已切到 `local_unified_search`
 5. mail runtime 注入虽然已从 compat 桥迁走，但 facade 测试覆盖点仍需要继续治理
-6. 部分旧文档和 README 还停留在重构前的判断
+6. `task_service` 已不再承担路径同步桥，但转发面仍偏宽
+7. 部分旧文档和 README 还停留在重构前的判断
 
 ## 14. 一个最省时间的阅读策略
 
