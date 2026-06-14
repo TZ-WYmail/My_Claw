@@ -38,14 +38,6 @@ class DownloadCategory(str, enum.Enum):
     misc = "misc"
 
 
-class SearchCategory(str, enum.Enum):
-    paper = "paper"
-    video = "video"
-    code = "code"
-    misc = "misc"
-    all = "all"
-
-
 class SandboxTool(str, enum.Enum):
     python = "python"
     node = "node"
@@ -236,27 +228,12 @@ class BandwidthResponse(BaseModel):
     limit_kb_s: int
 
 
-# ============================================================
-# Tool 3: local_file_search
-# ============================================================
-
-class FileSearchRequest(BaseModel):
-    keyword: str = Field(..., description="搜索关键词")
-    category: SearchCategory = Field(..., description="搜索分类")
-
-
 class FileInfo(BaseModel):
     filename: str
     category: str
     path: str
     size: str
     downloaded_at: Optional[str] = None
-
-
-class FileSearchResponse(BaseModel):
-    status: str  # success / error
-    total: int = 0
-    files: list[FileInfo] = []
 
 
 # ============================================================

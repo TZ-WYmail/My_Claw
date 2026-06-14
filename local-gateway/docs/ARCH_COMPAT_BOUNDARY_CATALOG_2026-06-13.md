@@ -1,6 +1,6 @@
-# 兼容层与边界清单（2026-06-13）
+# 兼容层与边界清单（2026-06-14）
 
-更新时间：2026-06-13  
+更新时间：2026-06-14
 目的：给当前仍保留的 facade / compatibility wrapper / 历史命名入口建立清单、分类和后续退场顺序
 
 ## 1. 当前判断原则
@@ -41,8 +41,7 @@
 
 - `routers/advanced_features.py`
 - `/api/advanced/*`
-- `services/unified_search_service.py` 里的全文索引兼容接口
-- `POST /api/search/legacy`（位于 `routers/file_search.py`）
+- `local_file_search`（AI tool schema / executor 命名）
 
 特点：
 
@@ -140,34 +139,35 @@
 2. 优先迁调用方到正式域路径
 3. 条件成熟后删除整组兼容路径
 
-### 3.5 `POST /api/search/legacy`（位于 `routers/file_search.py`）
+### 3.5 `local_file_search` 工具命名
 
-分类：`可计划淘汰`
+分类：`可进入观察期`
 
 当前作用：
 
-- 保持旧文件搜索 API 可用
+- 维持 AI tool schema 与函数调用名称稳定
+- 让 `services/ai_service.py` 与 `application/ai_tools.py` 继续共用同一个工具名
 
 当前问题：
 
-- 路由层继续暴露 legacy 语义
-- `routers/file_search.py` 这个模块名仍带历史色彩
-- 但 unified search 正式 owner 已转到 `routers/search.py`
+- 名称仍然强调“file search”，但实际实现已经走统一搜索主链
+- 容易与已删除的 `POST /api/search/legacy` 混淆
+- 如果后续继续扩展统一搜索 scope，这个名字会越来越不贴近真实职责
 
 建议动作：
 
-1. 统计是否仍有调用
-2. 若仅剩测试依赖，先迁测试
-3. 然后删除 legacy 路由
+1. 先保持 tool name 稳定，不与本轮 HTTP 路由清理混做
+2. 在文档中明确它不是 legacy HTTP endpoint
+3. 后续单独评估是否迁到更贴近统一搜索语义的工具名
 
 ## 4. 推荐退场顺序
 
 按风险和收益，建议顺序如下：
 
-1. `POST /api/search/legacy`
-2. `routers/advanced_features.py` 的历史命名与边界重整
-3. `task_service.init_db()` compat 入口
-4. `services/task_service.py` 更大范围的 facade 瘦身
+1. `routers/advanced_features.py` 的历史命名与边界重整
+2. `task_service.init_db()` compat 入口
+3. `services/task_service.py` 更大范围的 facade 瘦身
+4. `local_file_search` AI 工具命名治理
 
 ## 5. 当前不建议立刻动的部分
 
@@ -189,6 +189,8 @@
 - `services/mobile_service.py`
 - `task_query_service.get_task_detail()`
 - `services/unified_search_service.py` 中的全文索引 compat 函数
+- `POST /api/search/legacy`
+- `routers/file_search.py`
 
 ## 7. 下一阶段建议
 
@@ -196,13 +198,13 @@
 
 ### 7.1 低风险清理组
 
-- 清点 legacy file search 调用面
+- 清点 `/api/advanced/*` 的剩余调用面
 - 评估 `task_service.init_db()` 的仓库外保留必要性
 
 ### 7.2 边界重命名组
 
 - 为 `advanced_features` 建立目标域映射文档
-- 评估 `routers/file_search.py` 的模块命名是否需要最终调整
+- 评估 `local_file_search` 工具名是否需要最终调整
 - 评估新的 router/package 命名方案
 - 明确是否需要前后端一起改路径
 

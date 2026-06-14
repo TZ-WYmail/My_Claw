@@ -31,7 +31,6 @@ from routers import (
     chat as chat_router,
     dashboard,
     encryption,
-    file_search,
     fulltext_search,
     habits,
     job_status,
@@ -129,7 +128,6 @@ app.add_middleware(
 app.include_router(task_manager.router, prefix="/api")
 app.include_router(safe_downloader.router, prefix="/api")
 app.include_router(search_router.router, prefix="/api")
-app.include_router(file_search.router, prefix="/api")
 app.include_router(fulltext_search.router, prefix="/api")
 app.include_router(job_status.router, prefix="/api")
 app.include_router(sandbox_executor.router, prefix="/api")
@@ -199,7 +197,6 @@ async def api_info():
             "task_manager": "/api/task",
             "safe_downloader": "/api/download",
             "search": "/api/search",
-            "search_legacy": "/api/search/legacy",
             "fulltext_search": "/api/search/fulltext",
             "job_status": "/api/job/status",
             "sandbox_executor": "/api/sandbox",

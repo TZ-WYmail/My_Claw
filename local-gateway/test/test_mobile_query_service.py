@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import aiosqlite
 import pytest
 
@@ -16,6 +18,14 @@ async def setup_db(tmp_path, monkeypatch):
     import services.task_query_service as task_query_service
     import services.calendar_sync_service as calendar_sync_service
 
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            fixed = cls(2026, 6, 13, 10, 0, 0)
+            if tz is not None:
+                return fixed.replace(tzinfo=tz)
+            return fixed
+
     db_path = tmp_path / "test_mobile_query.db"
     monkeypatch.setattr(bootstrap_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
@@ -23,6 +33,8 @@ async def setup_db(tmp_path, monkeypatch):
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
     monkeypatch.setattr(habit_service, "DB_PATH", db_path)
     monkeypatch.setattr(tag_service, "DB_PATH", db_path)
+    monkeypatch.setattr(habit_service, "datetime", FrozenDateTime)
+    monkeypatch.setattr(mobile_query_service, "datetime", FrozenDateTime)
     monkeypatch.setattr(subtask_service, "DB_PATH", db_path)
     monkeypatch.setattr(pomodoro_service, "DB_PATH", db_path)
     monkeypatch.setattr(note_service, "DB_PATH", db_path)

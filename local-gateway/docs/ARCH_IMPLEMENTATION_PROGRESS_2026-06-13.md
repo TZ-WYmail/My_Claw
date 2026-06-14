@@ -1,6 +1,6 @@
-# 架构重整实施进度（2026-06-13）
+# 架构重整实施进度（2026-06-14）
 
-更新时间：2026-06-13  
+更新时间：2026-06-14
 目标：记录当前已经完成的 application/use-case 层落地情况，便于验收与继续推进
 
 ## 1. 本轮已完成内容
@@ -528,6 +528,23 @@ HTTP ai_planning router
 当前结果：
 
 - `/api/advanced/*` 进一步退回到兼容层，而不是继续被主前端页面当作默认调用面
+
+### 1.29 `/api/search/legacy` 与 `routers/file_search.py` 已删除
+
+已完成：
+
+- `main.py` 不再注册 `file_search` router，也不再在 `api_info` 暴露 `search_legacy`
+- 删除 `routers/file_search.py`
+- 删除 `models/schemas.py` 中只服务于 legacy 搜索路由的 `SearchCategory`、`FileSearchRequest`、`FileSearchResponse`
+- `test/test_search_routers.py` 删除 legacy route 覆盖
+- `test/test_architecture_guards.py` 改为禁止测试重新依赖 `/api/search/legacy`
+- README、结构总览、阅读指南与兼容边界清单已同步到新的搜索结构
+
+当前结果：
+
+- HTTP 搜索正式路径收口为 `/api/search` 与 `/api/search/fulltext`
+- 历史 `file_search` 模块已完成退场，不再误导新代码围绕 legacy path 继续扩展
+- 搜索子系统剩余需要单独评估的历史点只剩 AI 工具名 `local_file_search`
 - 正式域 router 已同时在后端 owner、前端调用面、测试护栏三层对齐
 - 后续如果要删除 advanced 兼容路径，阻力会更多地集中在历史兼容测试与外部调用，而不是当前主界面
 

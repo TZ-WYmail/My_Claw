@@ -52,10 +52,10 @@ python main.py
    - `task_planning_service`
 4. `/api/search`
    - 正式统一搜索：`routers/search.py`
-   - legacy 文件搜索：`routers/file_search.py`
    - 全文索引：`routers/fulltext_search.py`
-5. `/api/advanced/*` 只是 compatibility alias，不再维护独立实现
-6. application 层已经成形，router 不再是唯一业务编排点
+5. 历史 `POST /api/search/legacy` 与 `routers/file_search.py` 已删除
+6. `/api/advanced/*` 只是 compatibility alias，不再维护独立实现
+7. application 层已经成形，router 不再是唯一业务编排点
 
 ## 主要目录
 
@@ -105,7 +105,6 @@ local-gateway/
 
 兼容路径：
 
-- `file_search.py`
 - `advanced_features.py`
 
 ### `services/`
@@ -136,7 +135,6 @@ local-gateway/
 ### search
 
 - `POST /api/search`
-- `POST /api/search/legacy`
 - `GET /api/search/fulltext`
 - `POST /api/search/index`
 - `GET /api/search/index/stats`
@@ -200,7 +198,6 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 - `services/task_service.py`
 - `task_service.init_db()`
-- `POST /api/search/legacy`
 - `/api/advanced/*`
 - `services/mail_service.py`
 

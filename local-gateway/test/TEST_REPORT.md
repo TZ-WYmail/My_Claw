@@ -1,10 +1,10 @@
-# 测试报告（2026-06-13）
+# 测试报告（2026-06-14）
 
 本文档记录当前后端回归基线，而不是早期阶段性开发记录。
 
 ## 当前回归基线
 
-截至 2026-06-13，当前使用的主回归命令为：
+截至 2026-06-14，当前使用的主回归命令为：
 
 ```bash
 conda run -n claude python -m pytest test/test_task_application.py test/test_planning_application.py test/test_mobile_application.py test/test_mobile_query_service.py test/test_sync_application.py test/test_mail_automation.py test/test_phase3.py test/test_execution_guards.py test/test_unified_search.py test/test_task_query_service.py test/test_ai_planning_flow.py test/test_runtime_state_service.py test/test_task_planning_service.py test/test_task_command_service.py test/test_services.py test/test_security.py test/test_dashboard_application.py test/test_habit_service.py test/test_advanced_application.py test/test_backend_remediation.py test/test_domain_routers.py test/test_search_routers.py test/test_architecture_guards.py -q
@@ -12,7 +12,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 最近一次结果：
 
-- `150 passed, 4 skipped`
+- `152 passed, 4 skipped`
 
 这条基线覆盖的是当前主干架构，而不是把 `test/` 目录里所有历史文件一把跑完。
 
@@ -31,7 +31,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 - 内部主链不再直接导入 `services.task_service`
 - `routers/advanced_features.py` 只作为兼容别名聚合
-- `/api/search`、`/api/search/legacy`、`/api/search/fulltext` 的 owner 边界固定
+- `/api/search` 与 `/api/search/fulltext` 的 owner 边界固定，并防止测试重新依赖历史 legacy 搜索路径
 
 ## 历史命名测试文件的解释
 

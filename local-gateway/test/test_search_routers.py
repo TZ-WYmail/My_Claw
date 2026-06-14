@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routers import file_search, fulltext_search, search
+from routers import fulltext_search, search
 
 
 def _empty_search_result() -> dict:
@@ -27,7 +27,6 @@ def _empty_search_result() -> dict:
 def _build_client() -> TestClient:
     app = FastAPI()
     app.include_router(search.router, prefix="/api")
-    app.include_router(file_search.router, prefix="/api")
     app.include_router(fulltext_search.router, prefix="/api")
     return TestClient(app)
 
@@ -47,37 +46,6 @@ def test_unified_search_router_uses_ai_tool():
     assert response.status_code == 200
     mocked.assert_awaited_once()
 
-
-def test_legacy_search_router_uses_file_scope():
-    client = _build_client()
-
-    with patch(
-        "routers.file_search.unified_search",
-        new=AsyncMock(
-            return_value={
-                "status": "success",
-                "results": {
-                    "files": {
-                        "items": [
-                            {
-                                "filename": "weekly.md",
-                                "category": "misc",
-                                "path": "/tmp/weekly.md",
-                                "size": "1 KB",
-                                "downloaded_at": "2026-06-13T10:00:00",
-                            }
-                        ],
-                        "total": 1,
-                    }
-                },
-            }
-        ),
-    ) as mocked:
-        response = client.post("/api/search/legacy", json={"keyword": "weekly", "category": "all"})
-
-    assert response.status_code == 200
-    assert response.json()["total"] == 1
-    mocked.assert_awaited_once_with(keyword="weekly", scope="files", category="all")
 
 
 def test_fulltext_router_uses_fulltext_service():

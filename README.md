@@ -40,7 +40,7 @@
 
 - `bootstrap_service` 是数据库初始化 owner
 - `task_service` 已退成 compatibility facade
-- `/api/search`、`/api/search/legacy`、`/api/search/fulltext` 已分属不同 router owner
+- `/api/search` 与 `/api/search/fulltext` 已分属不同 router owner，历史 `/api/search/legacy` 已删除
 - `/api/advanced/*` 已降级为 compatibility alias
 
-如果你要继续重构，不要再把 `task_service.py`、`routers/file_search.py`、`routers/advanced_features.py` 当主实现入口。
+如果你要继续重构，不要再把 `task_service.py`、`routers/advanced_features.py` 当主实现入口；旧 `routers/file_search.py` 已不再存在。

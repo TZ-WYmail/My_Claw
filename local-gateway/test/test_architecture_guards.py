@@ -1,7 +1,7 @@
 import ast
 from pathlib import Path
 
-from routers import advanced_features, file_search, fulltext_search, search
+from routers import advanced_features, fulltext_search, search
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -10,7 +10,6 @@ TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
 FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
 TEST_SOURCE_DIR = REPO_ROOT / "test"
 ADVANCED_COMPAT_TEST_FILE = TEST_SOURCE_DIR / "test_advanced_compat_routes.py"
-SEARCH_LEGACY_TEST_FILE = TEST_SOURCE_DIR / "test_search_routers.py"
 ADVANCED_COMPAT_PATH = "/api/" "advanced/"
 SEARCH_LEGACY_PATH = "/api/search/" "legacy"
 THIS_TEST_FILE = Path(__file__).resolve()
@@ -68,7 +67,6 @@ def test_advanced_features_router_is_compatibility_alias_only():
 
 def test_search_router_ownership_boundaries_are_stable():
     assert sorted(route.path for route in search.router.routes) == ["/search"]
-    assert sorted(route.path for route in file_search.router.routes) == ["/search/legacy"]
     assert sorted(route.path for route in fulltext_search.router.routes) == [
         "/search/fulltext",
         "/search/index",
@@ -101,11 +99,11 @@ def test_non_compat_tests_no_longer_use_advanced_compat_paths():
     assert findings == []
 
 
-def test_only_search_router_boundary_test_uses_legacy_search_path():
+def test_tests_no_longer_use_legacy_search_path():
     findings: list[str] = []
 
     for path in TEST_SOURCE_DIR.rglob("test_*.py"):
-        if path in {SEARCH_LEGACY_TEST_FILE, THIS_TEST_FILE}:
+        if path == THIS_TEST_FILE:
             continue
         content = path.read_text(encoding="utf-8")
         if SEARCH_LEGACY_PATH in content:

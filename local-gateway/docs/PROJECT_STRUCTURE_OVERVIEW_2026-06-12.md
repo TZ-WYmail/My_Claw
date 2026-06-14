@@ -1,6 +1,6 @@
 # LocalCommandCenter 项目结构梳理
 
-更新时间：2026-06-13  
+更新时间：2026-06-14
 代码基线：`origin/main` 已同步到本地，当前主分支 `main`
 
 ## 1. 项目定位
@@ -86,7 +86,7 @@ local-gateway/
 这里最重要的变化是：
 
 - 数据库初始化 owner 已经不是 `task_service`
-- 搜索路由已拆成 `search` / `file_search` / `fulltext_search`
+- 搜索正式路由 owner 已收口为 `search` 与 `fulltext_search`，历史 `file_search` 已删除
 - `advanced_features` 已经只是兼容路由聚合
 
 ### 4.2 `config.py`
@@ -183,7 +183,6 @@ router 现在已经可以分成 3 类：
 #### 兼容路径
 
 - `advanced_features.py`
-- `file_search.py`
 
 #### 基础工具/平台
 
@@ -196,15 +195,14 @@ router 现在已经可以分成 3 类：
 1. `routers/search.py`
    - 只负责 `POST /api/search`
 
-2. `routers/file_search.py`
-   - 只保留 `POST /api/search/legacy`
-
-3. `routers/fulltext_search.py`
+2. `routers/fulltext_search.py`
    - 负责全文索引相关正式入口
 
-4. `routers/advanced_features.py`
+3. `routers/advanced_features.py`
    - 不再维护一套平行 handler
    - 现在通过 `include_router(...)` 复用正式域 router
+
+历史 `routers/file_search.py` 与 `POST /api/search/legacy` 已删除。
 
 ### 5.4 `services/`
 
@@ -329,9 +327,8 @@ router 现在已经可以分成 3 类：
 前端现在仍需要重点关注是否还命中：
 
 - `/api/advanced/*`
-- `/api/search/legacy`
 
-这是后续继续删除兼容路径前必须核对的点。
+历史 `/api/search/legacy` 已删除，不应再出现在前端调用面。
 
 ### 5.6 `static/`
 
@@ -354,7 +351,7 @@ router 现在已经可以分成 3 类：
 这些测试现在很重要，因为它们在锁：
 
 - 内部主链不再导入 `task_service`
-- search / legacy / fulltext 的 owner 分层
+- search / fulltext 的 owner 分层，以及 legacy 搜索路径不再回流
 - `advanced_features` 只做 compatibility alias
 
 ## 6. 当前最重要的结构性判断
@@ -371,13 +368,14 @@ router 现在已经可以分成 3 类：
 4. `task_detail_service.py`
 5. `task_planning_service.py`
 
-### 6.2 搜索已经分成 3 条路径
+### 6.2 搜索正式 HTTP 路径已收口为 2 条
 
 ```text
 /api/search            -> routers/search.py
-/api/search/legacy     -> routers/file_search.py
 /api/search/fulltext   -> routers/fulltext_search.py
 ```
+
+历史 `POST /api/search/legacy` 已完成退场。
 
 ### 6.3 `advanced_features` 已经不是“聚合实现”
 
@@ -405,10 +403,10 @@ router 已经不再是唯一的业务编排点，很多内部调用都先经过 
 
 1. `task_service.py` 仍然公开面偏宽
 2. `task_service.init_db()` 仍是兼容入口，尚未显式废弃
-3. `/api/search/legacy` 仍保留
-4. `/api/advanced/*` 仍保留
-5. `ai_service.py`、`ai_planning_service.py` 仍偏厚
-6. `mail_service.py` 仍保留 facade 存在感
+3. `/api/advanced/*` 仍保留
+4. `ai_service.py`、`ai_planning_service.py` 仍偏厚
+5. `mail_service.py` 仍保留 facade 存在感
+6. AI 工具名 `local_file_search` 仍带历史语义，容易和已删除的 HTTP legacy 搜索混淆
 7. 旧 README / 旧阅读文档很容易误导新人
 
 ## 8. 如果你只想抓住当前骨架
@@ -424,10 +422,10 @@ router 已经不再是唯一的业务编排点，很多内部调用都先经过 
 7. `services/task_planning_service.py`
 8. `services/task_service.py`
 9. `routers/search.py`
-10. `routers/file_search.py`
-11. `routers/fulltext_search.py`
-12. `routers/advanced_features.py`
-13. `application/ai_tools.py`
+10. `routers/fulltext_search.py`
+11. `routers/advanced_features.py`
+12. `application/ai_tools.py`
+13. `services/fulltext_search_service.py`
 14. `services/ai_service.py`
 15. `test/test_architecture_guards.py`
 
