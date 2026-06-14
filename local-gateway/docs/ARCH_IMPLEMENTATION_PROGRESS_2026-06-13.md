@@ -626,6 +626,19 @@ HTTP ai_planning router
 - 领域 action owner 边界不会再因为历史 `advanced` 命名回流
 - 后续如果继续瘦身该模块，主要工作会转成兼容导入面治理，而不是清理主链依赖
 
+### 1.35 `local_file_search` 已被限制在兼容模块内
+
+已完成：
+
+- `test/test_architecture_guards.py` 新增旧 AI 工具名字面量护栏
+- 护栏范围限定为仓库内部主链，允许 `application/ai_tools.py` 继续承担兼容别名职责
+
+当前结果：
+
+- `local_file_search` 不会重新回流到内部正式代码路径
+- 内部主链对统一搜索的正式命名固定为 `local_unified_search`
+- 后续如果最终删除旧别名，主要工作会集中在外部兼容调用，而不是仓库内部清理
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

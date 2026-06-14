@@ -11,11 +11,13 @@ TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
 MAIL_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "mail_service.py"
 MAIL_SERVICE_RUNTIME_COMPAT_FILE = REPO_ROOT / "services" / "mail" / "compat.py"
 ADVANCED_ACTIONS_COMPAT_FILE = REPO_ROOT / "application" / "advanced_actions.py"
+AI_TOOLS_COMPAT_FILE = REPO_ROOT / "application" / "ai_tools.py"
 ADVANCED_COMPAT_ROUTER_FILE = REPO_ROOT / "routers" / "advanced_features.py"
 FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
 TEST_SOURCE_DIR = REPO_ROOT / "test"
 ADVANCED_COMPAT_PATH = "/api/" "advanced/"
 SEARCH_LEGACY_PATH = "/api/search/" "legacy"
+LOCAL_FILE_SEARCH_COMPAT_NAME = "local_file_search"
 MAIN_ENTRY_FILE = REPO_ROOT / "main.py"
 THIS_TEST_FILE = Path(__file__).resolve()
 
@@ -28,6 +30,7 @@ def _iter_internal_python_files():
                 MAIL_SERVICE_COMPAT_FILE,
                 MAIL_SERVICE_RUNTIME_COMPAT_FILE,
                 ADVANCED_ACTIONS_COMPAT_FILE,
+                AI_TOOLS_COMPAT_FILE,
                 THIS_TEST_FILE,
             }:
                 continue
@@ -90,6 +93,17 @@ def _find_advanced_actions_imports(path: Path) -> list[str]:
     return findings
 
 
+def _find_local_file_search_mentions(path: Path) -> list[str]:
+    content = path.read_text(encoding="utf-8")
+    findings: list[str] = []
+
+    for lineno, line in enumerate(content.splitlines(), start=1):
+        if LOCAL_FILE_SEARCH_COMPAT_NAME in line:
+            findings.append(f"local_file_search literal (line {lineno})")
+
+    return findings
+
+
 def test_internal_code_no_longer_imports_task_service_directly():
     findings: dict[str, list[str]] = {}
 
@@ -117,6 +131,17 @@ def test_internal_code_no_longer_imports_advanced_actions_directly():
 
     for path in _iter_internal_python_files():
         path_findings = _find_advanced_actions_imports(path)
+        if path_findings:
+            findings[str(path.relative_to(REPO_ROOT))] = path_findings
+
+    assert findings == {}
+
+
+def test_internal_code_no_longer_uses_local_file_search_name():
+    findings: dict[str, list[str]] = {}
+
+    for path in _iter_internal_python_files():
+        path_findings = _find_local_file_search_mentions(path)
         if path_findings:
             findings[str(path.relative_to(REPO_ROOT))] = path_findings
 

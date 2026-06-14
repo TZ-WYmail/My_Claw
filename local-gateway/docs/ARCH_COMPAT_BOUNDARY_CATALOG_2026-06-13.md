@@ -133,7 +133,8 @@
 
 1. 新调用统一使用 `local_unified_search`
 2. 旧 `local_file_search` 继续保留为兼容别名并发出废弃告警
-3. 观察是否还存在仓库外旧调用，再决定最终删除窗口
+3. 用 architecture guard 禁止仓库内部主链重新回流到旧名字
+4. 观察是否还存在仓库外旧调用，再决定最终删除窗口
 
 ### 3.5 `application/advanced_actions.py`
 
