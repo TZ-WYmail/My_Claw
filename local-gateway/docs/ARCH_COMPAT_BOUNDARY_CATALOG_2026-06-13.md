@@ -78,6 +78,7 @@
 
 - 兼容历史初始化入口
 - 真实 owner 已是 `bootstrap_service`
+- 当前调用会显式发出 `DeprecationWarning`
 
 当前问题：
 
@@ -134,7 +135,7 @@
 
 按风险和收益，建议顺序如下：
 
-1. `task_service.init_db()` compat 入口
+1. 继续观察 `task_service.init_db()` 的废弃告警是否足够暴露到外部调用方
 2. `services/task_service.py` 更大范围的 facade 瘦身
 3. `local_file_search` AI 工具命名治理
 

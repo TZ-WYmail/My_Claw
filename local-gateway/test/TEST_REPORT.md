@@ -12,7 +12,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 最近一次结果：
 
-- `153 passed, 4 skipped`
+- `154 passed, 4 skipped`
 
 这条基线覆盖的是当前主干架构，而不是把 `test/` 目录里所有历史文件一把跑完。
 

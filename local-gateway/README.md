@@ -197,7 +197,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 还保留但已经不是主实现的对象：
 
 - `services/task_service.py`
-- `task_service.init_db()`
+- `task_service.init_db()`（已显式废弃，暂留兼容）
 - `services/mail_service.py`
 - AI 工具名 `local_file_search`
 

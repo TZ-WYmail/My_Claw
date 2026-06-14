@@ -3,6 +3,7 @@
 运行: cd local-gateway && conda run -n claude python -m pytest test/test_services.py -v
 """
 import asyncio
+import importlib
 
 import aiosqlite
 import pytest
@@ -41,8 +42,11 @@ async def setup_db(tmp_path, monkeypatch):
     import services.calendar_sync_service as calendar_sync_service_mod
     import services.habit_service as habit_service_mod
 
+    task_service_mod = importlib.import_module("services.task_service")
+
     db_path = tmp_path / "test_services.db"
     monkeypatch.setattr(bootstrap_service_mod, "DB_PATH", db_path)
+    monkeypatch.setattr(task_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_detail_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
@@ -195,6 +199,17 @@ class TestHabits:
 
         habits = await habit_service.get_all_habits()
         assert len(habits) > 0
+
+
+class TestTaskServiceCompat:
+    """任务兼容 facade 测试"""
+
+    @pytest.mark.asyncio
+    async def test_task_service_init_db_emits_deprecation_warning(self):
+        task_service_mod = importlib.import_module("services.task_service")
+
+        with pytest.warns(DeprecationWarning, match=r"services\.bootstrap_service\.init_db"):
+            await task_service_mod.init_db()
 
 
 class TestTasksAdvanced:

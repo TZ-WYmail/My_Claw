@@ -12,6 +12,8 @@ Internal mainline code should depend on the split owners directly:
 """
 from __future__ import annotations
 
+import warnings
+
 from config import DB_PATH
 from services import dashboard_query_service
 from services import task_command_service
@@ -30,7 +32,13 @@ def _sync_task_module_paths() -> None:
 
 
 async def init_db():
-    """兼容入口：初始化数据库表结构"""
+    """Deprecated compatibility entrypoint for database initialization."""
+    warnings.warn(
+        "services.task_service.init_db() is deprecated; use services.bootstrap_service.init_db() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     from services import bootstrap_service
 
     bootstrap_service.DB_PATH = DB_PATH

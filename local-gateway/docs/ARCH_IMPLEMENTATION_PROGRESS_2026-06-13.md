@@ -564,6 +564,21 @@ HTTP ai_planning router
 - `advanced_features` 这个历史聚合命名已完成退场
 - 兼容层重点从 router 历史路径治理收口到 `task_service`、`mail_service` 与 `local_file_search` 命名
 
+### 1.31 `task_service.init_db()` 已显式废弃
+
+已完成：
+
+- `services/task_service.py` 中的 `init_db()` 增加 `DeprecationWarning`
+- 兼容入口仍继续转发到 `bootstrap_service.init_db()`，不改变外部行为
+- `test/test_services.py` 新增兼容告警测试
+- README 与兼容边界文档已同步到“已显式废弃但暂留兼容”的状态
+
+当前结果：
+
+- 仓库内部主链继续只走 `bootstrap_service.init_db()`
+- 仓库外如果仍调用 `task_service.init_db()`，现在会收到明确迁移信号
+- `task_service` 收口从“仅文档约束”进一步推进到“代码行为显式提示”
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
