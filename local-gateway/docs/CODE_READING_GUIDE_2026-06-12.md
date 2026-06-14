@@ -382,7 +382,7 @@ AI 现在要分成两条线读。
 1. `task_service.py` 仍然公开面偏宽，但已经不是内部主链
 2. `services/ai_service.py` 和 `services/ai_planning_service.py` 仍然偏厚
 3. `mail_service.py` 仍然保留 facade 存在感
-4. AI 工具名 `local_file_search` 仍带历史语义，容易和已删除的 HTTP legacy 搜索混淆
+4. AI 兼容工具别名 `local_file_search` 仍保留，但正式名已切到 `local_unified_search`
 5. 部分旧文档和 README 还停留在重构前的判断
 
 ## 14. 一个最省时间的阅读策略

@@ -26,7 +26,8 @@ AI runtime
 - `local_task_manager`
 - `batch_task_manager`
 - `local_safe_downloader`
-- `local_file_search`
+- `local_unified_search`
+- `local_file_search`（compat alias）
 - `local_sandbox_executor`
 - `local_job_status`
 
@@ -578,6 +579,22 @@ HTTP ai_planning router
 - 仓库内部主链继续只走 `bootstrap_service.init_db()`
 - 仓库外如果仍调用 `task_service.init_db()`，现在会收到明确迁移信号
 - `task_service` 收口从“仅文档约束”进一步推进到“代码行为显式提示”
+
+### 1.32 AI 统一搜索工具正式名已切到 `local_unified_search`
+
+已完成：
+
+- `services/ai_service.py` 的 tool schema 与系统提示改为使用 `local_unified_search`
+- `application/ai_tools.py` 新增正式执行入口 `execute_local_unified_search()`
+- 旧 `local_file_search` 保留为兼容别名，并发出 `DeprecationWarning`
+- `routers/search.py` 改为直接依赖新的正式执行入口
+- `test/test_ai_tool_application.py` 新增正式工具名与兼容别名测试
+
+当前结果：
+
+- 新 AI 会话不再学习历史 `local_file_search` 命名
+- 旧调用仍能走统一搜索主链，不会因为命名切换而中断
+- 搜索子系统剩余的历史问题从“命名混淆”进一步收口到“兼容别名何时最终删除”
 
 ## 2. 本轮新增文件
 

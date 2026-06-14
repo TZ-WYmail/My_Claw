@@ -173,7 +173,7 @@ local-gateway/
 常用回归命令：
 
 ```bash
-conda run -n claude python -m pytest test/test_task_application.py test/test_planning_application.py test/test_mobile_application.py test/test_mobile_query_service.py test/test_sync_application.py test/test_mail_automation.py test/test_phase3.py test/test_execution_guards.py test/test_unified_search.py test/test_task_query_service.py test/test_ai_planning_flow.py test/test_runtime_state_service.py test/test_task_planning_service.py test/test_task_command_service.py test/test_services.py test/test_security.py test/test_dashboard_application.py test/test_habit_service.py test/test_advanced_application.py test/test_backend_remediation.py test/test_domain_routers.py test/test_search_routers.py test/test_architecture_guards.py -q
+conda run -n claude python -m pytest test/test_task_application.py test/test_planning_application.py test/test_mobile_application.py test/test_mobile_query_service.py test/test_sync_application.py test/test_mail_automation.py test/test_phase3.py test/test_execution_guards.py test/test_unified_search.py test/test_task_query_service.py test/test_ai_planning_flow.py test/test_runtime_state_service.py test/test_task_planning_service.py test/test_task_command_service.py test/test_services.py test/test_security.py test/test_dashboard_application.py test/test_habit_service.py test/test_advanced_application.py test/test_backend_remediation.py test/test_domain_routers.py test/test_search_routers.py test/test_architecture_guards.py test/test_ai_tool_application.py -q
 ```
 
 当前重要测试类型：
@@ -199,6 +199,6 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 - `services/task_service.py`
 - `task_service.init_db()`（已显式废弃，暂留兼容）
 - `services/mail_service.py`
-- AI 工具名 `local_file_search`
+- AI 兼容工具别名 `local_file_search`（正式名已切到 `local_unified_search`）
 
 如果你继续做架构收口，优先不要往这些对象继续堆新逻辑。

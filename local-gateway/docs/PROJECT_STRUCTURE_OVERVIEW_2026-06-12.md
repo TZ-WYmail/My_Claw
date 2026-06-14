@@ -404,7 +404,7 @@ router 已经不再是唯一的业务编排点，很多内部调用都先经过 
 2. `task_service.init_db()` 仍是兼容入口，但现在已显式废弃
 3. `ai_service.py`、`ai_planning_service.py` 仍偏厚
 4. `mail_service.py` 仍保留 facade 存在感
-5. AI 工具名 `local_file_search` 仍带历史语义，容易和已删除的 HTTP legacy 搜索混淆
+5. AI 兼容工具别名 `local_file_search` 仍保留，但正式名已切到 `local_unified_search`
 6. 旧 README / 旧阅读文档很容易误导新人
 
 ## 8. 如果你只想抓住当前骨架

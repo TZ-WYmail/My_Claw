@@ -35,7 +35,7 @@ def test_unified_search_router_uses_ai_tool():
     client = _build_client()
 
     with patch(
-        "routers.search.execute_local_file_search",
+        "routers.search.execute_local_unified_search",
         new=AsyncMock(return_value=_empty_search_result()),
     ) as mocked:
         response = client.post(

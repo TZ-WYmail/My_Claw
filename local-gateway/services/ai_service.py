@@ -134,19 +134,24 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "local_file_search",
-            "description": "搜索本地已归档的文件，支持按文件名关键词和分类筛选。",
+            "name": "local_unified_search",
+            "description": "统一搜索本地文件、任务、笔记与习惯，支持按关键词、scope 和分类筛选。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "keyword": {"type": "string", "description": "搜索关键词"},
+                    "scope": {
+                        "type": "string",
+                        "enum": ["all", "files", "tasks", "notes", "habits"],
+                        "description": "搜索范围",
+                    },
                     "category": {
                         "type": "string",
                         "enum": ["paper", "video", "code", "misc", "all"],
-                        "description": "分类筛选",
+                        "description": "文件分类筛选；非文件 scope 时通常传 all",
                     },
                 },
-                "required": ["keyword", "category"],
+                "required": ["keyword"],
             },
         },
     },
@@ -279,7 +284,7 @@ SYSTEM_PROMPT_BASE = """你是 LocalCommandCenter 助手，一个强大的本地
    - 支持自然语言日期：用户说"3月22日"，你转为 "3月22日" 即可（后端自动解析）
 	   - 创建任务时尽量指定 start_time 和 end_time，以便时间轴可视化和冲突检测
 3. **local_safe_downloader** — 安全下载：URL → 本地文件，自动分类归档
-4. **local_file_search** — 文件检索：搜索本地已下载文件
+4. **local_unified_search** — 统一搜索：搜索本地文件、任务、笔记与习惯
 5. **local_sandbox_executor** — Docker 沙盒：在容器中运行 python/node/ffmpeg/pandoc
 6. **local_job_status** — 异步任务状态查询
 

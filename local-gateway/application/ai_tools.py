@@ -7,6 +7,8 @@ HTTP endpoints.
 """
 from __future__ import annotations
 
+import warnings
+
 from models.schemas import (
     JobStatusRequest,
     JobStatusResponse,
@@ -32,7 +34,8 @@ async def execute_local_safe_downloader(payload: dict) -> dict:
     return SafeDownloaderResponse(**result).model_dump()
 
 
-async def execute_local_file_search(payload: dict) -> dict:
+async def execute_local_unified_search(payload: dict) -> dict:
+    """Canonical AI tool entrypoint for unified search."""
     # Prefer the unified search path used by the current API surface.
     request = UnifiedSearchRequest(**payload)
     result = await unified_search(
@@ -53,6 +56,16 @@ async def execute_local_file_search(payload: dict) -> dict:
         notes=notes.get("items", []),
         habits=habits.get("items", []),
     ).model_dump()
+
+
+async def execute_local_file_search(payload: dict) -> dict:
+    """Deprecated compatibility alias for the former AI search tool name."""
+    warnings.warn(
+        "AI tool name local_file_search is deprecated; use local_unified_search instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return await execute_local_unified_search(payload)
 
 
 async def execute_local_sandbox_executor(payload: dict) -> dict:
@@ -93,6 +106,7 @@ AI_TOOL_EXECUTORS = {
     "local_task_manager": execute_local_task_manager,
     "batch_task_manager": execute_batch_task_manager,
     "local_safe_downloader": execute_local_safe_downloader,
+    "local_unified_search": execute_local_unified_search,
     "local_file_search": execute_local_file_search,
     "local_sandbox_executor": execute_local_sandbox_executor,
     "local_job_status": execute_local_job_status,

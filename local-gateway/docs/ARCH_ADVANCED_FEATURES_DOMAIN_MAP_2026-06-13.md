@@ -80,6 +80,6 @@ advanced 退场之后，剩余兼容重点已经转到：
 - `services/task_service.py`
 - `task_service.init_db()`
 - `services/mail_service.py`
-- AI 工具命名 `local_file_search`
+- AI 兼容工具别名 `local_file_search`（正式名已切到 `local_unified_search`）
 
 也就是说，后续治理重点已经从“历史 HTTP 路由”转向“历史 facade 与命名”。

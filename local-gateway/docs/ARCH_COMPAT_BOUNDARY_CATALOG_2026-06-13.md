@@ -39,7 +39,7 @@
 
 ### 2.3 命名兼容类
 
-- `local_file_search`（AI tool schema / executor 命名）
+- `local_file_search`（AI tool 兼容别名；正式名已切到 `local_unified_search`）
 
 特点：
 
@@ -110,26 +110,26 @@
 2. 在文档和新代码中明确 mail 主实现边界
 3. 避免继续往 `mail_service.py` 堆新逻辑
 
-### 3.4 `local_file_search` 工具命名
+### 3.4 `local_file_search` 工具别名
 
 分类：`可进入观察期`
 
 当前作用：
 
-- 维持 AI tool schema 与函数调用名称稳定
-- 让 `services/ai_service.py` 与 `application/ai_tools.py` 继续共用同一个工具名
+- 维持历史 AI tool 调用名称稳定
+- 让旧调用方仍能命中统一搜索执行链
 
 当前问题：
 
-- 名称仍然强调“file search”，但实际实现已经走统一搜索主链
+- 旧名称仍然强调“file search”，和当前统一搜索语义不一致
 - 容易与已删除的 `POST /api/search/legacy` 混淆
-- 如果后续继续扩展统一搜索 scope，这个名字会越来越不贴近真实职责
+- 正式工具名已经改为 `local_unified_search`，旧名只剩兼容意义
 
 建议动作：
 
-1. 先保持 tool name 稳定，不与 HTTP 路由清理混做
-2. 在文档中明确它不是 legacy HTTP endpoint
-3. 后续单独评估是否迁到更贴近统一搜索语义的工具名
+1. 新调用统一使用 `local_unified_search`
+2. 旧 `local_file_search` 继续保留为兼容别名并发出废弃告警
+3. 观察是否还存在仓库外旧调用，再决定最终删除窗口
 
 ## 4. 推荐收缩顺序
 
@@ -137,7 +137,7 @@
 
 1. 继续观察 `task_service.init_db()` 的废弃告警是否足够暴露到外部调用方
 2. `services/task_service.py` 更大范围的 facade 瘦身
-3. `local_file_search` AI 工具命名治理
+3. `local_file_search` 兼容别名最终退场
 
 ## 5. 当前不建议立刻动的部分
 
@@ -146,6 +146,7 @@
 - `services/task_service.py`
 - `services/mail_service.py`
 - `task_service.init_db()`
+- `local_file_search` 兼容别名
 
 原因：
 
@@ -175,7 +176,7 @@
 
 ### 7.2 命名治理组
 
-- 评估 `local_file_search` 工具名是否需要最终调整
+- 观察 `local_file_search` 兼容别名是否仍有外部使用
 - 评估是否需要为 `task_service` / `mail_service` 补更明确的 deprecation 提示
 
 ## 8. 完成标准
