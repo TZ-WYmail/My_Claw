@@ -256,6 +256,7 @@ main.py
 - `advanced_actions.py` 现在为什么只是 compatibility aggregator
 - 为什么它在仓库内已经只剩 compat 测试覆盖面
 - 为什么它也应该只出现在专门的 compat 测试里？
+- 为什么它的属性访问现在会显式发出 `DeprecationWarning`
 
 ## 8. 第七轮：搜索、下载、沙盒、安全
 
@@ -395,6 +396,7 @@ AI 现在要分成两条线读。
 6. `task_service` 已不再承担路径同步桥，但转发面仍偏宽
 7. `task_service` 和 `advanced_actions` 的测试使用面已经被收口到单独 compat 测试
 8. 部分旧文档和 README 还停留在重构前的判断
+9. `advanced_actions` 已从“历史聚合入口”进一步收口为“带废弃告警的兼容 facade”
 
 ## 14. 一个最省时间的阅读策略
 

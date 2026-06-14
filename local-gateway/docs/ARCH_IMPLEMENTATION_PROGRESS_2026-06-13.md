@@ -725,6 +725,20 @@ HTTP ai_planning router
 
 - compat facade 的测试支点不再扩散到通用测试装配层
 - `task_service.init_db()` 与 `advanced_actions` 的仓库内使用面被更明确地压缩到单文件 compat 覆盖
+
+### 1.42 `advanced_actions` 兼容访问已显式废弃化
+
+已完成：
+
+- `application/advanced_actions.py` 改为显式 compat facade
+- 兼容属性访问会发出 `DeprecationWarning`
+- `test/test_advanced_application.py` 改为显式断言废弃告警
+
+当前结果：
+
+- `advanced_actions` 的职责已经进一步收缩为历史导入稳定层
+- 仓库内部正式代码路径不会把它当作可继续扩展的业务 owner
+- 后续若继续瘦身，重点会转向是否仍存在仓库外稳定调用面
 - 后续如果继续删除 compat 面，测试侧阻力会更低
 
 ## 2. 本轮新增文件

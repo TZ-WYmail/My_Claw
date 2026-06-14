@@ -129,7 +129,7 @@ local-gateway/
 - 跨入口复用
 - 成功后补查聚合数据
 
-`advanced_actions.py` 现在已经只是 compatibility aggregator，不再是主业务 owner。
+`advanced_actions.py` 现在已经只是 compatibility aggregator，不再是主业务 owner；兼容属性访问会显式发出废弃告警。
 
 ### 5.2 `models/`
 

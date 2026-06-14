@@ -168,6 +168,7 @@
 - 继续聚合 tags / subtasks / pomodoro / calendar / task detail 相关 action
 - 当前仓库内部主链已直接依赖各领域 application action owner
 - 当前仓库内已只剩 `test/test_advanced_application.py` 把它当兼容聚合壳覆盖
+- 兼容属性访问会显式发出 `DeprecationWarning`
 
 当前问题：
 
@@ -181,6 +182,7 @@
 2. 在仓库内部禁止新增主链直接依赖 `application.advanced_actions`
 3. 继续让测试仅承担兼容覆盖，而不是把它当正式 owner
 4. 用 architecture guard 固定其测试使用面不再扩散
+5. 若继续收缩，可把废弃告警升级成外部迁移提醒的唯一入口
 
 ## 4. 推荐收缩顺序
 
