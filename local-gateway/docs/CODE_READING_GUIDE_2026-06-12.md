@@ -153,6 +153,7 @@ main.py
 - 哪些函数只是转发？
 - 它为什么还留着？
 - 哪些外部旧导入可能还需要它？
+- 为什么 `init_db()` 在仓库内已经只剩废弃告警测试意义？
 
 不要再把它当作仓库内部主实现。
 
@@ -250,6 +251,7 @@ main.py
 - router 和 AI tool dispatch 现在如何共享内部用例
 - 哪些地方 application 层在做编排、参数归一、结果补查
 - `advanced_actions.py` 现在为什么只是 compatibility aggregator
+- 为什么它在仓库内已经只剩 compat 测试覆盖面
 
 ## 8. 第七轮：搜索、下载、沙盒、安全
 

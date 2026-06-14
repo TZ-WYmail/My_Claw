@@ -80,6 +80,7 @@
 - 兼容历史初始化入口
 - 真实 owner 已是 `bootstrap_service`
 - 当前调用会显式发出 `DeprecationWarning`
+- 当前仓库内部已只剩 1 条专门验证废弃告警的测试依赖
 
 当前问题：
 
@@ -88,7 +89,7 @@
 建议动作：
 
 1. 生产启动保持只走 `bootstrap_service`
-2. 继续观察是否仍有仓库外部历史调用依赖它
+2. 继续把它限制在仓库外历史调用与废弃告警测试覆盖范围
 3. 条件成熟后再评估显式废弃或删除
 
 ### 3.3 `services/mail_service.py`
@@ -165,6 +166,7 @@
 - 为历史 `advanced` 概念保留稳定导入面
 - 继续聚合 tags / subtasks / pomodoro / calendar / task detail 相关 action
 - 当前仓库内部主链已直接依赖各领域 application action owner
+- 当前仓库内已只剩 `test/test_advanced_application.py` 把它当兼容聚合壳覆盖
 
 当前问题：
 

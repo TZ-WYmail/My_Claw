@@ -654,6 +654,32 @@ HTTP ai_planning router
 - `services/mail_service.py` 继续保留兼容入口，但不再承担 mail 子模块内部 runtime 桥接
 - 后续如果继续收缩，重点会转到 tests 侧对 runtime 注入的稳定性与 facade 导出面治理
 
+### 1.37 `task_service.init_db()` 已收缩到“废弃告警测试 + 仓库外兼容”状态
+
+已确认：
+
+- 仓库内部主链已不再依赖 `task_service.init_db()`
+- 当前仓库内只剩 1 条专门验证 `DeprecationWarning` 的 compat 测试使用它
+
+当前结果：
+
+- `task_service.init_db()` 已不再承担任何内部业务初始化职责
+- 它现在的价值被进一步压缩到“仓库外历史入口稳定性”和“显式废弃信号覆盖”
+- 后续是否删除，核心判断点已从“内部有没有人用”转成“仓库外还有没有调用面”
+
+### 1.38 `advanced_actions` 已收缩到纯 compat 测试覆盖面
+
+已确认：
+
+- 仓库内部正式代码路径已不再依赖 `application.advanced_actions`
+- 当前仓库内只剩 `test/test_advanced_application.py` 覆盖其兼容聚合壳行为
+
+当前结果：
+
+- `advanced_actions` 在仓库内已经不再承担主链职责
+- 它的保留价值已进一步收缩到稳定导入面与兼容测试
+- 后续是否继续瘦身，判断重点会转到是否仍需要仓库外稳定导入面
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`
