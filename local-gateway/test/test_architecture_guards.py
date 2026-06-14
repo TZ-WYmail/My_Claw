@@ -22,6 +22,8 @@ SEARCH_LEGACY_PATH = "/api/search/" "legacy"
 LOCAL_FILE_SEARCH_COMPAT_NAME = "local_file_search"
 MAIN_ENTRY_FILE = REPO_ROOT / "main.py"
 THIS_TEST_FILE = Path(__file__).resolve()
+TASK_SERVICE_COMPAT_TEST_FILE = REPO_ROOT / "test" / "test_services.py"
+ADVANCED_ACTIONS_COMPAT_TEST_FILE = REPO_ROOT / "test" / "test_advanced_application.py"
 
 
 def _iter_internal_python_files():
@@ -251,6 +253,34 @@ def test_tests_no_longer_use_legacy_search_path():
             continue
         content = path.read_text(encoding="utf-8")
         if SEARCH_LEGACY_PATH in content:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
+
+
+def test_task_service_init_db_is_only_covered_by_compat_test():
+    findings: list[str] = []
+
+    for path in TEST_SOURCE_DIR.rglob("test_*.py"):
+        if path == THIS_TEST_FILE:
+            continue
+        content = path.read_text(encoding="utf-8")
+        if "task_service.init_db(" not in content:
+            continue
+        if path != TASK_SERVICE_COMPAT_TEST_FILE:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
+
+
+def test_advanced_actions_is_only_used_by_compat_test():
+    findings: list[str] = []
+
+    for path in TEST_SOURCE_DIR.rglob("test_*.py"):
+        content = path.read_text(encoding="utf-8")
+        if "advanced_actions" not in content:
+            continue
+        if path not in {ADVANCED_ACTIONS_COMPAT_TEST_FILE, THIS_TEST_FILE}:
             findings.append(str(path.relative_to(REPO_ROOT)))
 
     assert findings == []

@@ -42,11 +42,8 @@ async def setup_db(tmp_path, monkeypatch):
     import services.calendar_sync_service as calendar_sync_service_mod
     import services.habit_service as habit_service_mod
 
-    task_service_mod = importlib.import_module("services.task_service")
-
     db_path = tmp_path / "test_services.db"
     monkeypatch.setattr(bootstrap_service_mod, "DB_PATH", db_path)
-    monkeypatch.setattr(task_service_mod, "DB_PATH", db_path)
     monkeypatch.setattr(task_command_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_detail_service, "DB_PATH", db_path)
     monkeypatch.setattr(task_query_service, "DB_PATH", db_path)
@@ -205,8 +202,9 @@ class TestTaskServiceCompat:
     """任务兼容 facade 测试"""
 
     @pytest.mark.asyncio
-    async def test_task_service_init_db_emits_deprecation_warning(self):
+    async def test_task_service_init_db_emits_deprecation_warning(self, monkeypatch):
         task_service_mod = importlib.import_module("services.task_service")
+        monkeypatch.setattr(task_service_mod, "DB_PATH", bootstrap_service.DB_PATH)
 
         with pytest.warns(DeprecationWarning, match=r"services\.bootstrap_service\.init_db"):
             await task_service_mod.init_db()

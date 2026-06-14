@@ -711,6 +711,22 @@ HTTP ai_planning router
 - 这批 helper 的正式 owner 只剩 `services.task_planning_service`
 - 后续如果继续收缩 `task_service`，可更聚焦在仍保留的 CRUD / query / dashboard 转发面
 
+### 1.41 compat 测试使用面已进一步收口
+
+已完成：
+
+- `test/test_services.py` 不再在通用 fixture 中默认 patch `services.task_service.DB_PATH`
+- `task_service.init_db()` 的 compat patch 收缩到专门的废弃告警测试
+- `test/test_architecture_guards.py` 新增两条测试面护栏：
+  - `task_service.init_db()` 只允许出现在 compat 测试文件
+  - `advanced_actions` 只允许出现在 compat 测试文件
+
+当前结果：
+
+- compat facade 的测试支点不再扩散到通用测试装配层
+- `task_service.init_db()` 与 `advanced_actions` 的仓库内使用面被更明确地压缩到单文件 compat 覆盖
+- 后续如果继续删除 compat 面，测试侧阻力会更低
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

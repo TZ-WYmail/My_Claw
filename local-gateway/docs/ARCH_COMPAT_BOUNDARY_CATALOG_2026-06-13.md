@@ -180,6 +180,7 @@
 1. 保留兼容聚合壳，但不要再往里挂新主逻辑
 2. 在仓库内部禁止新增主链直接依赖 `application.advanced_actions`
 3. 继续让测试仅承担兼容覆盖，而不是把它当正式 owner
+4. 用 architecture guard 固定其测试使用面不再扩散
 
 ## 4. 推荐收缩顺序
 
