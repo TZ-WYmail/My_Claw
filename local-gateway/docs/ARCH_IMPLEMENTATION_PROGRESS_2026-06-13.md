@@ -645,7 +645,7 @@ HTTP ai_planning router
 
 - 新建 `services/mail/runtime_env.py`
 - `services/mail/*` 不再直接依赖已删除的 `services/mail/compat.py`
-- `test/conftest.py` 改为对 `services.mail.runtime_env` 做测试数据库注入
+- tests 继续通过 `services.mail_service` 注入 runtime 覆盖点
 - `test/test_architecture_guards.py` 新增 mail compat 旧桥护栏
 
 当前结果：

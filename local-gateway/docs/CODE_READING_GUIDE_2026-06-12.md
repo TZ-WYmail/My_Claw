@@ -313,20 +313,22 @@ AI 现在要分成两条线读。
 3. `routers/mail_portal.py`
 4. `services/mail_service.py`
 5. `services/mail/facade.py`
-6. `services/mail/schema.py`
-7. `services/mail/accounts.py`
-8. `services/mail/threads.py`
-9. `services/mail/drafts.py`
-10. `services/mail/sync.py`
-11. `services/mail/automation.py`
-12. `services/mail/parsing.py`
-13. `services/mail/runtime.py`
-14. `services/mail/utils.py`
+6. `services/mail/runtime_env.py`
+7. `services/mail/schema.py`
+8. `services/mail/accounts.py`
+9. `services/mail/threads.py`
+10. `services/mail/drafts.py`
+11. `services/mail/sync.py`
+12. `services/mail/automation.py`
+13. `services/mail/parsing.py`
+14. `services/mail/runtime.py`
+15. `services/mail/utils.py`
 
 核心问题：
 
 - `mail_service.py` 为什么还保留
 - `services/mail/facade.py` 对外暴露什么
+- `services/mail/runtime_env.py` 为什么存在，以及它如何承接测试注入
 - 真正的子系统实现分散在哪些文件
 
 ## 11. 第十轮：前端
@@ -383,7 +385,8 @@ AI 现在要分成两条线读。
 2. `services/ai_service.py` 和 `services/ai_planning_service.py` 仍然偏厚
 3. `mail_service.py` 仍然保留 facade 存在感
 4. AI 兼容工具别名 `local_file_search` 仍保留，但正式名已切到 `local_unified_search`
-5. 部分旧文档和 README 还停留在重构前的判断
+5. mail runtime 注入虽然已从 compat 桥迁走，但 facade 测试覆盖点仍需要继续治理
+6. 部分旧文档和 README 还停留在重构前的判断
 
 ## 14. 一个最省时间的阅读策略
 
@@ -406,6 +409,7 @@ AI 现在要分成两条线读。
 15. `services/ai_planning_service.py`
 16. `services/mail_service.py`
 17. `services/mail/facade.py`
-18. `test/test_architecture_guards.py`
+18. `services/mail/runtime_env.py`
+19. `test/test_architecture_guards.py`
 
-走完这 18 个文件，你会先得到现在的真实骨架，再决定去深挖哪个子系统。
+走完这 19 个文件，你会先得到现在的真实骨架，再决定去深挖哪个子系统。
