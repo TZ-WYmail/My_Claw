@@ -20,7 +20,7 @@ from routers.mail_portal_render import (
     render_mail_portal_page,
     render_portal_result_page,
 )
-from services import mail_service
+from services.mail import facade as mail_service
 
 router = APIRouter()
 

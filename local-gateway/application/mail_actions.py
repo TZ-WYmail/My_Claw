@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from services import mail_service
+from services.mail import facade as mail_service
 
 
 async def list_accounts_action() -> dict:

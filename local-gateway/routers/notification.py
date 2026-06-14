@@ -1,7 +1,7 @@
 """通知配置 API"""
 from fastapi import APIRouter
 from services.notification_service import notification_config, send_email, send_test_email
-from services.mail_service import ensure_mail_account_from_notification_config
+from services.mail.facade import ensure_mail_account_from_notification_config
 
 router = APIRouter()
 

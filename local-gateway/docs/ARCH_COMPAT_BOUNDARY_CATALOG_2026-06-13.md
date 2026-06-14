@@ -98,6 +98,7 @@
 
 - 对邮件子系统提供统一公开面
 - 为旧模块引用保留稳定导入路径
+- 当前仓库内部主链已改为直接依赖 `services.mail.facade`
 
 当前问题：
 
@@ -107,8 +108,10 @@
 建议动作：
 
 1. 保留对外 facade
-2. 在文档和新代码中明确 mail 主实现边界
-3. 避免继续往 `mail_service.py` 堆新逻辑
+2. 在仓库内部继续禁止新增主链直接依赖 `services.mail_service`
+3. 用 architecture guard 固化该边界
+4. 在文档和新代码中明确 mail 主实现边界
+5. 避免继续往 `mail_service.py` 堆新逻辑
 
 ### 3.4 `local_file_search` 工具别名
 
@@ -173,6 +176,7 @@
 
 - 评估 `task_service.init_db()` 的仓库外保留必要性
 - 清点 `mail_service.py` 对外导出面里哪些仍被历史调用依赖
+- 评估 `services.mail.facade` 是否可以继续下沉为更细粒度导入
 
 ### 7.2 命名治理组
 

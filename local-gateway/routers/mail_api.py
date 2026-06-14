@@ -33,7 +33,6 @@ from application.mail_actions import (
     update_draft_action,
     update_mail_polling_action,
 )
-from services import mail_service
 
 router = APIRouter()
 

@@ -5,23 +5,28 @@ from routers import fulltext_search, search
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIRS = ("application", "routers", "services", "test")
+INTERNAL_SOURCE_DIRS = ("application", "routers", "services")
 BACKEND_SOURCE_DIRS = ("application", "routers", "services")
 TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
+MAIL_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "mail_service.py"
+MAIL_SERVICE_RUNTIME_COMPAT_FILE = REPO_ROOT / "services" / "mail" / "compat.py"
 ADVANCED_COMPAT_ROUTER_FILE = REPO_ROOT / "routers" / "advanced_features.py"
 FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
 TEST_SOURCE_DIR = REPO_ROOT / "test"
 ADVANCED_COMPAT_PATH = "/api/" "advanced/"
 SEARCH_LEGACY_PATH = "/api/search/" "legacy"
+MAIN_ENTRY_FILE = REPO_ROOT / "main.py"
 THIS_TEST_FILE = Path(__file__).resolve()
 
 
-def _iter_python_files():
-    for dirname in SOURCE_DIRS:
+def _iter_internal_python_files():
+    for dirname in INTERNAL_SOURCE_DIRS:
         for path in (REPO_ROOT / dirname).rglob("*.py"):
-            if path in {TASK_SERVICE_COMPAT_FILE, THIS_TEST_FILE}:
+            if path in {TASK_SERVICE_COMPAT_FILE, MAIL_SERVICE_COMPAT_FILE, MAIL_SERVICE_RUNTIME_COMPAT_FILE, THIS_TEST_FILE}:
                 continue
             yield path
+    if MAIN_ENTRY_FILE.exists():
+        yield MAIN_ENTRY_FILE
 
 
 def _find_task_service_imports(path: Path) -> list[str]:
@@ -42,11 +47,40 @@ def _find_task_service_imports(path: Path) -> list[str]:
     return findings
 
 
+def _find_mail_service_imports(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    findings: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "services.mail_service":
+                    findings.append(f"import services.mail_service (line {node.lineno})")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "services.mail_service":
+                findings.append(f"from services.mail_service import ... (line {node.lineno})")
+            elif node.module == "services" and any(alias.name == "mail_service" for alias in node.names):
+                findings.append(f"from services import mail_service (line {node.lineno})")
+
+    return findings
+
+
 def test_internal_code_no_longer_imports_task_service_directly():
     findings: dict[str, list[str]] = {}
 
-    for path in _iter_python_files():
+    for path in _iter_internal_python_files():
         path_findings = _find_task_service_imports(path)
+        if path_findings:
+            findings[str(path.relative_to(REPO_ROOT))] = path_findings
+
+    assert findings == {}
+
+
+def test_internal_code_no_longer_imports_mail_service_directly():
+    findings: dict[str, list[str]] = {}
+
+    for path in _iter_internal_python_files():
+        path_findings = _find_mail_service_imports(path)
         if path_findings:
             findings[str(path.relative_to(REPO_ROOT))] = path_findings
 

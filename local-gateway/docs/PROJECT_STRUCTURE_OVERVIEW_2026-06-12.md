@@ -290,27 +290,28 @@ router 现在已经可以分成 3 类：
 #### 邮件系统
 
 - `mail_service.py`
-- `services/mail/*`
+- `mail/facade.py`
+- `mail/*`
 
 其中：
 
 - `mail_service.py`
-  - 仍是 facade
-- `services/mail/facade.py`
-  - 对外导出面
-- `services/mail/schema.py`
+  - 兼容 facade，只保留历史稳定导入面
+- `mail/facade.py`
+  - 仓库内部 mail 正式 facade，主链优先依赖这里
+- `mail/schema.py`
   - schema / migration
-- `services/mail/accounts.py`
+- `mail/accounts.py`
   - 账户 / 文件夹
-- `services/mail/threads.py`
+- `mail/threads.py`
   - 线程 / 消息 / 仪表盘
-- `services/mail/drafts.py`
+- `mail/drafts.py`
   - 草稿
-- `services/mail/sync.py`
+- `mail/sync.py`
   - 同步
-- `services/mail/automation.py`
+- `mail/automation.py`
   - 自动处理
-- `services/mail/parsing.py`
+- `mail/parsing.py`
   - 解析与 AI mail 辅助
 
 ### 5.5 `frontend/`

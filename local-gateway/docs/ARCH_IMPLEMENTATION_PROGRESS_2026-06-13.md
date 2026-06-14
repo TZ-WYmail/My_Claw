@@ -596,6 +596,23 @@ HTTP ai_planning router
 - 旧调用仍能走统一搜索主链，不会因为命名切换而中断
 - 搜索子系统剩余的历史问题从“命名混淆”进一步收口到“兼容别名何时最终删除”
 
+### 1.33 邮件内部主链已迁离 `services.mail_service`
+
+已完成：
+
+- `main.py` 改为直接依赖 `services.mail.facade`
+- `application/mail_actions.py` 改为直接依赖 `services.mail.facade`
+- `routers/mail_portal.py` 改为直接依赖 `services.mail.facade`
+- `routers/notification.py` 改为直接从 `services.mail.facade` 获取邮件账户桥接能力
+- `test/test_architecture_guards.py` 新增邮件 facade 护栏，禁止仓库内部主链重新直接导入 `services.mail_service`
+- 护栏检查范围限定为 `application/`、`routers/`、`services/` 与 `main.py`，保留测试侧对兼容入口的覆盖能力
+
+当前结果：
+
+- `services/mail_service.py` 的角色进一步收缩到兼容 facade
+- 邮件子系统当前真实主链已更清楚地落在 `services.mail.facade` 与 `services/mail/*`
+- 后续如果继续瘦身 `mail_service.py`，主要问题会转成兼容导出面治理，而不是仓库内部主链拆迁
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

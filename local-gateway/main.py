@@ -51,7 +51,8 @@ from routers import (
     webhooks,
     workflows,
 )
-from services import bootstrap_service, mail_service
+from services import bootstrap_service
+from services.mail import facade as mail_facade
 from services.sync_service import sync_engine
 from services.time_service import build_system_time_payload
 
@@ -79,9 +80,9 @@ async def lifespan(app: FastAPI):
     # 初始化数据库
     await bootstrap_service.init_db()
     logger.info(f"✅ 数据库初始化完成: tasks.db")
-    await mail_service.init_mail_db()
+    await mail_facade.init_mail_db()
     logger.info("✅ 邮件基础设施初始化完成")
-    await mail_service.start_mail_polling_scheduler()
+    await mail_facade.start_mail_polling_scheduler()
     logger.info("✅ 邮件轮询调度器初始化完成")
     # 初始化同步引擎
     await sync_engine.initialize()
@@ -96,7 +97,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"📡 服务监听: http://{HOST}:{PORT}")
     yield
     logger.info(f"🛑 {SERVICE_NAME} 正在关闭...")
-    await mail_service.stop_mail_polling_scheduler()
+    await mail_facade.stop_mail_polling_scheduler()
     shutdown_scheduler()
 
 

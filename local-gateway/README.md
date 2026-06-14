@@ -122,7 +122,8 @@ local-gateway/
 - `runtime_log_service.py`
 - `ai_service.py`
 - `ai_planning_service.py`
-- `mail_service.py`
+- `mail/facade.py`（内部正式 facade）
+- `mail_service.py`（compat facade）
 
 ## API 主入口
 
@@ -198,7 +199,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 - `services/task_service.py`
 - `task_service.init_db()`（已显式废弃，暂留兼容）
-- `services/mail_service.py`
+- `services/mail_service.py`（内部主链已迁离，仓库内新代码应优先依赖 `services.mail.facade`）
 - AI 兼容工具别名 `local_file_search`（正式名已切到 `local_unified_search`）
 
 如果你继续做架构收口，优先不要往这些对象继续堆新逻辑。
