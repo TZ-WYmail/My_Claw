@@ -77,8 +77,8 @@ local-gateway/
 - 在 lifespan 中初始化：
   - `ensure_dirs()`
   - `bootstrap_service.init_db()`
-  - `mail_service.init_mail_db()`
-  - `mail_service.start_mail_polling_scheduler()`
+  - `services.mail.facade.init_mail_db()`
+  - `services.mail.facade.start_mail_polling_scheduler()`
   - `sync_engine.initialize()`
   - 通知调度器
   - reminder 恢复

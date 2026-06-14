@@ -1,8 +1,9 @@
 """
-Advanced feature compatibility entrypoints.
+Advanced-domain compatibility facade.
 
-This module remains as a compatibility aggregator while advanced routes are
-being split toward domain-specific application modules.
+The historical HTTP advanced routes have already been removed. This module
+remains only as an import-stable aggregation layer for compatibility callers
+and dedicated tests; domain-specific application modules are the real owners.
 """
 from __future__ import annotations
 

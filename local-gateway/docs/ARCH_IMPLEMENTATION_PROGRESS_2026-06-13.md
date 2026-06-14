@@ -613,6 +613,19 @@ HTTP ai_planning router
 - 邮件子系统当前真实主链已更清楚地落在 `services.mail.facade` 与 `services/mail/*`
 - 后续如果继续瘦身 `mail_service.py`，主要问题会转成兼容导出面治理，而不是仓库内部主链拆迁
 
+### 1.34 `advanced_actions` 已固定为 compat facade
+
+已完成：
+
+- `application/advanced_actions.py` 文件头改为明确声明其为兼容 facade
+- `test/test_architecture_guards.py` 新增 application 侧护栏，禁止仓库内部主链重新直接导入 `application.advanced_actions`
+
+当前结果：
+
+- `advanced_actions` 的角色被进一步限制在兼容聚合壳
+- 领域 action owner 边界不会再因为历史 `advanced` 命名回流
+- 后续如果继续瘦身该模块，主要工作会转成兼容导入面治理，而不是清理主链依赖
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

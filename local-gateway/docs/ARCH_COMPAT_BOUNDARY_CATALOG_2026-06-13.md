@@ -18,6 +18,7 @@
 
 ### 2.1 facade 类
 
+- `application/advanced_actions.py`
 - `services/task_service.py`
 - `services/mail_service.py`
 
@@ -134,13 +135,36 @@
 2. 旧 `local_file_search` 继续保留为兼容别名并发出废弃告警
 3. 观察是否还存在仓库外旧调用，再决定最终删除窗口
 
+### 3.5 `application/advanced_actions.py`
+
+分类：`可进入观察期`
+
+当前作用：
+
+- 为历史 `advanced` 概念保留稳定导入面
+- 继续聚合 tags / subtasks / pomodoro / calendar / task detail 相关 action
+- 当前仓库内部主链已直接依赖各领域 application action owner
+
+当前问题：
+
+- `advanced` 命名已经不再对应任何正式 HTTP 路由
+- 容易让后续开发误判它仍是增强能力的正式 application 入口
+- 会弱化按领域组织 action owner 的边界感
+
+建议动作：
+
+1. 保留兼容聚合壳，但不要再往里挂新主逻辑
+2. 在仓库内部禁止新增主链直接依赖 `application.advanced_actions`
+3. 继续让测试仅承担兼容覆盖，而不是把它当正式 owner
+
 ## 4. 推荐收缩顺序
 
 按风险和收益，建议顺序如下：
 
 1. 继续观察 `task_service.init_db()` 的废弃告警是否足够暴露到外部调用方
 2. `services/task_service.py` 更大范围的 facade 瘦身
-3. `local_file_search` 兼容别名最终退场
+3. `application/advanced_actions.py` 的仓库外保留必要性评估
+4. `local_file_search` 兼容别名最终退场
 
 ## 5. 当前不建议立刻动的部分
 
@@ -149,6 +173,7 @@
 - `services/task_service.py`
 - `services/mail_service.py`
 - `task_service.init_db()`
+- `application/advanced_actions.py`
 - `local_file_search` 兼容别名
 
 原因：
@@ -176,6 +201,7 @@
 
 - 评估 `task_service.init_db()` 的仓库外保留必要性
 - 清点 `mail_service.py` 对外导出面里哪些仍被历史调用依赖
+- 评估 `application/advanced_actions.py` 是否还存在仓库外稳定调用面
 - 评估 `services.mail.facade` 是否可以继续下沉为更细粒度导入
 
 ### 7.2 命名治理组
