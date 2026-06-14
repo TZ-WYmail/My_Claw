@@ -1,15 +1,16 @@
 import ast
 from pathlib import Path
 
-from routers import advanced_features, fulltext_search, search
+from routers import fulltext_search, search
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRS = ("application", "routers", "services", "test")
+BACKEND_SOURCE_DIRS = ("application", "routers", "services")
 TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
+ADVANCED_COMPAT_ROUTER_FILE = REPO_ROOT / "routers" / "advanced_features.py"
 FRONTEND_SOURCE_DIR = REPO_ROOT / "frontend" / "src"
 TEST_SOURCE_DIR = REPO_ROOT / "test"
-ADVANCED_COMPAT_TEST_FILE = TEST_SOURCE_DIR / "test_advanced_compat_routes.py"
 ADVANCED_COMPAT_PATH = "/api/" "advanced/"
 SEARCH_LEGACY_PATH = "/api/search/" "legacy"
 THIS_TEST_FILE = Path(__file__).resolve()
@@ -52,17 +53,20 @@ def test_internal_code_no_longer_imports_task_service_directly():
     assert findings == {}
 
 
-def test_advanced_features_router_is_compatibility_alias_only():
-    route_modules = {route.endpoint.__module__ for route in advanced_features.router.routes}
+def test_advanced_compat_router_has_been_removed():
+    assert not ADVANCED_COMPAT_ROUTER_FILE.exists()
 
-    assert route_modules == {
-        "routers.tags",
-        "routers.subtasks",
-        "routers.pomodoro",
-        "routers.calendar",
-        "routers.task_detail",
-    }
-    assert "routers.advanced_features" not in route_modules
+
+def test_backend_sources_no_longer_reference_advanced_compat_router():
+    findings: list[str] = []
+
+    for dirname in BACKEND_SOURCE_DIRS:
+        for path in (REPO_ROOT / dirname).rglob("*.py"):
+            content = path.read_text(encoding="utf-8")
+            if "advanced_features" in content or ADVANCED_COMPAT_PATH in content:
+                findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
 
 
 def test_search_router_ownership_boundaries_are_stable():
@@ -86,11 +90,11 @@ def test_frontend_sources_no_longer_use_advanced_compat_paths():
     assert findings == []
 
 
-def test_non_compat_tests_no_longer_use_advanced_compat_paths():
+def test_tests_no_longer_use_advanced_compat_paths():
     findings: list[str] = []
 
     for path in TEST_SOURCE_DIR.rglob("test_*.py"):
-        if path in {ADVANCED_COMPAT_TEST_FILE, THIS_TEST_FILE}:
+        if path == THIS_TEST_FILE:
             continue
         content = path.read_text(encoding="utf-8")
         if ADVANCED_COMPAT_PATH in content:

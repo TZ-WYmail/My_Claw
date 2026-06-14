@@ -548,6 +548,22 @@ HTTP ai_planning router
 - 正式域 router 已同时在后端 owner、前端调用面、测试护栏三层对齐
 - 后续如果要删除 advanced 兼容路径，阻力会更多地集中在历史兼容测试与外部调用，而不是当前主界面
 
+### 1.30 `/api/advanced/*` 与 `routers/advanced_features.py` 已删除
+
+已完成：
+
+- `main.py` 不再注册 `advanced_features` router
+- 删除 `routers/advanced_features.py`
+- 删除 `test/test_advanced_compat_routes.py`
+- `test/test_architecture_guards.py` 改为禁止代码、前端与测试重新依赖 `/api/advanced/*`
+- README、结构总览、阅读指南、兼容边界清单、advanced 映射文档、测试报告已同步到正式域路径
+
+当前结果：
+
+- `/api/tags`、`/api/subtasks`、`/api/pomodoro/*`、`/api/calendar/*`、`/api/tasks/{task_id}/detail`、`/api/tasks/batch-update` 成为唯一正式 HTTP owner
+- `advanced_features` 这个历史聚合命名已完成退场
+- 兼容层重点从 router 历史路径治理收口到 `task_service`、`mail_service` 与 `local_file_search` 命名
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

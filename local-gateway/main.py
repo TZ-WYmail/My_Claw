@@ -24,7 +24,6 @@ from config import (
 )
 from models.schemas import HealthResponse
 from routers import (
-    advanced_features,
     ai_planning,
     calendar,
     calendar_sync,
@@ -133,7 +132,6 @@ app.include_router(job_status.router, prefix="/api")
 app.include_router(sandbox_executor.router, prefix="/api")
 app.include_router(chat_router.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
-app.include_router(advanced_features.router, prefix="/api")
 app.include_router(tags.router, prefix="/api")
 app.include_router(subtasks.router, prefix="/api")
 app.include_router(pomodoro.router, prefix="/api")

@@ -54,7 +54,7 @@ python main.py
    - 正式统一搜索：`routers/search.py`
    - 全文索引：`routers/fulltext_search.py`
 5. 历史 `POST /api/search/legacy` 与 `routers/file_search.py` 已删除
-6. `/api/advanced/*` 只是 compatibility alias，不再维护独立实现
+6. 历史 `/api/advanced/*` 与 `routers/advanced_features.py` 已删除
 7. application 层已经成形，router 不再是唯一业务编排点
 
 ## 主要目录
@@ -103,9 +103,9 @@ local-gateway/
 - `sync.py`
 - `mail.py`
 
-兼容路径：
+历史兼容 router：
 
-- `advanced_features.py`
+- 无。历史 `advanced_features.py` 与 `file_search.py` 均已删除。
 
 ### `services/`
 
@@ -164,9 +164,9 @@ local-gateway/
 - `/api/tasks/batch-update`
 - `/api/mail/*`
 
-### 兼容增强路径
+### 历史兼容增强路径
 
-- `/api/advanced/*`
+- 历史 `/api/advanced/*` 已删除，对应正式域入口已稳定。
 
 ## 测试
 
@@ -198,7 +198,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 - `services/task_service.py`
 - `task_service.init_db()`
-- `/api/advanced/*`
 - `services/mail_service.py`
+- AI 工具名 `local_file_search`
 
 如果你继续做架构收口，优先不要往这些对象继续堆新逻辑。

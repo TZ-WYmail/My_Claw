@@ -1,7 +1,7 @@
 # 兼容层与边界清单（2026-06-14）
 
 更新时间：2026-06-14
-目的：给当前仍保留的 facade / compatibility wrapper / 历史命名入口建立清单、分类和后续退场顺序
+目的：给当前仍保留的 facade / compatibility wrapper / 历史命名入口建立清单、分类和后续收缩顺序
 
 ## 1. 当前判断原则
 
@@ -14,7 +14,7 @@
 
 不在这里讨论具体代码实现。
 
-## 2. 兼容层分类
+## 2. 当前仍活跃的兼容层分类
 
 ### 2.1 facade 类
 
@@ -39,25 +39,14 @@
 
 ### 2.3 命名兼容类
 
-- `routers/advanced_features.py`
-- `/api/advanced/*`
 - `local_file_search`（AI tool schema / executor 命名）
 
 特点：
 
 - 主要问题不是逻辑重复，而是命名继续暴露旧结构判断
-- 容易让后续开发围绕历史命名继续堆功能
+- 容易让后续开发围绕历史语义继续堆功能
 
-### 2.4 子系统 facade 类
-
-- `services/mail_service.py` -> `services/mail/facade.py`
-
-特点：
-
-- 对邮件子系统外部调用方仍有价值
-- 但阅读和演进时必须明确 `mail_service.py` 不是邮件主实现
-
-## 3. 清单与分类
+## 3. 活跃兼容清单
 
 ### 3.1 `services/task_service.py`
 
@@ -120,26 +109,7 @@
 2. 在文档和新代码中明确 mail 主实现边界
 3. 避免继续往 `mail_service.py` 堆新逻辑
 
-### 3.4 `routers/advanced_features.py` / `/api/advanced/*`
-
-分类：`可进入观察期`
-
-当前作用：
-
-- 作为 tags/subtasks/pomodoro/calendar/task-detail 正式域路由的兼容别名入口
-
-当前问题：
-
-- 这是典型历史聚合命名，不是稳定业务域
-- 仍然继续暴露 `/advanced/*` 这组历史命名
-
-建议动作：
-
-1. 继续冻结新增“advanced” 类型能力
-2. 优先迁调用方到正式域路径
-3. 条件成熟后删除整组兼容路径
-
-### 3.5 `local_file_search` 工具命名
+### 3.4 `local_file_search` 工具命名
 
 分类：`可进入观察期`
 
@@ -156,18 +126,17 @@
 
 建议动作：
 
-1. 先保持 tool name 稳定，不与本轮 HTTP 路由清理混做
+1. 先保持 tool name 稳定，不与 HTTP 路由清理混做
 2. 在文档中明确它不是 legacy HTTP endpoint
 3. 后续单独评估是否迁到更贴近统一搜索语义的工具名
 
-## 4. 推荐退场顺序
+## 4. 推荐收缩顺序
 
 按风险和收益，建议顺序如下：
 
-1. `routers/advanced_features.py` 的历史命名与边界重整
-2. `task_service.init_db()` compat 入口
-3. `services/task_service.py` 更大范围的 facade 瘦身
-4. `local_file_search` AI 工具命名治理
+1. `task_service.init_db()` compat 入口
+2. `services/task_service.py` 更大范围的 facade 瘦身
+3. `local_file_search` AI 工具命名治理
 
 ## 5. 当前不建议立刻动的部分
 
@@ -191,6 +160,8 @@
 - `services/unified_search_service.py` 中的全文索引 compat 函数
 - `POST /api/search/legacy`
 - `routers/file_search.py`
+- `/api/advanced/*`
+- `routers/advanced_features.py`
 
 ## 7. 下一阶段建议
 
@@ -198,21 +169,19 @@
 
 ### 7.1 低风险清理组
 
-- 清点 `/api/advanced/*` 的剩余调用面
 - 评估 `task_service.init_db()` 的仓库外保留必要性
+- 清点 `mail_service.py` 对外导出面里哪些仍被历史调用依赖
 
-### 7.2 边界重命名组
+### 7.2 命名治理组
 
-- 为 `advanced_features` 建立目标域映射文档
 - 评估 `local_file_search` 工具名是否需要最终调整
-- 评估新的 router/package 命名方案
-- 明确是否需要前后端一起改路径
+- 评估是否需要为 `task_service` / `mail_service` 补更明确的 deprecation 提示
 
-## 7. 完成标准
+## 8. 完成标准
 
 满足以下条件，说明这份清单被真正用起来了：
 
 1. 新代码不再继续增加对 facade/wrapper 的主链依赖
 2. 每个 compat 入口都有保留理由
-3. 每个 compat 入口都有预计退场顺序
-4. `advanced_features` 不再被当作长期稳定业务域
+3. 每个 compat 入口都有预计收缩顺序
+4. 历史 HTTP 路由兼容层不再回流

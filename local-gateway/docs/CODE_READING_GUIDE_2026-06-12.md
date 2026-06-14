@@ -17,10 +17,10 @@
    - `task_detail_service`
    - `task_planning_service`
 4. `/api/search` 与 `/api/search/fulltext` 已分属不同 router owner，历史 `/api/search/legacy` 已删除
-5. `/api/advanced/*` 现在只是 compatibility alias，不再维护独立实现
+5. 历史 `/api/advanced/*` 已删除，正式域 router 已成为唯一 HTTP owner
 6. application 层已经成形，router 不再是唯一业务编排点
 
-如果还按旧思路把 `task_service.py`、`routers/advanced_features.py` 当主入口，后面会越读越乱；历史 `routers/file_search.py` 已不再存在。
+如果还按旧思路把 `task_service.py` 当主入口，后面会越读越乱；历史 `routers/advanced_features.py` 与 `routers/file_search.py` 已不再存在。
 
 ## 2. 读完后你至少要能回答的问题
 
@@ -32,7 +32,7 @@
 4. AI 对话工具调用是怎么落到 application/service 的？
 5. AI planning 的 preview / confirm / replan 分别由谁组织？
 6. mobile dashboard 的聚合 owner 是谁？
-7. `advanced_features` 为什么仍存在，但为什么已经不是主实现？
+7. `advanced_features` 退场后，原有职责现在落到哪些正式域路由？
 8. `/api/search` 与 `/api/search/fulltext` 的边界分别是什么？为什么历史 `/api/search/legacy` 可以删除？
 9. 邮件子系统的 facade 和子包实现如何分层？
 10. 哪些测试是在锁架构边界，而不是只锁业务行为？
@@ -205,9 +205,9 @@ main.py
 
 ### 兼容路径
 
-1. `routers/advanced_features.py`
+当前已无 router 级兼容路径。
 
-历史 `routers/file_search.py` 与 `POST /api/search/legacy` 已删除。
+历史 `routers/advanced_features.py`、`routers/file_search.py`、`POST /api/search/legacy` 与 `/api/advanced/*` 已删除。
 
 阅读重点：
 
@@ -223,7 +223,6 @@ main.py
 /api/search/fulltext   -> fulltext_search router
 
 /api/tags ...          -> formal domain routers
-/api/advanced/*        -> compatibility alias only
 ```
 
 ## 7. 第六轮：application 层
@@ -383,9 +382,8 @@ AI 现在要分成两条线读。
 1. `task_service.py` 仍然公开面偏宽，但已经不是内部主链
 2. `services/ai_service.py` 和 `services/ai_planning_service.py` 仍然偏厚
 3. `mail_service.py` 仍然保留 facade 存在感
-4. `/api/advanced/*` 仍在，虽然已经只做 alias
-5. AI 工具名 `local_file_search` 仍带历史语义，容易和已删除的 HTTP legacy 搜索混淆
-6. 部分旧文档和 README 还停留在重构前的判断
+4. AI 工具名 `local_file_search` 仍带历史语义，容易和已删除的 HTTP legacy 搜索混淆
+5. 部分旧文档和 README 还停留在重构前的判断
 
 ## 14. 一个最省时间的阅读策略
 
@@ -401,7 +399,7 @@ AI 现在要分成两条线读。
 8. `services/task_service.py`
 9. `routers/search.py`
 10. `routers/fulltext_search.py`
-11. `routers/advanced_features.py`
+11. `routers/tags.py`
 12. `application/ai_tools.py`
 13. `services/fulltext_search_service.py`
 14. `services/ai_service.py`

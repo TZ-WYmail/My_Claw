@@ -12,7 +12,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 
 最近一次结果：
 
-- `152 passed, 4 skipped`
+- `153 passed, 4 skipped`
 
 这条基线覆盖的是当前主干架构，而不是把 `test/` 目录里所有历史文件一把跑完。
 
@@ -30,12 +30,12 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 其中，`test/test_architecture_guards.py` 目前专门锁定以下架构约束：
 
 - 内部主链不再直接导入 `services.task_service`
-- `routers/advanced_features.py` 只作为兼容别名聚合
+- 代码、前端与测试不再重新依赖 `/api/advanced/*`
 - `/api/search` 与 `/api/search/fulltext` 的 owner 边界固定，并防止测试重新依赖历史 legacy 搜索路径
 
 ## 历史命名测试文件的解释
 
-测试目录中仍存在一些带 `phase`、`advanced_features` 等历史命名的文件。这些文件名不再代表当前架构阶段划分，只是历史保留文件名。
+测试目录中仍存在一些带 `phase`、`advanced` 等历史命名的文件。这些文件名不再代表当前架构阶段划分，只是历史保留文件名。
 
 阅读时要区分：
 
@@ -43,33 +43,15 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 - 测试目标可以仍然有效
 - 是否纳入当前常规回归，要看它是否稳定、是否依赖外部环境
 
-## 需要独立运行的兼容 / 联调测试
+## 需要独立运行的联调测试
 
 以下测试不应混入当前常规离线回归基线：
-
-### `test/test_advanced_compat_routes.py`
-
-特点：
-
-- 依赖本地真实服务启动在 `http://localhost:8900`
-- 主要覆盖 `/api/advanced/*` 兼容路径
-- 更适合作为兼容联调冒烟测试
-
-运行方式：
-
-```bash
-# 终端 1
-conda run -n claude python main.py
-
-# 终端 2
-conda run -n claude python -m pytest test/test_advanced_compat_routes.py -v
-```
 
 ### `test/test_phase2.py`
 
 特点：
 
-- 同样依赖本地真实服务
+- 依赖本地真实服务启动在 `http://localhost:8900`
 - 覆盖 AI / notes / habits / voice 等历史联调路径
 - 其中部分 AI 用例允许在缺少外部 API 配置时返回错误态
 
@@ -94,7 +76,7 @@ conda run -n claude python -m pytest test/test_advanced_compat_routes.py -v
 conda run -n claude python main.py
 
 # 终端 2
-conda run -n claude python -m pytest test/test_phase2.py -v
+conda run -n claude python -m pytest test/test_phase2.py test/test_ai_planning_calendar.py test/test_api.py -v
 ```
 
 ## 建议的日常测试顺序
