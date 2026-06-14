@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Optional
 
-from services.mail.compat import get_runtime_mail_service
+from services.mail.runtime_env import get_runtime_mail_service
 from services.mail.schema import MAIL_POLLING_CONFIG_FILE
 from services.mail.utils import now_iso
 

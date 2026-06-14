@@ -200,6 +200,7 @@ conda run -n claude python -m pytest test/test_task_application.py test/test_pla
 - `services/task_service.py`
 - `task_service.init_db()`（已显式废弃，暂留兼容）
 - `services/mail_service.py`（内部主链已迁离，仓库内新代码应优先依赖 `services.mail.facade`）
+- `services/mail/runtime_env.py`（mail 子模块运行时注入层）
 - AI 兼容工具别名 `local_file_search`（正式名已切到 `local_unified_search`）
 
 如果你继续做架构收口，优先不要往这些对象继续堆新逻辑。

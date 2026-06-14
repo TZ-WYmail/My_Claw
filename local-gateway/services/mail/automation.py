@@ -9,7 +9,7 @@ import aiosqlite
 
 from config import DB_PATH as DEFAULT_DB_PATH
 from services.mail.accounts import get_mail_account_raw
-from services.mail.compat import get_runtime_attr, get_runtime_db_path
+from services.mail.runtime_env import get_runtime_attr, get_runtime_db_path
 from services.mail.drafts import create_mail_draft, send_mail_draft, update_mail_draft
 from services.mail.parsing import (
     build_mail_action_card as default_build_mail_action_card,

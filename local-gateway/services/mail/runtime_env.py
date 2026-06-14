@@ -3,17 +3,16 @@ from __future__ import annotations
 import asyncio
 import imaplib
 import smtplib
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
 
-def get_runtime_mail_service() -> Optional[object]:
-    try:
-        from services import mail_service as mail_service_module
+MAIL_SERVICE_MODULE_NAME = "services.mail_service"
 
-        return mail_service_module
-    except Exception:
-        return None
+
+def get_runtime_mail_service() -> Optional[object]:
+    return sys.modules.get(MAIL_SERVICE_MODULE_NAME)
 
 
 def get_runtime_attr(name: str, default: Any = None) -> Any:
@@ -24,7 +23,7 @@ def get_runtime_attr(name: str, default: Any = None) -> Any:
 
 
 def get_runtime_db_path(default_db_path: Path) -> Path:
-    return get_runtime_attr("DB_PATH", default_db_path)
+    return Path(get_runtime_attr("DB_PATH", default_db_path))
 
 
 def get_runtime_asyncio():

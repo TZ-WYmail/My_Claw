@@ -10,7 +10,7 @@ from typing import Optional
 import aiosqlite
 
 from config import DB_PATH as DEFAULT_DB_PATH
-from services.mail.compat import get_runtime_asyncio, get_runtime_db_path, get_runtime_imaplib, get_runtime_smtplib
+from services.mail.runtime_env import get_runtime_asyncio, get_runtime_db_path, get_runtime_imaplib, get_runtime_smtplib
 from services.mail.schema import DEFAULT_FOLDERS
 from services.mail.utils import mask_secret, now_iso
 from services.notification_service import notification_config

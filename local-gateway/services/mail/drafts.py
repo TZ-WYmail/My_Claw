@@ -12,7 +12,7 @@ import aiosqlite
 
 from config import DB_PATH as DEFAULT_DB_PATH
 from services.mail.accounts import get_folder_id, get_mail_account_raw
-from services.mail.compat import get_runtime_asyncio, get_runtime_db_path, get_runtime_smtplib
+from services.mail.runtime_env import get_runtime_asyncio, get_runtime_db_path, get_runtime_smtplib
 from services.mail.threads import create_thread, get_mail_thread, refresh_thread_state
 from services.mail.utils import (
     build_outgoing_message_id,

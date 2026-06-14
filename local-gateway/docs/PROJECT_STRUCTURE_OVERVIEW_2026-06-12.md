@@ -291,6 +291,7 @@ router 现在已经可以分成 3 类：
 
 - `mail_service.py`
 - `mail/facade.py`
+- `mail/runtime_env.py`
 - `mail/*`
 
 其中：
@@ -299,6 +300,8 @@ router 现在已经可以分成 3 类：
   - 兼容 facade，只保留历史稳定导入面
 - `mail/facade.py`
   - 仓库内部 mail 正式 facade，主链优先依赖这里
+- `mail/runtime_env.py`
+  - mail 子模块运行时注入层，替代旧 compat 桥
 - `mail/schema.py`
   - schema / migration
 - `mail/accounts.py`

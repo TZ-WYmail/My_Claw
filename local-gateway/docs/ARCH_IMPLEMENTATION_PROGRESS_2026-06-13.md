@@ -639,6 +639,21 @@ HTTP ai_planning router
 - 内部主链对统一搜索的正式命名固定为 `local_unified_search`
 - 后续如果最终删除旧别名，主要工作会集中在外部兼容调用，而不是仓库内部清理
 
+### 1.36 mail 运行时桥已从 compat 迁到 `runtime_env`
+
+已完成：
+
+- 新建 `services/mail/runtime_env.py`
+- `services/mail/*` 不再直接依赖已删除的 `services/mail/compat.py`
+- `test/conftest.py` 改为对 `services.mail.runtime_env` 做测试数据库注入
+- `test/test_architecture_guards.py` 新增 mail compat 旧桥护栏
+
+当前结果：
+
+- mail 子模块的运行时注入变成显式内部层，而不是通过 compat 回看兼容 facade
+- `services/mail_service.py` 继续保留兼容入口，但不再承担 mail 子模块内部 runtime 桥接
+- 后续如果继续收缩，重点会转到 tests 侧对 runtime 注入的稳定性与 facade 导出面治理
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

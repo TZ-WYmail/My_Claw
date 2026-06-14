@@ -10,6 +10,8 @@ BACKEND_SOURCE_DIRS = ("application", "routers", "services")
 TASK_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "task_service.py"
 MAIL_SERVICE_COMPAT_FILE = REPO_ROOT / "services" / "mail_service.py"
 MAIL_SERVICE_RUNTIME_COMPAT_FILE = REPO_ROOT / "services" / "mail" / "compat.py"
+MAIL_SERVICE_RUNTIME_ENV_FILE = REPO_ROOT / "services" / "mail" / "runtime_env.py"
+MAIL_SOURCE_DIR = REPO_ROOT / "services" / "mail"
 ADVANCED_ACTIONS_COMPAT_FILE = REPO_ROOT / "application" / "advanced_actions.py"
 AI_TOOLS_COMPAT_FILE = REPO_ROOT / "application" / "ai_tools.py"
 ADVANCED_COMPAT_ROUTER_FILE = REPO_ROOT / "routers" / "advanced_features.py"
@@ -29,6 +31,7 @@ def _iter_internal_python_files():
                 TASK_SERVICE_COMPAT_FILE,
                 MAIL_SERVICE_COMPAT_FILE,
                 MAIL_SERVICE_RUNTIME_COMPAT_FILE,
+                MAIL_SERVICE_RUNTIME_ENV_FILE,
                 ADVANCED_ACTIONS_COMPAT_FILE,
                 AI_TOOLS_COMPAT_FILE,
                 THIS_TEST_FILE,
@@ -104,6 +107,24 @@ def _find_local_file_search_mentions(path: Path) -> list[str]:
     return findings
 
 
+def _find_mail_compat_imports(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    findings: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "services.mail.compat":
+                    findings.append(f"import services.mail.compat (line {node.lineno})")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "services.mail.compat":
+                findings.append(f"from services.mail.compat import ... (line {node.lineno})")
+            elif node.module == "services.mail" and any(alias.name == "compat" for alias in node.names):
+                findings.append(f"from services.mail import compat (line {node.lineno})")
+
+    return findings
+
+
 def test_internal_code_no_longer_imports_task_service_directly():
     findings: dict[str, list[str]] = {}
 
@@ -146,6 +167,30 @@ def test_internal_code_no_longer_uses_local_file_search_name():
             findings[str(path.relative_to(REPO_ROOT))] = path_findings
 
     assert findings == {}
+
+
+def test_internal_code_no_longer_imports_mail_compat_directly():
+    findings: dict[str, list[str]] = {}
+
+    for path in _iter_internal_python_files():
+        path_findings = _find_mail_compat_imports(path)
+        if path_findings:
+            findings[str(path.relative_to(REPO_ROOT))] = path_findings
+
+    assert findings == {}
+
+
+def test_mail_submodules_no_longer_reference_removed_compat_module():
+    findings: list[str] = []
+
+    for path in MAIL_SOURCE_DIR.rglob("*.py"):
+        if path in {MAIL_SERVICE_RUNTIME_ENV_FILE,}:
+            continue
+        content = path.read_text(encoding="utf-8")
+        if "services.mail.compat" in content:
+            findings.append(str(path.relative_to(REPO_ROOT)))
+
+    assert findings == []
 
 
 def test_advanced_compat_router_has_been_removed():

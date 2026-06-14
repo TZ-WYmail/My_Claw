@@ -9,7 +9,7 @@ import aiosqlite
 from config import DB_PATH as DEFAULT_DB_PATH
 from services.mail.accounts import ensure_default_folders, get_folder_row, get_mail_account_raw
 from services.mail.automation import auto_handle_incoming_mail as default_auto_handle_incoming_mail
-from services.mail.compat import get_runtime_asyncio, get_runtime_attr, get_runtime_db_path, get_runtime_imaplib
+from services.mail.runtime_env import get_runtime_asyncio, get_runtime_attr, get_runtime_db_path, get_runtime_imaplib
 from services.mail.messages import ingest_mail_message as default_ingest_mail_message
 from services.mail.parsing import parse_imap_message as default_parse_imap_message
 from services.mail.schema import DEFAULT_FOLDERS

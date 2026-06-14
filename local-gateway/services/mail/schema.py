@@ -3,7 +3,7 @@ from __future__ import annotations
 import aiosqlite
 
 from config import BASE_DIR, DB_PATH as DEFAULT_DB_PATH
-from services.mail.compat import get_runtime_db_path
+from services.mail.runtime_env import get_runtime_db_path
 
 DEFAULT_FOLDERS = {
     "inbox": "INBOX",

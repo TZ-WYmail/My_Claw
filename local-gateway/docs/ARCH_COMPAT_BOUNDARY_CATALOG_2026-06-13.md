@@ -114,7 +114,27 @@
 4. 在文档和新代码中明确 mail 主实现边界
 5. 避免继续往 `mail_service.py` 堆新逻辑
 
-### 3.4 `local_file_search` 工具别名
+### 3.4 `services/mail/compat.py`
+
+分类：`已退场`
+
+当前作用：
+
+- 已由 `services/mail/runtime_env.py` 替代
+- 旧的 runtime 反向桥接不再保留
+
+当前问题：
+
+- 通过 `services.mail_service` 反向找运行时对象会把内部实现重新绑回兼容 facade
+- 容易让 mail 子模块把测试注入和生产 runtime 混成一层
+
+建议动作：
+
+1. 不再恢复 `services/mail/compat.py`
+2. 统一改用 `services.mail.runtime_env`
+3. 保持 tests 通过 `services.mail_service` 注入 runtime 覆盖点
+
+### 3.5 `local_file_search` 工具别名
 
 分类：`可进入观察期`
 
@@ -136,7 +156,7 @@
 3. 用 architecture guard 禁止仓库内部主链重新回流到旧名字
 4. 观察是否还存在仓库外旧调用，再决定最终删除窗口
 
-### 3.5 `application/advanced_actions.py`
+### 3.6 `application/advanced_actions.py`
 
 分类：`可进入观察期`
 

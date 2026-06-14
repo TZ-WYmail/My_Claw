@@ -7,7 +7,7 @@ import aiosqlite
 
 from config import DB_PATH as DEFAULT_DB_PATH
 from services.mail.accounts import ensure_default_folders, get_folder_id, get_mail_account_raw
-from services.mail.compat import get_runtime_db_path
+from services.mail.runtime_env import get_runtime_db_path
 from services.mail.threads import create_thread, find_existing_thread_id, get_mail_thread, refresh_thread_state
 from services.mail.utils import json_dumps, normalize_message_id, now_iso
 
