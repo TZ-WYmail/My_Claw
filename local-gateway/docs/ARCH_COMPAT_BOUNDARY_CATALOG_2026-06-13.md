@@ -63,7 +63,7 @@
 
 - facade 面仍然偏宽
 - 容易被误当 task 领域主实现
-- 仍然保留较宽的历史转发表面
+- 仍然保留任务 CRUD / 查询 / dashboard 相关历史转发表面
 
 建议动作：
 
@@ -209,6 +209,7 @@
 
 以下兼容点已完成退场，不再属于当前主风险面：
 
+- `services/task_service.py` 中的 planning helper 历史导出
 - `services/mobile_service.py`
 - `task_query_service.get_task_detail()`
 - `services/unified_search_service.py` 中的全文索引 compat 函数

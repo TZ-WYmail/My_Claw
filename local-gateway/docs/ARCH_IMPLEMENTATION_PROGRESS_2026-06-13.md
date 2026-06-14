@@ -693,6 +693,24 @@ HTTP ai_planning router
 - split task modules 的运行时路径不再依赖 compat facade 参与同步
 - 后续如果继续瘦身 `task_service`，焦点会更直接落在“哪些转发函数还值得保留”
 
+### 1.40 `task_service` 中无内部使用的 planning helper 导出已退场
+
+已完成：
+
+- 删除 `services/task_service.py` 中这批历史 helper 导出：
+  - `_generate_daily_plan`
+  - `_normalize_time`
+  - `_date_to_weekday`
+  - `_calc_next_reminder`
+  - `_human_readable_time`
+  - `_translate_status`
+
+当前结果：
+
+- `task_service` 的 compat surface 进一步缩小
+- 这批 helper 的正式 owner 只剩 `services.task_planning_service`
+- 后续如果继续收缩 `task_service`，可更聚焦在仍保留的 CRUD / query / dashboard 转发面
+
 ## 2. 本轮新增文件
 
 - `application/task_actions.py`

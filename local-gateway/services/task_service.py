@@ -157,39 +157,6 @@ async def analyze_tasks(raw_tasks: list[dict]) -> dict:
     return await task_planning_service.analyze_tasks(raw_tasks)
 
 
-def _generate_daily_plan(analyzed: list[dict]) -> dict[str, dict]:
-    return task_planning_service.generate_daily_plan(analyzed)
-
-
-def _normalize_time(time_str: str) -> str:
-    return task_planning_service.normalize_time(time_str)
-
-
-def _date_to_weekday(date_str: str) -> str:
-    return task_planning_service.date_to_weekday(date_str)
-
-
-# ============================================================
-# 辅助函数
-# ============================================================
-
-def _calc_next_reminder(due_time: str, recurrence: str) -> str:
-    return task_planning_service.calc_next_reminder(due_time, recurrence)
-
-
-def _human_readable_time(iso_time: str) -> str:
-    return task_planning_service.human_readable_time(iso_time)
-
-
-def _translate_status(status: str) -> str:
-    status_map = {
-        "pending": "待执行",
-        "completed": "已完成",
-        "deleted": "已删除",
-    }
-    return status_map.get(status, status)
-
-
 # ============================================================
 # 全部任务查询（带筛选）
 # ============================================================
